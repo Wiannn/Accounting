@@ -856,8 +856,9 @@ $('#modal').addEventListener('click', async e => {
   if (t.id === 'btn-add-abs-date') {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
-    const d = $('#wage-abs-add-date').value;
-    if (!d) { toast('请选择缺勤日期'); return; }
+    const day = $('#wage-abs-add-day').value;
+    if (!day) { toast('请选择缺勤日'); return; }
+    const d = w.period + '-' + String(day).padStart(2, '0');
     w.absenceDates = (w.absenceDates || []).slice();
     if (w.absenceDates.indexOf(d) >= 0) { toast('该日期已存在'); return; }
     w.absenceDates.push(d);
@@ -883,7 +884,7 @@ $('#modal').addEventListener('click', async e => {
 });
 
 $('#modal').addEventListener('keydown', e => {
-  if (e.target.id === 'wage-abs-add-date' && e.key === 'Enter') {
+  if (e.target.id === 'wage-abs-add-day' && e.key === 'Enter') {
     e.preventDefault();
     const btn = $('#btn-add-abs-date');
     if (btn) btn.click();
@@ -1089,19 +1090,24 @@ function openWageModal(wid) {
   const w = S.wages.find(x => x.id === wid);
   if (!w) return;
   currentWageId = wid;
+  const [y, m] = w.period.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const dayOpts = '<option value="">选择日</option>'
+    + Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => '<option value="' + d + '">' + d + ' 日</option>').join('');
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
     + '<div class="kv"><span>缺勤天数</span><b id="wage-abs-count">' + absCount(w) + ' 天</b></div>'
-    + '<div class="kv" style="display:block"><span>缺勤日期</span>'
+    + '<div class="kv" style="display:block"><span>缺勤日期（' + esc(w.period) + '）</span>'
     + '<div id="wage-abs-dates" style="margin:6px 0">'
     + ((w.absenceDates && w.absenceDates.length)
         ? w.absenceDates.slice().sort().map(d => '<span class="chip" data-abs-rm="' + esc(d) + '">' + esc(d) + ' &times;</span>').join(' ')
-        : '<span class="muted" style="font-size:12px">未记录缺勤日期（点击下方添加）</span>')
+        : '<span class="muted" style="font-size:12px">未记录缺勤日期（选择日期后点击添加）</span>')
     + '</div>'
-    + '<div class="form-grid" style="margin-top:4px">'
-    + '<label>添加缺勤日期 <input type="date" id="wage-abs-add-date"></label>'
-    + '<label>&nbsp;<button class="primary" id="btn-add-abs-date" style="width:100%">添加</button></label>'
+    + '<div class="inline-flex" style="margin-top:4px;gap:8px">'
+    + '<span class="muted" style="padding:9px 0;white-space:nowrap">' + esc(w.period) + '-</span>'
+    + '<select id="wage-abs-add-day" style="flex:1">' + dayOpts + '</select>'
+    + '<button class="primary" id="btn-add-abs-date">添加</button>'
     + '</div></div>'
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
