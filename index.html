@@ -893,7 +893,7 @@ function renderWageGen() {
   $('#wage-gen-list').innerHTML = actives.length
     ? '<table class="mini-table" style="margin-bottom:12px"><thead><tr><th>员工</th><th>工资金额（元）</th></tr></thead><tbody>' + actives.map(e2 => {
         const exist = S.wages.find(w => w.employeeId === e2.id && w.period === period);
-        if (exist) return '<tr><td>' + esc(e2.name) + '</td><td class="muted">已生成 ' + fmt(exist.amount) + '</td></tr>';
+        if (exist) return '<tr><td>' + esc(e2.name) + '</td><td>' + fmt(exist.amount) + '</td></tr>';
         const last = S.wages.filter(w => w.employeeId === e2.id).sort((a, b) => b.period.localeCompare(a.period))[0];
         return '<tr><td>' + esc(e2.name) + '</td><td><input type="number" min="0.01" step="0.01" inputmode="decimal" data-wage-emp="' + e2.id + '" value="' + (last ? Number(last.amount) : '') + '"></td></tr>';
       }).join('') + '</tbody></table>'
@@ -917,6 +917,12 @@ function renderWageList() {
 $('#wage-period').addEventListener('change', renderWageGen);
 $('#wage-filter-month').addEventListener('change', renderWageList);
 $('#wage-filter-status').addEventListener('change', renderWageList);
+$('#wage-gen-list').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('input[data-wage-emp]')) {
+    e.preventDefault();
+    $('#btn-gen-wages').click();
+  }
+});
 
 $('#btn-add-emp').addEventListener('click', async () => {
   const name = $('#emp-name').value.trim();
