@@ -272,24 +272,28 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-wages" class="page">
       <div class="page-head"><h1>员工工资</h1></div>
       <div class="panel">
-        <div class="panel-title">员工管理</div>
-        <div class="form-grid">
-          <label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>
-          <label>职位 <select id="emp-role">
-            <option value="">请选择</option>
-            <option>叉车工</option>
-            <option>装卸工</option>
-            <option>司机</option>
-            <option>调度</option>
-            <option>操作</option>
-            <option>换单</option>
-          </select></label>
+        <div class="panel-title">员工管理 <span class="muted" id="emp-count-label"></span>
+          <button class="ghost small" id="btn-toggle-emp" style="margin-left:auto">展开</button>
         </div>
-        <button class="primary" id="btn-add-emp">添加员工</button>
-        <table id="emp-table" style="margin-top:12px">
-          <thead><tr><th>员工</th><th>职位</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <div id="emp-manage-body" class="hidden">
+          <div class="form-grid">
+            <label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>
+            <label>职位 <select id="emp-role">
+              <option value="">请选择</option>
+              <option>叉车工</option>
+              <option>装卸工</option>
+              <option>司机</option>
+              <option>调度</option>
+              <option>操作</option>
+              <option>换单</option>
+            </select></label>
+          </div>
+          <button class="primary" id="btn-add-emp">添加员工</button>
+          <table id="emp-table" style="margin-top:12px">
+            <thead><tr><th>员工</th><th>职位</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-title">生成月工资单 <span class="muted">选择员工并填写金额，逐个生成</span></div>
@@ -991,6 +995,9 @@ function renderWages() {
     + '<td><button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '设为离职' : '恢复在职') + '</button>'
     + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button></td></tr>'
   ).join('') || '<tr><td colspan="4" class="empty">暂无员工</td></tr>';
+  const empCount = S.employees.length;
+  const label = $('#emp-count-label');
+  if (label) label.textContent = '（共 ' + empCount + ' 人）';
   renderWageGen();
   renderWageList();
 }
@@ -1073,6 +1080,13 @@ $('#emp-table tbody').addEventListener('click', async e => {
     renderWages();
     toast('员工已删除');
   }
+});
+
+$('#btn-toggle-emp').addEventListener('click', () => {
+  const body = $('#emp-manage-body');
+  const btn = $('#btn-toggle-emp');
+  const hidden = body.classList.toggle('hidden');
+  btn.textContent = hidden ? '展开' : '收起';
 });
 
 $('#btn-gen-wages').addEventListener('click', async () => {
