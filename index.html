@@ -328,6 +328,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             <select id="wage-filter-status">
               <option value="">全部状态</option>
               <option value="pending" selected>待发</option>
+              <option value="partial">部分发放</option>
               <option value="paid">已发</option>
             </select>
           </span>
@@ -364,6 +365,15 @@ const fmt = n => '¥' + round2(n).toLocaleString('zh-CN', { minimumFractionDigit
 const fmtShort = n => '¥' + round2(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 const fmtInt = n => '¥' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
 const fmtWage = n => (Number(n) > 0) ? fmtInt(n) : '<span class="muted">未设定</span>';
+const wagePaid = w => (w.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+function wageStatus(w) {
+  const total = Number(w.amount) || 0;
+  const paid = wagePaid(w);
+  if (total <= 0) return paid > 0 ? 'partial' : 'pending';
+  if (paid <= 0) return 'pending';
+  if (paid >= total) return 'paid';
+  return 'partial';
+}
 const absCount = w => (w.absenceDates && w.absenceDates.length) || (w.absence || 0);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const daysBetween = (from, to) => Math.floor((new Date(to) - new Date(from)) / 86400000);
@@ -442,6 +452,25 @@ async function loadState() {
   S.customers = customers.sort((a, b) => a.createdAt - b.createdAt);
   S.incomes = incomes; S.expenses = expenses; S.bills = bills; S.payments = payments; S.invoices = invoices;
   S.employees = employees.sort((a, b) => a.createdAt - b.createdAt); S.wages = wages;
+  // 迁移：旧工资单若有 paidDate 但无 payments → 用已生成的支出记录反推一条 payment
+  let needSave = false;
+  for (const w of S.wages) {
+    if (w.paidDate && (!w.payments || w.payments.length === 0)) {
+      const ex = S.expenses.find(x => x.wageId === w.id);
+      w.payments = [{ id: uid(), amount: ex ? Number(ex.amount) : Number(w.amount) || 0, date: w.paidDate, note: '' }];
+      needSave = true;
+    } else if (!w.payments) {
+      w.payments = [];
+    }
+  }
+  if (needSave) {
+    for (const w of S.wages) {
+      if (w.payments && w.payments.length === 1 && !w.payments[0].__migrated) {
+        await dbPut('wages', w);
+        w.payments[0].__migrated = true;
+      }
+    }
+  }
   const m = {};
   meta.forEach(r => { m[r.id] = r.value; });
   S.settings = Object.assign({}, DEFAULTS, m);
@@ -546,11 +575,13 @@ function renderDashboard() {
         + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td></tr>';
     }).join('') || '<tr><td colspan="5" class="empty">没有待开票的账单</td></tr>';
 
-  const pendingWages = S.wages.filter(w => !w.paidDate).sort((a, b) => a.period.localeCompare(b.period));
-  $('#unpaid-wage-table tbody').innerHTML = pendingWages.map(w =>
-    '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtWage(w.amount) + '</td>'
-    + '<td><span class="badge badge-gray">待发</span></td></tr>'
-  ).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
+  const pendingWages = S.wages.filter(w => wageStatus(w) !== 'paid').sort((a, b) => a.period.localeCompare(b.period));
+  $('#unpaid-wage-table tbody').innerHTML = pendingWages.map(w => {
+    const st = wageStatus(w);
+    const stText = st === 'partial' ? '部分发放' : '待发';
+    const stBadge = st === 'partial' ? '<span class="badge badge-info">部分发放</span>' : '<span class="badge badge-gray">待发</span>';
+    return '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtWage(w.amount) + '</td><td>' + stBadge + '</td></tr>';
+  }).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
 }
 $('#dash-month').addEventListener('change', renderDashboard);
 
@@ -838,27 +869,50 @@ $('#modal').addEventListener('click', async e => {
     toast(val > 0 ? '工资金额已更新' : '工资金额已清空');
     return;
   }
-  if (t.id === 'btn-wage-paid') {
+  if (t.id === 'btn-wage-pay-add') {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
-    if (!w.amount || w.amount <= 0) { toast('请先填写工资金额再标记已发'); return; }
+    const total = Number(w.amount) || 0;
+    if (total <= 0) { toast('请先填写工资金额'); return; }
+    const paidBefore = wagePaid(w);
+    const remain = Math.max(0, total - paidBefore);
+    let amt = Math.round(Number($('#wage-pay-amount').value) || 0);
+    if (!amt || amt <= 0) amt = remain; // 留空=全部剩余
     const date = $('#wage-pay-date').value;
+    const note = $('#wage-pay-note').value.trim();
     if (!date) { toast('请选择发放日期'); return; }
-    w.paidDate = date;
+    if (amt > remain) { if (!confirm('本次发放金额（' + fmtInt(amt) + '）超过剩余待发（' + fmtInt(remain) + '），确定吗？')) return; }
+    w.payments = w.payments || [];
+    const pid = uid();
+    w.payments.push({ id: pid, amount: amt, date: date, note: note });
+    w.paidDate = date; // latest payment date, kept for backward-compat display
     await dbPut('wages', w);
-    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '员工工资', amount: Number(w.amount), note: empName(w.employeeId) + ' ' + w.period + ' 工资', wageId: w.id, createdAt: Date.now() });
+    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '员工工资', amount: amt, note: empName(w.employeeId) + ' ' + w.period + ' 工资发放' + (note ? '（' + note + '）' : ''), wageId: w.id, paymentId: pid, createdAt: Date.now() });
     await loadState();
     openWageModal(currentWageId);
     renderWages();
-    toast('已标记已发，并生成工资支出');
+    const stAfter = wageStatus(w);
+    toast(stAfter === 'paid' ? '已全额发放' : '登记发放成功（累计 ' + fmtInt(wagePaid(w)) + '）');
     return;
   }
-  if (t.id === 'btn-wage-revoke') {
+  if (t.dataset.delWagePay) {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
-    if (!confirm('撤销已发状态？对应的工资支出记录将一并删除。')) return;
-    for (const ex of S.expenses.filter(x => x.wageId === w.id)) await dbDel('expenses', ex.id);
-    w.paidDate = null;
+    const pid = t.dataset.delWagePay;
+    const pay = (w.payments || []).find(p => p.id === pid);
+    if (!pay) return;
+    if (!confirm('删除这条发放记录？对应的工资支出也将一并删除。')) return;
+    // 删对应支出
+    const exToDel = S.expenses.filter(x => x.wageId === w.id && (x.paymentId === pid || (x.amount == pay.amount && !x.paymentId)));
+    for (const ex of exToDel) await dbDel('expenses', ex.id);
+    w.payments = (w.payments || []).filter(p => p.id !== pid);
+    // 自动维护 paidDate（最后一条发放日期，无则清空）
+    if (w.payments.length) {
+      w.payments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      w.paidDate = w.payments[0].date;
+    } else {
+      w.paidDate = null;
+    }
     await dbPut('wages', w);
     await loadState();
     openWageModal(currentWageId);
@@ -868,7 +922,8 @@ $('#modal').addEventListener('click', async e => {
   if (t.id === 'btn-wage-del') {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
-    if (!confirm('删除这张工资单？' + (w.paidDate ? '对应的工资支出记录将一并删除。' : ''))) return;
+    const hasPay = (w.payments || []).length > 0;
+    if (!confirm('删除这张工资单？' + (hasPay ? '所有发放记录及对应的工资支出将一并删除。' : ''))) return;
     for (const ex of S.expenses.filter(x => x.wageId === w.id)) await dbDel('expenses', ex.id);
     await dbDel('wages', w.id);
     await loadState();
@@ -892,6 +947,14 @@ $('#modal').addEventListener('click', async e => {
     openWageModal(currentWageId);
     renderWages();
     return;
+  }
+});
+
+$('#modal').addEventListener('keydown', e => {
+  if ((e.target.id === 'wage-pay-amount' || e.target.id === 'wage-pay-date' || e.target.id === 'wage-pay-note') && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = $('#btn-wage-pay-add');
+    if (btn && !btn.disabled) btn.click();
   }
 });
 
@@ -1016,17 +1079,21 @@ function renderWageList() {
   const m = $('#wage-filter-month').value;
   const st = $('#wage-filter-status').value;
   const n = ($('#wage-filter-name').value || '').trim();
+  const stLabel = s => s === 'paid' ? '<span class="badge badge-ok">已发</span>' : s === 'partial' ? '<span class="badge badge-info">部分发放</span>' : '<span class="badge badge-gray">待发</span>';
   let list = S.wages.slice().sort((a, b) => b.period.localeCompare(a.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'));
   if (m) list = list.filter(w => w.period === m);
-  if (st === 'pending') list = list.filter(w => !w.paidDate);
-  if (st === 'paid') list = list.filter(w => w.paidDate);
+  if (st === 'pending') list = list.filter(w => wageStatus(w) === 'pending');
+  if (st === 'partial') list = list.filter(w => wageStatus(w) === 'partial');
+  if (st === 'paid') list = list.filter(w => wageStatus(w) === 'paid');
   if (n) list = list.filter(w => empName(w.employeeId).indexOf(n) >= 0);
-  $('#wage-table tbody').innerHTML = list.map(w =>
-    '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
-    + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) === 0 ? '全勤' : absCount(w) + ' 天') + '</td>'
-    + '<td>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</td>'
-    + '<td>' + (w.paidDate || '—') + '</td></tr>'
-  ).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
+  $('#wage-table tbody').innerHTML = list.map(w => {
+    const paid = wagePaid(w);
+    const paidCol = wageStatus(w) === 'pending' ? '—' : fmtInt(paid);
+    return '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
+      + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) === 0 ? '全勤' : absCount(w) + ' 天') + '</td>'
+      + '<td>' + stLabel(wageStatus(w)) + '</td>'
+      + '<td>' + paidCol + '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
 }
 
 $('#wage-period').addEventListener('change', renderWageGen);
@@ -1106,7 +1173,7 @@ $('#btn-gen-wages').addEventListener('click', async () => {
   const amount = Math.round(Number($('#wage-amount').value) || 0);
   const absence = Math.max(0, Math.round(Number($('#wage-absence').value) || 0));
   if (S.wages.some(w => w.employeeId === empId && w.period === period)) { toast('该员工本月工资已生成'); return; }
-  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, absenceDates: [], paidDate: null, createdAt: Date.now() });
+  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, absenceDates: [], paidDate: null, payments: [], createdAt: Date.now() });
   await loadState();
   renderWages();
   $('#wage-amount').value = '';
@@ -1137,20 +1204,43 @@ function openWageModal(wid) {
   }
   const pad = (7 - ((firstWeekday + daysInMonth) % 7)) % 7;
   for (let i = 0; i < pad; i++) calCells += '<div class="cal-day empty"></div>';
+  const total = Number(w.amount) || 0;
+  const paid = wagePaid(w);
+  const remain = Math.max(0, total - paid);
+  const st = wageStatus(w);
+  const stBadge = st === 'paid' ? '<span class="badge badge-ok">已发</span>' : st === 'partial' ? '<span class="badge badge-info">部分发放</span>' : '<span class="badge badge-gray">待发</span>';
+  // 发放记录列表
+  const payments = (w.payments || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const payListHtml = payments.length
+    ? payments.map(p => '<tr><td>' + esc(p.date) + '</td><td>' + fmtInt(p.amount) + '</td><td>' + esc(p.note || '—') + '</td><td><button class="link-btn danger" data-del-wage-pay="' + p.id + '">删除</button></td></tr>').join('')
+    : '<tr><td colspan="4" class="empty">暂无发放记录</td></tr>';
+  const addBtnDisabled = (remain <= 0 && total > 0) ? ' disabled' : '';
+  const addBtnText = st === 'paid' ? '工资已全额发放' : (remain > 0 ? '登记发放' : '登记发放');
+  const remainderHint = st === 'paid'
+    ? '<div class="kv"><span>已全额发放</span><b>' + fmtInt(paid) + '</b></div>'
+    : '<div class="kv"><span>已发放</span><b>' + fmtInt(paid) + '</b></div>'
+      + (total > 0 ? '<div class="kv"><span>剩余待发</span><b>' + fmtInt(remain) + '</b></div>' : '');
+  const addPayHtml = (total <= 0)
+    ? '<p class="muted" style="font-size:12px">先补全工资金额后再登记发放。</p>'
+    : '<div class="form-grid" style="margin-top:10px">'
+      + '<label>发放金额 <input type="number" id="wage-pay-amount" min="0" step="1" inputmode="numeric" value="' + (remain > 0 ? remain : '') + '" placeholder="留空等于剩余待发"></label>'
+      + '<label>发放日期 <input type="date" id="wage-pay-date" value="' + todayStr() + '"></label>'
+      + '<label class="span2">备注（如：预支、现金、微信）<input type="text" id="wage-pay-note" placeholder="可留空"></label>'
+      + '</div>'
+      + '<button class="primary" id="btn-wage-pay-add"' + addBtnDisabled + '>' + addBtnText + '</button>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>工资金额</span><input type="number" id="wage-amount-edit" value="' + w.amount + '" min="0" step="1" style="width:120px"> <button class="ghost small" id="btn-wage-amount-save">保存</button></div>'
+    + '<div class="kv"><span>状态</span><b>' + stBadge + '</b></div>'
+    + remainderHint
     + '<div class="kv"><span>缺勤天数</span><b>' + absSet.size + ' 天</b></div>'
     + '<div class="kv" style="display:block"><span>缺勤日期（点击日期切换，红色为缺勤）</span>'
     + '<div class="cal-grid" id="wage-abs-cal">' + calCells + '</div></div>'
-    + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
-    + (w.paidDate
-      ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
-        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发时已自动生成「员工工资」支出，撤销已发会同步删除该支出。</p>'
-        + '<button class="ghost" id="btn-wage-revoke">撤销已发</button> <button class="ghost" id="btn-wage-del">删除工资单</button>'
-      : '<div class="form-grid" style="margin-top:10px"><label>发放日期 <input type="date" id="wage-pay-date" value="' + todayStr() + '"></label></div>'
-        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发后，将自动生成一笔「员工工资」分类的支出记录。</p>'
-        + '<button class="primary" id="btn-wage-paid">标记已发</button> <button class="ghost" id="btn-wage-del">删除工资单</button>');
+    + '<div style="border-top:1px solid var(--border);margin:12px 0"></div>'
+    + '<div class="sub-title">发放记录</div>'
+    + '<table style="width:100%;margin:6px 0"><thead><tr><th style="text-align:left">日期</th><th style="text-align:left">金额</th><th style="text-align:left">备注</th><th></th></tr></thead><tbody>' + payListHtml + '</tbody></table>'
+    + addPayHtml
+    + '<div style="margin-top:10px"><button class="ghost" id="btn-wage-del">删除工资单</button></div>';
   $('#modal-mask').classList.remove('hidden');
 }
 
@@ -1209,12 +1299,15 @@ $('#btn-export-xlsx').addEventListener('click', () => {
   XLSX.utils.book_append_sheet(wb, ws4, '发票台账');
 
   // 工作表5：工资表
-  const r5 = [['月份', '员工', '金额(元)', '缺勤(天)', '状态', '发放日期']];
+  const r5 = [['月份', '员工', '金额(元)', '已发放(元)', '剩余(元)', '缺勤(天)', '状态']];
   S.wages.filter(w => all || !m || w.period === m)
     .sort((a, b) => a.period.localeCompare(b.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'))
-    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), absCount(w), w.paidDate ? '已发' : '待发', w.paidDate || '']));
+    .forEach(w => {
+      const st = wageStatus(w);
+      r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), Math.round(wagePaid(w)), Math.max(0, Math.round(Number(w.amount) || 0) - Math.round(wagePaid(w))), absCount(w), st === 'paid' ? '已发' : st === 'partial' ? '部分发放' : '待发']);
+    });
   const ws5 = XLSX.utils.aoa_to_sheet(r5);
-  ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 12 }];
+  ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
   XLSX.utils.book_append_sheet(wb, ws5, '工资表');
 
   XLSX.writeFile(wb, '账本报表_' + label + '.xlsx');
