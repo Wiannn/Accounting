@@ -86,6 +86,14 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .seg-btn{border:none;background:none;padding:8px 22px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted)}
 .seg-btn.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .filters{display:flex;gap:8px}
+.filters select, .filters input[type=month], .filters input[type=text]{
+  padding:7px 10px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:#fff;
+  color:var(--fg);
+  font-size:14px;
+}
 .hidden{display:none !important}
 .check{flex-direction:row !important;align-items:center;gap:8px}
 #modal-mask{position:fixed;inset:0;background:rgba(20,22,40,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
@@ -123,7 +131,16 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   .seg{width:100%}
   .seg-btn{flex:1;padding:10px 8px}
   .filters{width:100%}
-  .filters select{flex:1;min-width:0}
+  .filters select, .filters input[type=month], .filters input[type=text]{
+    flex:1;min-width:0;
+    padding:7px 10px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    color:var(--fg);
+    font-size:14px;
+    -webkit-appearance:none;
+  }
   .link-btn{padding:6px 8px}
   #modal-mask{padding:0;align-items:flex-end}
   #modal{max-width:none;border-radius:16px 16px 0 0;max-height:92vh;overflow:auto}
@@ -197,7 +214,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="panel-title">备份与恢复</div>
         <p class="muted" style="margin-bottom:12px">账本数据保存在本浏览器中。清理浏览器数据前请先导出备份；建议每周备份一次，备份文件可存U盘或发送到微信文件助手。</p>
         <button class="primary" id="btn-backup">导出备份</button>
-        <button class="ghost" id="btn-restore" style="margin-left:8px">导入备份</button>
+        <button class="primary" id="btn-restore" style="margin-left:8px">导入备份</button>
         <input type="file" id="restore-file" accept=".json,application/json" class="hidden">
       </div>
       <div class="panel">
