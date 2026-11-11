@@ -64,6 +64,8 @@ button{font-family:inherit}
 .ghost.danger{color:var(--danger)}
 .link-btn{background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;padding:2px 4px}
 .link-btn.danger{color:var(--danger)}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#fdecef;color:#c0392b;padding:4px 8px;border-radius:12px;font-size:12px;margin:2px 4px 2px 0;cursor:pointer;user-select:none}
+.chip:hover{background:#fbd9d6}
 .mini-btn{background:var(--gray-bg);border:none;border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
 input,select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
 input:focus,select:focus{outline:2px solid #EAEEFC;border-color:var(--primary)}
@@ -362,6 +364,7 @@ const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const fmt = n => '¥' + round2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = n => '¥' + round2(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 const fmtInt = n => '¥' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
+const absCount = w => (w.absenceDates && w.absenceDates.length) || (w.absence || 0);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const daysBetween = (from, to) => Math.floor((new Date(to) - new Date(from)) / 86400000);
 const stBadge = k => k === 'settled' ? 'ok' : k === 'partial' ? 'info' : 'warn';
@@ -850,6 +853,42 @@ $('#modal').addEventListener('click', async e => {
     renderWages();
     toast('工资单已删除');
   }
+
+  if (t.id === 'btn-add-abs-date') {
+    const w = S.wages.find(x => x.id === currentWageId);
+    if (!w) return;
+    const d = $('#wage-abs-add-date').value;
+    if (!d) { toast('请选择缺勤日期'); return; }
+    w.absenceDates = (w.absenceDates || []).slice();
+    if (w.absenceDates.indexOf(d) >= 0) { toast('该日期已存在'); return; }
+    w.absenceDates.push(d);
+    w.absence = w.absenceDates.length;
+    await dbPut('wages', w);
+    await loadState();
+    openWageModal(currentWageId);
+    renderWages();
+    return;
+  }
+  if (t.dataset.absRm) {
+    const w = S.wages.find(x => x.id === currentWageId);
+    if (!w) return;
+    const d = t.dataset.absRm;
+    w.absenceDates = (w.absenceDates || []).filter(x => x !== d);
+    w.absence = w.absenceDates.length;
+    await dbPut('wages', w);
+    await loadState();
+    openWageModal(currentWageId);
+    renderWages();
+    return;
+  }
+});
+
+$('#modal').addEventListener('keydown', e => {
+  if (e.target.id === 'wage-abs-add-date' && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = $('#btn-add-abs-date');
+    if (btn) btn.click();
+  }
 });
 
 /* ---------- 客户 ---------- */
@@ -969,7 +1008,7 @@ function renderWageList() {
   if (st === 'paid') list = list.filter(w => w.paidDate);
   $('#wage-table tbody').innerHTML = list.map(w =>
     '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
-    + '<td data-abs="' + w.id + '" title="双击修改缺勤">' + (w.absence ? w.absence + ' 天' : '—') + '</td>'
+    + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) ? absCount(w) + ' 天' : '—') + '</td>'
     + '<td>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</td>'
     + '<td>' + (w.paidDate || '—') + '</td></tr>'
   ).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
@@ -1055,36 +1094,8 @@ $('#btn-gen-wages').addEventListener('click', async () => {
 });
 
 $('#wage-table tbody').addEventListener('click', e => {
-  if (e.target.closest('td[data-abs]')) return;
   const tr = e.target.closest('tr[data-wage]');
   if (tr) openWageModal(tr.dataset.wage);
-});
-
-$('#wage-table tbody').addEventListener('dblclick', e => {
-  const td = e.target.closest('td[data-abs]');
-  if (!td || td.querySelector('input')) return;
-  const w = S.wages.find(x => x.id === td.dataset.abs);
-  if (!w) return;
-  td.innerHTML = '<input type="number" min="0" step="1" inputmode="numeric" value="' + (w.absence || '') + '" style="width:76px;padding:4px 6px">';
-  const inp = td.querySelector('input');
-  inp.focus();
-  inp.select();
-  let done = false;
-  const commit = async save => {
-    if (done) return;
-    done = true;
-    if (!save) { renderWageList(); return; }
-    w.absence = Math.max(0, Math.round(Number(inp.value) || 0));
-    await dbPut('wages', w);
-    await loadState();
-    renderWageList();
-    toast('缺勤已更新');
-  };
-  inp.addEventListener('blur', () => commit(true));
-  inp.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter') { ev.preventDefault(); commit(true); }
-    else if (ev.key === 'Escape') { ev.preventDefault(); commit(false); }
-  });
 });
 
 let currentWageId = null;
@@ -1095,7 +1106,17 @@ function openWageModal(wid) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
-    + '<div class="kv"><span>缺勤</span><b>' + (w.absence ? w.absence + ' 天' : '—') + '</b></div>'
+    + '<div class="kv"><span>缺勤天数</span><b id="wage-abs-count">' + absCount(w) + ' 天</b></div>'
+    + '<div class="kv" style="display:block"><span>缺勤日期</span>'
+    + '<div id="wage-abs-dates" style="margin:6px 0">'
+    + ((w.absenceDates && w.absenceDates.length)
+        ? w.absenceDates.slice().sort().map(d => '<span class="chip" data-abs-rm="' + esc(d) + '">' + esc(d) + ' &times;</span>').join(' ')
+        : '<span class="muted" style="font-size:12px">未记录缺勤日期（点击下方添加）</span>')
+    + '</div>'
+    + '<div class="form-grid" style="margin-top:4px">'
+    + '<label>添加缺勤日期 <input type="date" id="wage-abs-add-date"></label>'
+    + '<label>&nbsp;<button class="primary" id="btn-add-abs-date" style="width:100%">添加</button></label>'
+    + '</div></div>'
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
       ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
@@ -1165,7 +1186,7 @@ $('#btn-export-xlsx').addEventListener('click', () => {
   const r5 = [['月份', '员工', '金额(元)', '缺勤(天)', '状态', '发放日期']];
   S.wages.filter(w => all || !m || w.period === m)
     .sort((a, b) => a.period.localeCompare(b.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'))
-    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), Number(w.absence) || 0, w.paidDate ? '已发' : '待发', w.paidDate || '']));
+    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), absCount(w), w.paidDate ? '已发' : '待发', w.paidDate || '']));
   const ws5 = XLSX.utils.aoa_to_sheet(r5);
   ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, ws5, '工资表');
