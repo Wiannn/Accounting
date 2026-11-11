@@ -86,6 +86,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .seg-btn{border:none;background:none;padding:8px 22px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted)}
 .seg-btn.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .filters{display:flex;gap:8px}
+.backup-btns{display:flex;gap:8px}
+.backup-btns .primary{flex:1}
 .filters select, .filters input[type=month], .filters input[type=text]{
   padding:7px 10px;
   border:1px solid var(--border);
@@ -169,6 +171,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   .panel{padding:14px;overflow-x:auto}
   th,td{white-space:nowrap}
   .panel>.primary{width:100%;padding:13px}
+  .backup-btns{flex-direction:column;gap:10px}
+  .backup-btns .primary{width:100%}
   .seg{width:100%}
   .seg-btn{flex:1;padding:10px 8px}
   .filters{width:100%}
@@ -254,8 +258,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="panel">
         <div class="panel-title">备份与恢复</div>
         <p class="muted" style="margin-bottom:12px">账本数据保存在本浏览器中。清理浏览器数据前请先导出备份；建议每周备份一次，备份文件可存U盘或发送到微信文件助手。</p>
-        <button class="primary" id="btn-backup">导出备份</button>
-        <button class="primary" id="btn-restore" style="margin-left:8px">导入备份</button>
+        <div class="backup-btns">
+          <button class="primary" id="btn-backup">导出备份</button>
+          <button class="primary" id="btn-restore">导入备份</button>
+        </div>
         <input type="file" id="restore-file" accept=".json,application/json" class="hidden">
       </div>
       <div class="panel">
