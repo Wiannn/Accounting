@@ -306,7 +306,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="form-grid">
           <label>工资月份 <input type="month" id="wage-period"></label>
           <label>员工 <select id="wage-emp-select"></select></label>
-          <label>工资金额（元） <input type="number" min="1" step="1" inputmode="numeric" id="wage-amount" placeholder="填写后按回车生成"></label>
+          <label>工资金额（元，可留空后补） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>
           <label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>
         </div>
         <button class="primary" id="btn-gen-wages">生成工资单</button>
@@ -353,6 +353,7 @@ const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const fmt = n => '¥' + round2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = n => '¥' + round2(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 const fmtInt = n => '¥' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
+const fmtWage = n => (Number(n) > 0) ? fmtInt(n) : '<span class="muted">未设定</span>';
 const absCount = w => (w.absenceDates && w.absenceDates.length) || (w.absence || 0);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const daysBetween = (from, to) => Math.floor((new Date(to) - new Date(from)) / 86400000);
@@ -537,7 +538,7 @@ function renderDashboard() {
 
   const pendingWages = S.wages.filter(w => !w.paidDate).sort((a, b) => a.period.localeCompare(b.period));
   $('#unpaid-wage-table tbody').innerHTML = pendingWages.map(w =>
-    '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
+    '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtWage(w.amount) + '</td>'
     + '<td><span class="badge badge-gray">待发</span></td></tr>'
   ).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
 }
@@ -805,9 +806,22 @@ $('#modal').addEventListener('click', async e => {
     toast('账单已删除');
   }
 
+  if (t.id === 'btn-wage-amount-save') {
+    const w = S.wages.find(x => x.id === currentWageId);
+    if (!w) return;
+    const val = Math.max(0, Math.round(Number($('#wage-amount-edit').value) || 0));
+    w.amount = val;
+    await dbPut('wages', w);
+    await loadState();
+    openWageModal(currentWageId);
+    renderWages();
+    toast(val > 0 ? '工资金额已更新' : '工资金额已清空');
+    return;
+  }
   if (t.id === 'btn-wage-paid') {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
+    if (!w.amount || w.amount <= 0) { toast('请先填写工资金额再标记已发'); return; }
     const date = $('#wage-pay-date').value;
     if (!date) { toast('请选择发放日期'); return; }
     w.paidDate = date;
@@ -1058,9 +1072,8 @@ $('#btn-gen-wages').addEventListener('click', async () => {
   if (!empId) { toast('请选择员工'); return; }
   const amount = Math.round(Number($('#wage-amount').value) || 0);
   const absence = Math.max(0, Math.round(Number($('#wage-absence').value) || 0));
-  if (amount <= 0) { toast('请填写工资金额'); return; }
   if (S.wages.some(w => w.employeeId === empId && w.period === period)) { toast('该员工本月工资已生成'); return; }
-  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, paidDate: null, createdAt: Date.now() });
+  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, absenceDates: [], paidDate: null, createdAt: Date.now() });
   await loadState();
   renderWages();
   $('#wage-amount').value = '';
@@ -1093,7 +1106,7 @@ function openWageModal(wid) {
   for (let i = 0; i < pad; i++) calCells += '<div class="cal-day empty"></div>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
+    + '<div class="kv"><span>工资金额</span><input type="number" id="wage-amount-edit" value="' + w.amount + '" min="0" step="1" style="width:120px"> <button class="ghost small" id="btn-wage-amount-save">保存</button></div>'
     + '<div class="kv"><span>缺勤天数</span><b>' + absSet.size + ' 天</b></div>'
     + '<div class="kv" style="display:block"><span>缺勤日期（点击日期切换，红色为缺勤）</span>'
     + '<div class="cal-grid" id="wage-abs-cal">' + calCells + '</div></div>'
