@@ -280,6 +280,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             <option>叉车工</option>
             <option>装卸工</option>
             <option>司机</option>
+            <option>调度</option>
+            <option>操作</option>
+            <option>换单</option>
           </select></label>
         </div>
         <button class="primary" id="btn-add-emp">添加员工</button>
@@ -434,7 +437,7 @@ const DEFAULTS = {
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
-const ROLE_ORDER = ['叉车工', '装卸工', '司机'];
+const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
 let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
