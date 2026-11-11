@@ -703,6 +703,7 @@ $('#btn-save-bill').addEventListener('click', async () => {
   await loadState();
   $('#bill-amount').value = '';
   renderBills();
+  renderCustomers();
   toast('账单已添加');
 });
 
@@ -778,6 +779,7 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
+    renderCustomers();
     toast('收款已登记');
     return;
   }
@@ -787,6 +789,7 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
+    renderCustomers();
     return;
   }
   if (t.id === 'btn-add-inv') {
@@ -797,6 +800,7 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
+    renderCustomers();
     toast('开票已登记');
     return;
   }
@@ -806,6 +810,7 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
+    renderCustomers();
     return;
   }
   if (t.id === 'btn-del-bill') {
@@ -817,6 +822,7 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     closeModal();
     renderBills();
+    renderCustomers();
     toast('账单已删除');
   }
 
