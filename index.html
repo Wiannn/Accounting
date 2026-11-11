@@ -1013,7 +1013,7 @@ function renderWageList() {
   if (n) list = list.filter(w => empName(w.employeeId).indexOf(n) >= 0);
   $('#wage-table tbody').innerHTML = list.map(w =>
     '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
-    + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) ? absCount(w) + ' 天' : '—') + '</td>'
+    + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) === 0 ? '全勤' : absCount(w) + ' 天') + '</td>'
     + '<td>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</td>'
     + '<td>' + (w.paidDate || '—') + '</td></tr>'
   ).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
