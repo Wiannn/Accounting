@@ -66,6 +66,12 @@ button{font-family:inherit}
 .link-btn.danger{color:var(--danger)}
 .chip{display:inline-flex;align-items:center;gap:4px;background:#fdecef;color:#c0392b;padding:4px 8px;border-radius:12px;font-size:12px;margin:2px 4px 2px 0;cursor:pointer;user-select:none}
 .chip:hover{background:#fbd9d6}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
+.cal-head{text-align:center;font-size:12px;color:var(--muted);padding:4px 0}
+.cal-day{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 0;font-size:14px;cursor:pointer;color:var(--text);transition:.15s}
+.cal-day:hover:not(.empty){border-color:var(--primary);color:var(--primary)}
+.cal-day.selected{background:#e74c3c;color:#fff;border-color:#e74c3c}
+.cal-day.empty{background:transparent;border:none;cursor:default}
 .mini-btn{background:var(--gray-bg);border:none;border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
 input,select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
 input:focus,select:focus{outline:2px solid #EAEEFC;border-color:var(--primary)}
@@ -861,41 +867,21 @@ $('#modal').addEventListener('click', async e => {
     toast('工资单已删除');
   }
 
-  if (t.id === 'btn-add-abs-date') {
+  if (t.classList.contains('cal-day') && t.dataset.absDay) {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
-    const day = $('#wage-abs-add-day').value;
-    if (!day) { toast('请选择缺勤日'); return; }
+    const day = Number(t.dataset.absDay);
     const d = w.period + '-' + String(day).padStart(2, '0');
-    w.absenceDates = (w.absenceDates || []).slice();
-    if (w.absenceDates.indexOf(d) >= 0) { toast('该日期已存在'); return; }
-    w.absenceDates.push(d);
-    w.absence = w.absenceDates.length;
+    const dates = (w.absenceDates || []).slice();
+    const idx = dates.indexOf(d);
+    if (idx >= 0) dates.splice(idx, 1); else dates.push(d);
+    w.absenceDates = dates;
+    w.absence = dates.length;
     await dbPut('wages', w);
     await loadState();
     openWageModal(currentWageId);
     renderWages();
     return;
-  }
-  if (t.dataset.absRm) {
-    const w = S.wages.find(x => x.id === currentWageId);
-    if (!w) return;
-    const d = t.dataset.absRm;
-    w.absenceDates = (w.absenceDates || []).filter(x => x !== d);
-    w.absence = w.absenceDates.length;
-    await dbPut('wages', w);
-    await loadState();
-    openWageModal(currentWageId);
-    renderWages();
-    return;
-  }
-});
-
-$('#modal').addEventListener('keydown', e => {
-  if (e.target.id === 'wage-abs-add-day' && e.key === 'Enter') {
-    e.preventDefault();
-    const btn = $('#btn-add-abs-date');
-    if (btn) btn.click();
   }
 });
 
@@ -1117,24 +1103,24 @@ function openWageModal(wid) {
   if (!w) return;
   currentWageId = wid;
   const [y, m] = w.period.split('-').map(Number);
+  const firstWeekday = new Date(y, m - 1, 1).getDay();
   const daysInMonth = new Date(y, m, 0).getDate();
-  const dayOpts = '<option value="">选择日</option>'
-    + Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => '<option value="' + d + '">' + d + ' 日</option>').join('');
+  const absSet = new Set(w.absenceDates || []);
+  const weekNames = ['日', '一', '二', '三', '四', '五', '六'];
+  let calCells = weekNames.map(n => '<div class="cal-head">' + n + '</div>').join('');
+  for (let i = 0; i < firstWeekday; i++) calCells += '<div class="cal-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = w.period + '-' + String(d).padStart(2, '0');
+    calCells += '<button class="cal-day' + (absSet.has(dateStr) ? ' selected' : '') + '" data-abs-day="' + d + '">' + d + '</button>';
+  }
+  const pad = (7 - ((firstWeekday + daysInMonth) % 7)) % 7;
+  for (let i = 0; i < pad; i++) calCells += '<div class="cal-day empty"></div>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
-    + '<div class="kv"><span>缺勤天数</span><b id="wage-abs-count">' + absCount(w) + ' 天</b></div>'
-    + '<div class="kv" style="display:block"><span>缺勤日期（' + esc(w.period) + '）</span>'
-    + '<div id="wage-abs-dates" style="margin:6px 0">'
-    + ((w.absenceDates && w.absenceDates.length)
-        ? w.absenceDates.slice().sort().map(d => '<span class="chip" data-abs-rm="' + esc(d) + '">' + esc(d) + ' &times;</span>').join(' ')
-        : '<span class="muted" style="font-size:12px">未记录缺勤日期（选择日期后点击添加）</span>')
-    + '</div>'
-    + '<div class="inline-flex" style="margin-top:4px;gap:8px">'
-    + '<span class="muted" style="padding:9px 0;white-space:nowrap">' + esc(w.period) + '-</span>'
-    + '<select id="wage-abs-add-day" style="flex:1">' + dayOpts + '</select>'
-    + '<button class="primary" id="btn-add-abs-date">添加</button>'
-    + '</div></div>'
+    + '<div class="kv"><span>缺勤天数</span><b>' + absSet.size + ' 天</b></div>'
+    + '<div class="kv" style="display:block"><span>缺勤日期（点击日期切换，红色为缺勤）</span>'
+    + '<div class="cal-grid" id="wage-abs-cal">' + calCells + '</div></div>'
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
       ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
