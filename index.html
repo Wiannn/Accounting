@@ -434,6 +434,7 @@ const DEFAULTS = {
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
+const ROLE_ORDER = ['叉车工', '装卸工', '司机'];
 let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
@@ -972,7 +973,15 @@ function openCustModal(cid) {
 
 /* ---------- 员工工资 ---------- */
 function renderWages() {
-  $('#emp-table tbody').innerHTML = S.employees.map(e2 =>
+  const sortedEmps = S.employees.slice().sort((a, b) => {
+    const ai = ROLE_ORDER.indexOf(a.role);
+    const bi = ROLE_ORDER.indexOf(b.role);
+    const ar = ai < 0 ? ROLE_ORDER.length : ai;
+    const br = bi < 0 ? ROLE_ORDER.length : bi;
+    if (ar !== br) return ar - br;
+    return (a.name || '').localeCompare(b.name || '', 'zh-CN');
+  });
+  $('#emp-table tbody').innerHTML = sortedEmps.map(e2 =>
     '<tr><td class="strong">' + esc(e2.name) + '</td>'
     + '<td>' + (e2.role ? esc(e2.role) : '—') + '</td>'
     + '<td>' + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>') + '</td>'
