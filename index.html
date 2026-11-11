@@ -935,6 +935,10 @@ $('#btn-add-emp').addEventListener('click', async () => {
   toast('员工已添加');
 });
 
+$('#emp-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
+});
+
 $('#emp-table tbody').addEventListener('click', async e => {
   const t = e.target;
   if (t.dataset.toggleEmp) {
