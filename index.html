@@ -706,6 +706,10 @@ $('#btn-save-bill').addEventListener('click', async () => {
   toast('账单已添加');
 });
 
+$('#bill-amount').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-bill').click(); }
+});
+
 $('#bills-table tbody').addEventListener('click', e => {
   const tr = e.target.closest('tr[data-bill]');
   if (tr) openBillModal(tr.dataset.bill);
