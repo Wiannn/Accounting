@@ -202,7 +202,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="form-grid">
           <label>日期 <input type="date" id="tx-date"></label>
           <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label id="wrap-category">分类
+          <label id="wrap-category">主分类 <select id="tx-group"></select></label>
+          <label id="wrap-subcategory">子分类
             <span class="inline-flex"><select id="tx-category"></select><button class="mini-btn" id="btn-add-cat">新增分类</button></span>
             <span class="muted" style="font-size:12px">发工资请到「员工工资」页登记</span>
           </label>
@@ -420,7 +421,16 @@ const dbClear = store => new Promise((resolve, reject) => {
   tx.onerror = () => reject(tx.error);
 });
 
-const DEFAULTS = { overdueDays: 30, seeded: false, categories: ['工资', '办公用品', '仓库工具', '车队报销'] };
+const DEFAULTS = {
+  overdueDays: 30,
+  seeded: false,
+  catGroups: {
+    '仓库': ['办公用品', '工具材料', '油费'],
+    '车队': ['油费', '拖车费', '换轮胎', '其他'],
+    '员工': ['员工工资']
+  }
+};
+const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLES = ['叉车工', '装卸工', '司机'];
 let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
@@ -432,8 +442,25 @@ async function loadState() {
   const m = {};
   meta.forEach(r => { m[r.id] = r.value; });
   S.settings = Object.assign({}, DEFAULTS, m);
+  S.settings.catGroups = Object.assign({}, DEFAULTS.catGroups, S.settings.catGroups || {});
 }
 const saveSetting = (key, value) => dbPut('meta', { id: key, value: value });
+
+async function migrateCategories() {
+  if (S.settings.catMigrated) return;
+  let changed = false;
+  for (const e2 of S.expenses) {
+    const map = LEGACY_CATS[e2.category];
+    if (map && !e2.sub) {
+      e2.category = map[0];
+      e2.sub = map[1];
+      await dbPut('expenses', e2);
+      changed = true;
+    }
+  }
+  await saveSetting('catMigrated', true);
+  if (changed) await loadState();
+}
 
 /* ---------- 派生状态 ---------- */
 const custName = id => { const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
@@ -528,26 +555,38 @@ $('#dash-month').addEventListener('change', renderDashboard);
 let txType = 'expense';
 $('#type-expense').addEventListener('click', () => setTxType('expense'));
 $('#type-income').addEventListener('click', () => setTxType('income'));
+$('#tx-group').addEventListener('change', renderSubCats);
 function setTxType(t) {
   txType = t;
   $('#type-expense').classList.toggle('active', t === 'expense');
   $('#type-income').classList.toggle('active', t === 'income');
   $('#wrap-category').classList.toggle('hidden', t === 'income');
+  $('#wrap-subcategory').classList.toggle('hidden', t === 'income');
   $('#wrap-customer').classList.toggle('hidden', t === 'expense');
   $('#wrap-intype').classList.toggle('hidden', t === 'expense');
 }
 
+const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');
+function renderSubCats() {
+  const g = $('#tx-group').value;
+  const subs = (S.settings.catGroups[g] || []);
+  $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
+  if (g === S.settings.lastExpenseGroup && subs.indexOf(S.settings.lastExpenseCategory) >= 0) {
+    $('#tx-category').value = S.settings.lastExpenseCategory;
+  }
+}
+
 function renderAdd() {
-  const cats = S.settings.categories.filter(c => c !== '工资');
-  $('#tx-category').innerHTML = cats.map(c => '<option>' + esc(c) + '</option>').join('');
-  const lastCat = S.settings.lastExpenseCategory;
-  if (lastCat && cats.indexOf(lastCat) >= 0) $('#tx-category').value = lastCat;
+  const groups = Object.keys(S.settings.catGroups).filter(g => g !== '员工');
+  $('#tx-group').innerHTML = groups.map(g => '<option>' + esc(g) + '</option>').join('');
+  if (groups.indexOf(S.settings.lastExpenseGroup) >= 0) $('#tx-group').value = S.settings.lastExpenseGroup;
+  renderSubCats();
   $('#tx-customer').innerHTML = S.customers.length
     ? S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
     : '<option value="">（请先到「应收账单」页添加）</option>';
 
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, kind: '收入', cat: i.type || '进仓费', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
-    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, kind: '支出', cat: e.category, who: '', amount: Number(e.amount), note: e.note })))
+    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, kind: '支出', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note })))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 20);
   $('#recent-table tbody').innerHTML = all.map(r =>
@@ -576,9 +615,12 @@ $('#btn-save-tx').addEventListener('click', async () => {
     if (!cid) { toast('请选择客户'); return; }
     await dbPut('incomes', { id: uid(), date: date, type: $('#tx-intype').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
   } else {
-    const cat = $('#tx-category').value;
-    await dbPut('expenses', { id: uid(), date: date, category: cat, amount: amount, note: note, createdAt: Date.now() });
-    await saveSetting('lastExpenseCategory', cat);
+    const group = $('#tx-group').value;
+    const sub = $('#tx-category').value;
+    if (!group || !sub) { toast('请选择主分类和子分类'); return; }
+    await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, createdAt: Date.now() });
+    await saveSetting('lastExpenseGroup', group);
+    await saveSetting('lastExpenseCategory', sub);
   }
   await loadState();
   $('#tx-amount').value = ''; $('#tx-note').value = '';
@@ -587,12 +629,16 @@ $('#btn-save-tx').addEventListener('click', async () => {
 });
 
 $('#btn-add-cat').addEventListener('click', async () => {
-  const name = (prompt('新分类名称：') || '').trim();
+  const group = $('#tx-group').value;
+  if (!group) return;
+  const name = (prompt('在「' + group + '」下新增子分类名称：') || '').trim();
   if (!name) return;
-  if (S.settings.categories.indexOf(name) >= 0) { toast('分类已存在'); return; }
-  S.settings.categories.push(name);
-  await saveSetting('categories', S.settings.categories);
-  renderAdd();
+  const subs = S.settings.catGroups[group] || [];
+  if (subs.indexOf(name) >= 0) { toast('分类已存在'); return; }
+  subs.push(name);
+  S.settings.catGroups[group] = subs;
+  await saveSetting('catGroups', S.settings.catGroups);
+  renderSubCats();
   $('#tx-category').value = name;
 });
 
@@ -774,7 +820,7 @@ $('#modal').addEventListener('click', async e => {
     if (!date) { toast('请选择发放日期'); return; }
     w.paidDate = date;
     await dbPut('wages', w);
-    await dbPut('expenses', { id: uid(), date: date, category: '工资', amount: Number(w.amount), note: empName(w.employeeId) + ' ' + w.period + ' 工资', wageId: w.id, createdAt: Date.now() });
+    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '员工工资', amount: Number(w.amount), note: empName(w.employeeId) + ' ' + w.period + ' 工资', wageId: w.id, createdAt: Date.now() });
     await loadState();
     openWageModal(currentWageId);
     renderWages();
@@ -1053,10 +1099,10 @@ function openWageModal(wid) {
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
       ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
-        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发时已自动生成「工资」支出，撤销已发会同步删除该支出。</p>'
+        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发时已自动生成「员工工资」支出，撤销已发会同步删除该支出。</p>'
         + '<button class="ghost" id="btn-wage-revoke">撤销已发</button> <button class="ghost" id="btn-wage-del">删除工资单</button>'
       : '<div class="form-grid" style="margin-top:10px"><label>发放日期 <input type="date" id="wage-pay-date" value="' + todayStr() + '"></label></div>'
-        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发后，将自动生成一笔「工资」分类的支出记录。</p>'
+        + '<p class="muted" style="font-size:12px;margin:10px 0">标记已发后，将自动生成一笔「员工工资」分类的支出记录。</p>'
         + '<button class="primary" id="btn-wage-paid">标记已发</button> <button class="ghost" id="btn-wage-del">删除工资单</button>');
   $('#modal-mask').classList.remove('hidden');
 }
@@ -1080,7 +1126,7 @@ $('#btn-export-xlsx').addEventListener('click', () => {
   // 工作表1：收支明细
   const r1 = [['日期', '收支', '类别', '客户', '收入(元)', '支出(元)', '备注']];
   S.incomes.filter(i => inMonth(i.date)).forEach(i => r1.push([i.date, '收入', i.type || '进仓费', custName(i.customerId), Number(i.amount), '', i.note || '']));
-  S.expenses.filter(e2 => inMonth(e2.date)).forEach(e2 => r1.push([e2.date, '支出', e2.category, '', '', Number(e2.amount), e2.note || '']));
+  S.expenses.filter(e2 => inMonth(e2.date)).forEach(e2 => r1.push([e2.date, '支出', catLabel(e2), '', '', Number(e2.amount), e2.note || '']));
   const ws1 = XLSX.utils.aoa_to_sheet([r1[0]].concat(r1.slice(1).sort((a, b) => a[0].localeCompare(b[0]))));
   ws1['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, ws1, '收支明细');
@@ -1188,6 +1234,7 @@ $('#btn-save-settings').addEventListener('click', async () => {
     return;
   }
   await loadState();
+  await migrateCategories();
   if (!S.settings.seeded) {
     for (const n of ['祺盾', '孙海洋', '陈武', '敖通']) {
       await dbPut('customers', { id: uid(), name: n, createdAt: Date.now() });
