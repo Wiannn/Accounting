@@ -631,7 +631,8 @@ function renderDashboard() {
         + '</td></tr>';
     }).join('') || '<tr><td colspan="6" class="empty">没有待收账单，都结清了</td></tr>';
 
-  const uninv = S.bills.filter(b => invState(b).key !== 'done');
+  // 只有已结清的账单才需要开票提醒
+  const uninv = S.bills.filter(b => billState(b).key === 'settled' && invState(b).key !== 'done');
   $('#uninvoiced-table tbody').innerHTML = uninv
     .sort((a, b) => b.period.localeCompare(a.period))
     .map(b => {
