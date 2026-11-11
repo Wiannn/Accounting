@@ -269,14 +269,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <p class="muted" style="margin-top:8px">点击任意一行，可记收款、登记发票</p>
       </div>
       <div class="panel">
-        <div class="panel-title">客户管理</div>
-        <div class="form-grid">
-          <label class="span2">新增客户 <input type="text" id="cust-name" placeholder="客户名称"></label>
+        <div class="panel-title">客户列表 <span class="muted">点击行查看该客户明细</span>
+          <span class="filters"><button class="primary small" id="btn-cust-manage">客户管理</button></span>
         </div>
-        <button class="primary" id="btn-add-cust">添加客户</button>
-      </div>
-      <div class="panel">
-        <div class="panel-title">客户列表 <span class="muted">点击行查看该客户明细</span></div>
         <table id="cust-table">
           <thead><tr><th>客户</th><th>收入合计(现结)</th><th>应收总额</th><th>已收总额</th><th>当前欠款</th><th></th></tr></thead>
           <tbody></tbody>
@@ -801,6 +796,34 @@ $('#modal').addEventListener('click', async e => {
   const t = e.target;
   if (t.closest('[data-close]')) { closeModal(); return; }
 
+  if (t.id === 'btn-add-cust') {
+    const name = $('#cust-name').value.trim();
+    if (!name) { toast('请输入客户名称'); return; }
+    if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
+    await dbPut('customers', { id: uid(), name: name, createdAt: Date.now() });
+    await loadState();
+    renderCustomers();
+    renderBills();
+    toast('客户已添加');
+    $('#btn-cust-manage').click(); // 刷新弹窗
+    return;
+  }
+  if (t.closest('[data-delcust-modal]')) {
+    const del = t.closest('[data-delcust-modal]');
+    const cid = del.dataset.delcustModal;
+    const c = S.customers.find(x => x.id === cid);
+    if (!c) return;
+    const used = S.incomes.some(i => i.customerId === cid) || S.bills.some(b => b.customerId === cid);
+    if (used) { toast('该客户已有收入/账单记录，不能删除'); return; }
+    if (!confirm('确定删除客户「' + c.name + '」？')) return;
+    await dbDel('customers', cid);
+    await loadState();
+    renderBills();
+    renderCustomers();
+    $('#btn-cust-manage').click(); // 刷新弹窗
+    return;
+  }
+
   if (t.id === 'btn-add-pay') {
     const date = $('#pay-date').value;
     const amount = round2($('#pay-amount').value);
@@ -956,6 +979,11 @@ $('#modal').addEventListener('keydown', e => {
     const btn = $('#btn-wage-pay-add');
     if (btn && !btn.disabled) btn.click();
   }
+  if (e.target.id === 'cust-name' && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = $('#btn-add-cust');
+    if (btn) btn.click();
+  }
 });
 
 /* ---------- 客户 ---------- */
@@ -976,18 +1004,6 @@ function renderCustomers() {
   }).join('') || '<tr><td colspan="6" class="empty">暂无客户</td></tr>';
 }
 
-$('#btn-add-cust').addEventListener('click', async () => {
-  const name = $('#cust-name').value.trim();
-  if (!name) { toast('请输入客户名称'); return; }
-  if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
-  await dbPut('customers', { id: uid(), name: name, createdAt: Date.now() });
-  await loadState();
-  $('#cust-name').value = '';
-  renderCustomers();
-  renderBills();
-  toast('客户已添加');
-});
-
 $('#cust-table tbody').addEventListener('click', async e => {
   const del = e.target.closest('[data-delcust]');
   if (del) {
@@ -997,11 +1013,27 @@ $('#cust-table tbody').addEventListener('click', async e => {
     if (!confirm('确定删除该客户？')) return;
     await dbDel('customers', cid);
     await loadState();
-    renderCustomers();
     renderBills();
-    toast('客户已删除');
+    renderCustomers();
     return;
   }
+});
+
+$('#btn-cust-manage').addEventListener('click', () => {
+  const listHtml = S.customers.length
+    ? S.customers.map(c => '<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span>' + esc(c.name) + '</span><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></li>').join('')
+    : '<li class="empty">暂无客户</li>';
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>客户管理</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="form-grid"><label class="span2">新增客户 <input type="text" id="cust-name" placeholder="输入名称后按回车或点添加"></label></div>'
+    + '<button class="primary" id="btn-add-cust" style="margin-bottom:14px">添加客户</button>'
+    + '<div class="sub-title">客户列表（' + S.customers.length + '）</div>'
+    + '<ul style="list-style:none;padding:0;margin:0;max-height:240px;overflow:auto">' + listHtml + '</ul>';
+  $('#modal-mask').classList.remove('hidden');
+  setTimeout(() => { const el = $('#cust-name'); if (el) el.focus(); }, 30);
+});
+
+$('#cust-table tbody').addEventListener('click', async e => {
   const tr = e.target.closest('tr[data-cust]');
   if (tr) openCustModal(tr.dataset.cust);
 });
@@ -1122,10 +1154,6 @@ $('#btn-add-emp').addEventListener('click', async () => {
 
 $('#emp-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
-});
-
-$('#cust-name').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-cust').click(); }
 });
 
 ['#tx-amount', '#tx-note'].forEach(sel => {
