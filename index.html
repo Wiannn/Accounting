@@ -115,12 +115,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 
 /* 月账本样式 */
 .ledger-topbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
-.ledger-topbar .lb-row{display:flex;align-items:center;gap:8px}
-.ledger-topbar .lb-month{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600}
-.ledger-topbar .lb-row input[type=month]{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
-.ledger-topbar .lb-nav{display:flex;gap:4px}
-.ledger-topbar .lb-row>button{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;color:var(--text);flex-shrink:0}
-.ledger-topbar .lb-row>button:hover{background:var(--gray-bg)}
+.ledger-topbar .lb-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ledger-topbar .lb-title{font-size:19px;font-weight:600}
+.ledger-topbar .lb-month{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ledger-topbar .lb-month input[type=month]{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
@@ -276,9 +274,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-add" class="page">
       <div class="ledger-topbar">
         <div class="lb-row">
-          <button class="lb-nav" id="lb-prev-month" title="上个月">‹</button>
-          <input type="month" id="ledger-month">
-          <button class="lb-nav" id="lb-next-month" title="下个月">›</button>
+          <span class="lb-title">记一笔</span>
+          <label class="lb-month">统计月份 <input type="month" id="ledger-month"></label>
         </div>
         <div class="ledger-stats">
           <div class="lb-stat"><div class="lb-stat-label">当月支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
@@ -837,18 +834,12 @@ $('#fab-add').addEventListener('click', openTxForm);
 
 // 月份切换
 $('#ledger-month').addEventListener('change', renderLedger);
-$('#lb-prev-month').addEventListener('click', () => {
+function shiftMonth(delta) {
   const [y, m] = ($('#ledger-month').value || todayStr().slice(0, 7)).split('-').map(Number);
-  const d = new Date(y, m - 2, 1);
+  const d = new Date(y, m - 1 + delta, 1);
   $('#ledger-month').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   renderLedger();
-});
-$('#lb-next-month').addEventListener('click', () => {
-  const [y, m] = ($('#ledger-month').value || todayStr().slice(0, 7)).split('-').map(Number);
-  const d = new Date(y, m, 1);
-  $('#ledger-month').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-  renderLedger();
-});
+}
 // 滚到底部再往下 → 上个月；滚到顶部再往上 → 下个月
 (function ledgerSwipe() {
   const THRESHOLD = 70;
@@ -881,11 +872,11 @@ $('#lb-next-month').addEventListener('click', () => {
     if (!canJump()) return;
     if (atBottom() && dy < 0) {                   // 到底后继续往下滑 → 上个月
       lastJump = Date.now();
-      $('#lb-prev-month').click();
+      shiftMonth(-1);
       window.scrollTo(0, 0);
     } else if (atTop() && dy > 0) {               // 到顶后继续往上拉 → 下个月
       lastJump = Date.now();
-      $('#lb-next-month').click();
+      shiftMonth(1);
       window.scrollTo(0, 0);
     }
   }, { passive: true });
@@ -896,11 +887,11 @@ $('#lb-next-month').addEventListener('click', () => {
     if (!canJump()) return;
     if (atBottom() && e.deltaY > 0) {
       lastJump = Date.now();
-      $('#lb-prev-month').click();
+      shiftMonth(-1);
       window.scrollTo(0, 0);
     } else if (atTop() && e.deltaY < 0) {
       lastJump = Date.now();
-      $('#lb-next-month').click();
+      shiftMonth(1);
       window.scrollTo(0, 0);
     }
   }, { passive: true });
