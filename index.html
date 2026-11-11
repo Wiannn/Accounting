@@ -212,11 +212,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-dashboard" class="page active">
       <div class="page-head">
         <h1>首页</h1>
-        <label style="flex-direction:row;align-items:center;gap:8px">统计月份 <input type="month" id="dash-month"></label>
       </div>
       <div class="cards">
-        <div class="card"><div class="card-label">本月收入</div><div class="card-num pos" id="stat-income">¥0.00</div></div>
-        <div class="card"><div class="card-label">本月支出</div><div class="card-num" id="stat-expense">¥0.00</div></div>
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
       </div>
       <div class="panel">
@@ -591,12 +588,6 @@ function renderPage(p) {
 
 /* ---------- 首页 ---------- */
 function renderDashboard() {
-  const m = $('#dash-month').value || monthStr();
-  const inc = round2(S.incomes.filter(i => i.date.startsWith(m)).reduce((s, i) => s + Number(i.amount), 0));
-  const exp = round2(S.expenses.filter(e => e.date.startsWith(m)).reduce((s, e) => s + Number(e.amount), 0));
-  $('#stat-income').textContent = fmt(inc);
-  $('#stat-expense').textContent = fmt(exp);
-
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
   $('#th-text').textContent = S.settings.overdueDays;
@@ -640,7 +631,6 @@ function renderDashboard() {
     return '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtWage(w.amount) + '</td><td>' + stBadge + '</td></tr>';
   }).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
 }
-$('#dash-month').addEventListener('change', renderDashboard);
 
 /* ---------- 记一笔 ---------- */
 let txType = 'expense';
@@ -1609,7 +1599,6 @@ $('#btn-save-settings').addEventListener('click', async () => {
     await saveSetting('seeded', true);
     await loadState();
   }
-  $('#dash-month').value = monthStr();
   $('#report-month').value = monthStr();
   if ($('#tx-date')) $('#tx-date').value = todayStr();
   $('#bill-period').value = monthStr();
