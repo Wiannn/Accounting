@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='2' y='2' width='44' height='44' rx='11' fill='%233B53D9'/%3E%3Cpath d='M11 14c5.5 0 8.5 2.2 13 2.2s7.5-2.2 13-2.2v21c-5.5 0-8.5 2.2-13 2.2s-7.5-2.2-13-2.2V14z' fill='%23ffffff'/%3E%3Cpath d='M24 16v19' stroke='%233B53D9' stroke-width='1.4' fill='none'/%3E%3Cpath d='M15.5 20.5h5M15.5 24.5h5M15.5 28.5h3.2' stroke='%233B53D9' stroke-width='1.6' stroke-linecap='round'/%3E%3Ccircle cx='33' cy='27' r='6.2' fill='%23F5A623'/%3E%3Cpath d='M29.8 23.5 33 27l3.2-3.5M33 24.5v6.2M29.5 27.5h7M29.5 30h7' stroke='%23fff' stroke-width='1.3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -20,7 +21,8 @@ html{-webkit-text-size-adjust:100%}
 body{font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 #app{display:flex;min-height:100vh}
 #sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0;position:sticky;top:0;height:100vh}
-.logo{font-size:17px;font-weight:600;padding:0 10px 4px}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;padding:6px 10px 4px}
+.logo-mark{width:36px;height:36px;flex-shrink:0}
 .logo-sub{font-size:12px;color:var(--muted);padding:0 10px 18px}
 .nav-btn{display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;border:none;background:none;border-radius:8px;font-size:14px;color:var(--text);cursor:pointer}
 .nav-btn:hover{background:var(--bg)}
@@ -132,7 +134,17 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 <body>
 <div id="app">
   <aside id="sidebar">
-    <div class="logo">公司记账</div>
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="2" y="2" width="44" height="44" rx="11" fill="#3B53D9"/>
+        <path d="M11 14c5.5 0 8.5 2.2 13 2.2s7.5-2.2 13-2.2v21c-5.5 0-8.5 2.2-13 2.2s-7.5-2.2-13-2.2V14z" fill="#ffffff"/>
+        <path d="M24 16v19" stroke="#3B53D9" stroke-width="1.4" fill="none"/>
+        <path d="M15.5 20.5h5M15.5 24.5h5M15.5 28.5h3.2" stroke="#3B53D9" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="33" cy="27" r="6.2" fill="#F5A623"/>
+        <path d="M29.8 23.5 33 27l3.2-3.5M33 24.5v6.2M29.5 27.5h7M29.5 30h7" stroke="#fff" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span>公司记账</span>
+    </div>
     <div class="logo-sub">仓储账务 · 单机版</div>
     <nav>
       <button class="nav-btn active" data-page="dashboard">首页</button>
