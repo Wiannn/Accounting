@@ -115,13 +115,13 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 
 /* 月账本样式 */
 .ledger-topbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
-.ledger-topbar .lb-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ledger-topbar .lb-row{display:flex;align-items:center;gap:8px}
 .ledger-topbar .lb-month{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600}
-.ledger-topbar .lb-month input[type=month]{border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:14px;background:#fff;color:var(--fg);-webkit-appearance:none}
+.ledger-topbar .lb-row input[type=month]{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
 .ledger-topbar .lb-nav{display:flex;gap:4px}
-.ledger-topbar .lb-nav button{width:32px;height:32px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:16px;color:var(--text)}
-.ledger-topbar .lb-nav button:hover{background:var(--gray-bg)}
-.ledger-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ledger-topbar .lb-row>button{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;color:var(--text);flex-shrink:0}
+.ledger-topbar .lb-row>button:hover{background:var(--gray-bg)}
+.ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
 .ledger-stats .lb-stat-num{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -276,19 +276,13 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-add" class="page">
       <div class="ledger-topbar">
         <div class="lb-row">
-          <div class="lb-month">
-            <button class="lb-nav" id="lb-prev-month" title="上个月">‹</button>
-            <input type="month" id="ledger-month">
-            <button class="lb-nav" id="lb-next-month" title="下个月">›</button>
-          </div>
-          <div class="lb-nav" style="margin-left:auto">
-            <button id="lb-this-month" title="回到本月">今</button>
-          </div>
+          <button class="lb-nav" id="lb-prev-month" title="上个月">‹</button>
+          <input type="month" id="ledger-month">
+          <button class="lb-nav" id="lb-next-month" title="下个月">›</button>
         </div>
         <div class="ledger-stats">
-          <div class="lb-stat"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
           <div class="lb-stat"><div class="lb-stat-label">当月支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
-          <div class="lb-stat"><div class="lb-stat-label">当月结余</div><div class="lb-stat-num" id="ledger-balance">¥0.00</div></div>
+          <div class="lb-stat"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
         </div>
       </div>
       <div class="ledger-list" id="ledger-list"></div>
@@ -660,9 +654,6 @@ $('#dash-month').addEventListener('change', renderDashboard);
 
 /* ---------- 记一笔 ---------- */
 let txType = 'expense';
-$('#type-expense').addEventListener('click', () => setTxType('expense'));
-$('#type-income').addEventListener('click', () => setTxType('income'));
-$('#tx-group').addEventListener('change', renderSubCats);
 function setTxType(t) {
   txType = t;
   $('#type-expense').classList.toggle('active', t === 'expense');
@@ -688,8 +679,8 @@ function renderAdd() {
   const lm = $('#ledger-month');
   if (lm && !lm.value) lm.value = todayStr().slice(0, 7);
   renderLedger();
-  // 如果表单弹窗开着，也要初始化表单
-  if ($('#tx-group')) initTxForm();
+  // 弹窗打开时不要重置表单
+  if ($('#tx-group') && $('#modal-mask').classList.contains('hidden')) initTxForm();
 }
 
 let ledgerMonthCache = null;
@@ -703,14 +694,17 @@ function renderLedger() {
   S.expenses.forEach(e => { if ((e.date || '').startsWith(period)) expense += Number(e.amount || 0); });
   $('#ledger-income').textContent = '+' + fmt2(income);
   $('#ledger-expense').textContent = '−' + fmt2(expense);
-  $('#ledger-balance').textContent = (income - expense >= 0 ? '+' : '') + fmt2(income - expense);
+  if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '进仓费', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note })))
     .filter(r => (r.date || '').startsWith(period))
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   if (!all.length) {
-    $('#ledger-list').innerHTML = '<div class="ledger-list-empty">本月暂无收支<br><span style="font-size:12px">点右下角 + 添加第一条</span></div>';
+    const hasAny = S.incomes.length + S.expenses.length > 0;
+    $('#ledger-list').innerHTML = '<div class="ledger-list-empty">本月暂无收支<br><span style="font-size:12px">'
+      + (hasAny ? '用上方 ‹ › 切换月份查看其他月份记录' : '点右下角 + 添加第一条')
+      + '</span></div>';
     return;
   }
   const weekday = d => {
@@ -766,10 +760,25 @@ function openTxForm() {
   $('#modal').innerHTML = tpl.innerHTML;
   $('#modal-mask').classList.remove('hidden');
   initTxForm();
+  bindTxFormEvents();
   setTimeout(() => { const el = $('#tx-amount'); if (el) el.focus(); }, 30);
 }
 
-$('#btn-save-tx').addEventListener('click', async () => {
+// 弹窗内容是动态注入的，事件必须在注入后再绑定
+function bindTxFormEvents() {
+  $('#type-expense').addEventListener('click', () => setTxType('expense'));
+  $('#type-income').addEventListener('click', () => setTxType('income'));
+  $('#tx-group').addEventListener('change', renderSubCats);
+  $('#btn-save-tx').addEventListener('click', saveTx);
+  $('#btn-add-cat').addEventListener('click', addSubCat);
+  ['#tx-amount', '#tx-note'].forEach(sel => {
+    $(sel).addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
+    });
+  });
+}
+
+async function saveTx() {
   const date = $('#tx-date').value;
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
@@ -795,9 +804,9 @@ $('#btn-save-tx').addEventListener('click', async () => {
   closeModal();
   if (currentPage === 'add') renderLedger();
   toast('已保存');
-});
+}
 
-$('#btn-add-cat').addEventListener('click', async () => {
+async function addSubCat() {
   const group = $('#tx-group').value;
   if (!group) return;
   const name = (prompt('在「' + group + '」下新增子分类名称：') || '').trim();
@@ -809,7 +818,7 @@ $('#btn-add-cat').addEventListener('click', async () => {
   await saveSetting('catGroups', S.settings.catGroups);
   renderSubCats();
   $('#tx-category').value = name;
-});
+}
 
 $('#ledger-list').addEventListener('click', async e => {
   const item = e.target.closest('[data-ledger]');
@@ -839,38 +848,61 @@ $('#lb-next-month').addEventListener('click', () => {
   $('#ledger-month').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   renderLedger();
 });
-$('#lb-this-month').addEventListener('click', () => {
-  $('#ledger-month').value = todayStr().slice(0, 7);
-  renderLedger();
-});
-
-// 上/下拉切换月份
+// 滚到底部再往下 → 上个月；滚到顶部再往上 → 下个月
 (function ledgerSwipe() {
-  let startY = 0, pulling = false, threshold = 60;
-  const main = $('#main');
-  if (!main) return;
-  main.addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    startY = t.clientY;
-    pulling = true;
+  const THRESHOLD = 70;
+  let startY = 0, startX = 0, tracking = false, lastJump = 0;
+  const scroller = () => document.scrollingElement || document.documentElement;
+  const atBottom = () => {
+    const s = scroller();
+    return s.scrollTop + window.innerHeight >= s.scrollHeight - 4;
+  };
+  const atTop = () => scroller().scrollTop <= 2;
+  const canJump = () => Date.now() - lastJump > 700;
+
+  window.addEventListener('touchstart', e => {
+    if (!document.getElementById('page-add').classList.contains('active')) return;
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    tracking = true;
   }, { passive: true });
-  main.addEventListener('touchmove', () => { /* 不阻止默认滚动 */ }, { passive: true });
-  main.addEventListener('touchend', e => {
-    if (!pulling) return;
-    pulling = false;
+
+  window.addEventListener('touchend', e => {
+    if (!tracking) return;
+    tracking = false;
+    if (!document.getElementById('page-add').classList.contains('active')) return;
     const t = e.changedTouches[0];
     const dy = t.clientY - startY;
-    const scrolled = main.scrollTop;
-    const atBottom = scrolled + main.clientHeight >= main.scrollHeight - 4;
-    const atTop = scrolled <= 2;
-    if (dy > threshold && atTop) {
-      // 下拉到顶 → 上个月
+    const dx = t.clientX - startX;
+    if (Math.abs(dx) > Math.abs(dy)) return;      // 横向滑动忽略
+    if (Math.abs(dy) < THRESHOLD) return;
+    if (!canJump()) return;
+    if (atBottom() && dy < 0) {                   // 到底后继续往下滑 → 上个月
+      lastJump = Date.now();
       $('#lb-prev-month').click();
-    } else if (dy < -threshold && atBottom) {
-      // 上拉到底 → 下个月
+      window.scrollTo(0, 0);
+    } else if (atTop() && dy > 0) {               // 到顶后继续往上拉 → 下个月
+      lastJump = Date.now();
       $('#lb-next-month').click();
+      window.scrollTo(0, 0);
     }
-  });
+  }, { passive: true });
+
+  // 电脑端：鼠标滚轮在边界继续滚动同样切月
+  window.addEventListener('wheel', e => {
+    if (!document.getElementById('page-add').classList.contains('active')) return;
+    if (!canJump()) return;
+    if (atBottom() && e.deltaY > 0) {
+      lastJump = Date.now();
+      $('#lb-prev-month').click();
+      window.scrollTo(0, 0);
+    } else if (atTop() && e.deltaY < 0) {
+      lastJump = Date.now();
+      $('#lb-next-month').click();
+      window.scrollTo(0, 0);
+    }
+  }, { passive: true });
 })();
 
 /* ---------- 应收账单 ---------- */
@@ -1347,12 +1379,6 @@ $('#emp-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
 });
 
-['#tx-amount', '#tx-note'].forEach(sel => {
-  $(sel).addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-tx').click(); }
-  });
-});
-
 $('#emp-table tbody').addEventListener('click', async e => {
   const t = e.target;
   if (t.dataset.toggleEmp) {
@@ -1603,7 +1629,7 @@ $('#btn-save-settings').addEventListener('click', async () => {
   }
   $('#dash-month').value = monthStr();
   $('#report-month').value = monthStr();
-  $('#tx-date').value = todayStr();
+  if ($('#tx-date')) $('#tx-date').value = todayStr();
   $('#bill-period').value = monthStr();
   $('#wage-period').value = monthStr();
   renderDashboard();
