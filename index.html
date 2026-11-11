@@ -434,7 +434,6 @@ const DEFAULTS = {
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
-const ROLES = ['叉车工', '装卸工', '司机'];
 let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
@@ -974,9 +973,7 @@ function openCustModal(cid) {
 function renderWages() {
   $('#emp-table tbody').innerHTML = S.employees.map(e2 =>
     '<tr><td class="strong">' + esc(e2.name) + '</td>'
-    + '<td><select data-role-emp="' + e2.id + '" style="min-width:110px">'
-    + ['', ...ROLES].map(r => '<option value="' + r + '"' + (e2.role === r ? ' selected' : '') + '>' + (r || '—') + '</option>').join('')
-    + '</select></td>'
+    + '<td>' + (e2.role ? esc(e2.role) : '—') + '</td>'
     + '<td>' + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>') + '</td>'
     + '<td><button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '设为离职' : '恢复在职') + '</button>'
     + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button></td></tr>'
@@ -1063,17 +1060,6 @@ $('#emp-table tbody').addEventListener('click', async e => {
     renderWages();
     toast('员工已删除');
   }
-});
-
-$('#emp-table tbody').addEventListener('change', async e => {
-  const sel = e.target.closest('select[data-role-emp]');
-  if (!sel) return;
-  const emp = S.employees.find(x => x.id === sel.dataset.roleEmp);
-  if (!emp) return;
-  emp.role = sel.value;
-  await dbPut('employees', emp);
-  await loadState();
-  toast('职位已更新');
 });
 
 $('#btn-gen-wages').addEventListener('click', async () => {
