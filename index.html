@@ -271,11 +271,17 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="panel">
         <div class="panel-title">员工管理</div>
         <div class="form-grid">
-          <label class="span2">新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>
+          <label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>
+          <label>职位 <select id="emp-role">
+            <option value="">请选择</option>
+            <option>叉车工</option>
+            <option>装卸工</option>
+            <option>司机</option>
+          </select></label>
         </div>
         <button class="primary" id="btn-add-emp">添加员工</button>
         <table id="emp-table" style="margin-top:12px">
-          <thead><tr><th>员工</th><th>状态</th><th>操作</th></tr></thead>
+          <thead><tr><th>员工</th><th>职位</th><th>状态</th><th>操作</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -414,6 +420,7 @@ const dbClear = store => new Promise((resolve, reject) => {
 });
 
 const DEFAULTS = { overdueDays: 30, seeded: false, categories: ['工资', '办公用品', '仓库工具', '车队报销'] };
+const ROLES = ['叉车工', '装卸工', '司机'];
 let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
@@ -881,10 +888,13 @@ function openCustModal(cid) {
 function renderWages() {
   $('#emp-table tbody').innerHTML = S.employees.map(e2 =>
     '<tr><td class="strong">' + esc(e2.name) + '</td>'
+    + '<td><select data-role-emp="' + e2.id + '" style="min-width:110px">'
+    + ['', ...ROLES].map(r => '<option value="' + r + '"' + (e2.role === r ? ' selected' : '') + '>' + (r || '—') + '</option>').join('')
+    + '</select></td>'
     + '<td>' + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>') + '</td>'
     + '<td><button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '设为离职' : '恢复在职') + '</button>'
     + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button></td></tr>'
-  ).join('') || '<tr><td colspan="3" class="empty">暂无员工</td></tr>';
+  ).join('') || '<tr><td colspan="4" class="empty">暂无员工</td></tr>';
   renderWageGen();
   renderWageList();
 }
@@ -928,11 +938,14 @@ $('#wage-filter-status').addEventListener('change', renderWageList);
 
 $('#btn-add-emp').addEventListener('click', async () => {
   const name = $('#emp-name').value.trim();
+  const role = $('#emp-role').value;
   if (!name) { toast('请输入员工姓名'); return; }
+  if (!role) { toast('请选择职位'); return; }
   if (S.employees.some(e2 => e2.name === name)) { toast('员工已存在'); return; }
-  await dbPut('employees', { id: uid(), name: name, active: true, createdAt: Date.now() });
+  await dbPut('employees', { id: uid(), name: name, role: role, active: true, createdAt: Date.now() });
   await loadState();
   $('#emp-name').value = '';
+  $('#emp-role').value = '';
   renderWages();
   toast('员工已添加');
 });
@@ -963,6 +976,17 @@ $('#emp-table tbody').addEventListener('click', async e => {
     renderWages();
     toast('员工已删除');
   }
+});
+
+$('#emp-table tbody').addEventListener('change', async e => {
+  const sel = e.target.closest('select[data-role-emp]');
+  if (!sel) return;
+  const emp = S.employees.find(x => x.id === sel.dataset.roleEmp);
+  if (!emp) return;
+  emp.role = sel.value;
+  await dbPut('employees', emp);
+  await loadState();
+  toast('职位已更新');
 });
 
 $('#btn-gen-wages').addEventListener('click', async () => {
