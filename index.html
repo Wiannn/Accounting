@@ -352,6 +352,7 @@ const monthStr = () => todayStr().slice(0, 7);
 const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const fmt = n => '¥' + round2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = n => '¥' + round2(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+const fmtInt = n => '¥' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const daysBetween = (from, to) => Math.floor((new Date(to) - new Date(from)) / 86400000);
 const stBadge = k => k === 'settled' ? 'ok' : k === 'partial' ? 'info' : 'warn';
@@ -508,7 +509,7 @@ function renderDashboard() {
 
   const pendingWages = S.wages.filter(w => !w.paidDate).sort((a, b) => a.period.localeCompare(b.period));
   $('#unpaid-wage-table tbody').innerHTML = pendingWages.map(w =>
-    '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmt(w.amount) + '</td>'
+    '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
     + '<td><span class="badge badge-gray">待发</span></td></tr>'
   ).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
 }
@@ -893,8 +894,8 @@ function renderWageGen() {
   $('#wage-gen-list').innerHTML = actives.length
     ? '<table class="mini-table" style="margin-bottom:12px"><thead><tr><th>员工</th><th>工资金额（元）</th></tr></thead><tbody>' + actives.map(e2 => {
         const exist = S.wages.find(w => w.employeeId === e2.id && w.period === period);
-        if (exist) return '<tr><td>' + esc(e2.name) + '</td><td>' + fmt(exist.amount) + '</td></tr>';
-        return '<tr><td>' + esc(e2.name) + '</td><td><input type="number" min="0.01" step="0.01" inputmode="decimal" data-wage-emp="' + e2.id + '" value=""></td></tr>';
+        if (exist) return '<tr><td>' + esc(e2.name) + '</td><td>' + fmtInt(exist.amount) + '</td></tr>';
+        return '<tr><td>' + esc(e2.name) + '</td><td><input type="number" min="1" step="1" inputmode="numeric" data-wage-emp="' + e2.id + '" value=""></td></tr>';
       }).join('') + '</tbody></table>'
     : '<p class="empty">暂无在职员工，请先在上方添加</p>';
 }
@@ -907,7 +908,7 @@ function renderWageList() {
   if (st === 'pending') list = list.filter(w => !w.paidDate);
   if (st === 'paid') list = list.filter(w => w.paidDate);
   $('#wage-table tbody').innerHTML = list.map(w =>
-    '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmt(w.amount) + '</td>'
+    '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
     + '<td>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</td>'
     + '<td>' + (w.paidDate || '—') + '</td></tr>'
   ).join('') || '<tr><td colspan="5" class="empty">暂无工资单</td></tr>';
@@ -965,7 +966,7 @@ $('#btn-gen-wages').addEventListener('click', async () => {
   for (const e2 of S.employees.filter(x => x.active)) {
     if (S.wages.some(w => w.employeeId === e2.id && w.period === period)) { skipped++; continue; }
     const inp = document.querySelector('[data-wage-emp="' + e2.id + '"]');
-    const amount = inp ? round2(inp.value) : 0;
+    const amount = inp ? Math.round(Number(inp.value) || 0) : 0;
     if (!amount || amount <= 0) continue;
     await dbPut('wages', { id: uid(), employeeId: e2.id, period: period, amount: amount, paidDate: null, createdAt: Date.now() });
     created++;
@@ -988,7 +989,7 @@ function openWageModal(wid) {
   currentWageId = wid;
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>工资金额</span><b>' + fmt(w.amount) + '</b></div>'
+    + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
       ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
@@ -1058,7 +1059,7 @@ $('#btn-export-xlsx').addEventListener('click', () => {
   const r5 = [['月份', '员工', '金额(元)', '状态', '发放日期']];
   S.wages.filter(w => all || !m || w.period === m)
     .sort((a, b) => a.period.localeCompare(b.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'))
-    .forEach(w => r5.push([w.period, empName(w.employeeId), Number(w.amount), w.paidDate ? '已发' : '待发', w.paidDate || '']));
+    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), w.paidDate ? '已发' : '待发', w.paidDate || '']));
   const ws5 = XLSX.utils.aoa_to_sheet(r5);
   ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, ws5, '工资表');
