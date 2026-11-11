@@ -131,9 +131,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-day-head .dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
 .ledger-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
 .ledger-item:hover{background:var(--gray-bg)}
-.ledger-item .li-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.ledger-item.expense .li-icon{background:#FEECEC;color:#D84848}
-.ledger-item.income .li-icon{background:#E6F5EC;color:#2E8B57}
 .ledger-item .li-main{flex:1;min-width:0}
 .ledger-item .li-cat{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ledger-item .li-note{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -716,10 +713,8 @@ function renderLedger() {
       html += '</div>';
       lastDate = r.date;
     }
-    const icon = r.type === 'income' ? '↓' : '↑';
     const amtSign = r.type === 'income' ? '+' : '−';
     html += '<div class="ledger-item ' + r.type + '" data-ledger="' + r.store + ':' + r.id + '">'
-      + '<div class="li-icon">' + icon + '</div>'
       + '<div class="li-main">'
       + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + '</div>'
       + '<div class="li-note">' + esc(r.note || '') + '</div>'
