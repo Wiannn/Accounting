@@ -220,7 +220,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="cards">
         <div class="card"><div class="card-label">本月收入</div><div class="card-num pos" id="stat-income">¥0.00</div></div>
         <div class="card"><div class="card-label">本月支出</div><div class="card-num" id="stat-expense">¥0.00</div></div>
-        <div class="card"><div class="card-label">本月结余</div><div class="card-num" id="stat-balance">¥0.00</div></div>
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
       </div>
       <div class="panel">
@@ -600,10 +599,6 @@ function renderDashboard() {
   const exp = round2(S.expenses.filter(e => e.date.startsWith(m)).reduce((s, e) => s + Number(e.amount), 0));
   $('#stat-income').textContent = fmt(inc);
   $('#stat-expense').textContent = fmt(exp);
-  const bal = round2(inc - exp);
-  const balEl = $('#stat-balance');
-  balEl.textContent = fmt(bal);
-  balEl.classList.toggle('neg', bal < 0);
 
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
