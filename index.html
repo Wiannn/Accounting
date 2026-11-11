@@ -387,7 +387,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="form-grid">
           <label>工资月份 <input type="month" id="wage-period"></label>
           <label>员工 <select id="wage-emp-select"></select></label>
-          <label>工资金额（元，可留空后补） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>
+          <label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>
           <label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>
         </div>
         <button class="primary" id="btn-gen-wages">生成工资单</button>
@@ -395,7 +395,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="panel">
         <div class="panel-title">工资单
           <span class="filters">
-            <input type="text" id="wage-filter-name" placeholder="搜索员工姓名" style="width:140px">
+            <input type="text" id="wage-filter-name" placeholder="搜索姓名" style="width:140px">
             <input type="month" id="wage-filter-month">
             <select id="wage-filter-status">
               <option value="">全部状态</option>
