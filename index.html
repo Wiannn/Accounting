@@ -323,6 +323,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="panel">
         <div class="panel-title">工资单
           <span class="filters">
+            <input type="text" id="wage-filter-name" placeholder="搜索员工姓名" style="width:140px">
             <input type="month" id="wage-filter-month">
             <select id="wage-filter-status">
               <option value="">全部状态</option>
@@ -1004,10 +1005,12 @@ function renderWageGen() {
 function renderWageList() {
   const m = $('#wage-filter-month').value;
   const st = $('#wage-filter-status').value;
+  const n = ($('#wage-filter-name').value || '').trim();
   let list = S.wages.slice().sort((a, b) => b.period.localeCompare(a.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'));
   if (m) list = list.filter(w => w.period === m);
   if (st === 'pending') list = list.filter(w => !w.paidDate);
   if (st === 'paid') list = list.filter(w => w.paidDate);
+  if (n) list = list.filter(w => empName(w.employeeId).indexOf(n) >= 0);
   $('#wage-table tbody').innerHTML = list.map(w =>
     '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
     + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) ? absCount(w) + ' 天' : '—') + '</td>'
@@ -1019,6 +1022,7 @@ function renderWageList() {
 $('#wage-period').addEventListener('change', renderWageGen);
 $('#wage-filter-month').addEventListener('change', renderWageList);
 $('#wage-filter-status').addEventListener('change', renderWageList);
+$('#wage-filter-name').addEventListener('input', renderWageList);
 ['#wage-amount', '#wage-absence', '#wage-emp-select'].forEach(sel => {
   $(sel).addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); $('#btn-gen-wages').click(); }
