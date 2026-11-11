@@ -280,7 +280,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </table>
       </div>
       <div class="panel">
-        <div class="panel-title">生成月工资单 <span class="muted">金额为空的员工不生成；金额默认带出该员工上次工资</span></div>
+        <div class="panel-title">生成月工资单 <span class="muted">金额需逐个填写，只生成已填金额的员工</span></div>
         <div class="form-grid">
           <label>工资月份 <input type="month" id="wage-period"></label>
         </div>
@@ -894,8 +894,7 @@ function renderWageGen() {
     ? '<table class="mini-table" style="margin-bottom:12px"><thead><tr><th>员工</th><th>工资金额（元）</th></tr></thead><tbody>' + actives.map(e2 => {
         const exist = S.wages.find(w => w.employeeId === e2.id && w.period === period);
         if (exist) return '<tr><td>' + esc(e2.name) + '</td><td>' + fmt(exist.amount) + '</td></tr>';
-        const last = S.wages.filter(w => w.employeeId === e2.id).sort((a, b) => b.period.localeCompare(a.period))[0];
-        return '<tr><td>' + esc(e2.name) + '</td><td><input type="number" min="0.01" step="0.01" inputmode="decimal" data-wage-emp="' + e2.id + '" value="' + (last ? Number(last.amount) : '') + '"></td></tr>';
+        return '<tr><td>' + esc(e2.name) + '</td><td><input type="number" min="0.01" step="0.01" inputmode="decimal" data-wage-emp="' + e2.id + '" value=""></td></tr>';
       }).join('') + '</tbody></table>'
     : '<p class="empty">暂无在职员工，请先在上方添加</p>';
 }
