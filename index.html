@@ -1051,6 +1051,16 @@ $('#emp-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
 });
 
+$('#cust-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-cust').click(); }
+});
+
+['#tx-amount', '#tx-note'].forEach(sel => {
+  $(sel).addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-tx').click(); }
+  });
+});
+
 $('#emp-table tbody').addEventListener('click', async e => {
   const t = e.target;
   if (t.dataset.toggleEmp) {
