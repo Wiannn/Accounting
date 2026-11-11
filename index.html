@@ -291,6 +291,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <label>工资月份 <input type="month" id="wage-period"></label>
           <label>员工 <select id="wage-emp-select"></select></label>
           <label>工资金额（元） <input type="number" min="1" step="1" inputmode="numeric" id="wage-amount" placeholder="填写后按回车生成"></label>
+          <label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>
         </div>
         <button class="primary" id="btn-gen-wages">生成工资单</button>
       </div>
@@ -306,7 +307,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           </span>
         </div>
         <table id="wage-table">
-          <thead><tr><th>月份</th><th>员工</th><th>金额</th><th>状态</th><th>发放日期</th></tr></thead>
+          <thead><tr><th>月份</th><th>员工</th><th>金额</th><th>缺勤</th><th>状态</th><th>发放日期</th></tr></thead>
           <tbody></tbody>
         </table>
         <p class="muted" style="margin-top:8px">点击行：待发可标记已发（自动生成工资支出），已发可撤销</p>
@@ -922,15 +923,16 @@ function renderWageList() {
   if (st === 'paid') list = list.filter(w => w.paidDate);
   $('#wage-table tbody').innerHTML = list.map(w =>
     '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
+    + '<td>' + (w.absence ? w.absence + ' 天' : '—') + '</td>'
     + '<td>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</td>'
     + '<td>' + (w.paidDate || '—') + '</td></tr>'
-  ).join('') || '<tr><td colspan="5" class="empty">暂无工资单</td></tr>';
+  ).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
 }
 
 $('#wage-period').addEventListener('change', renderWageGen);
 $('#wage-filter-month').addEventListener('change', renderWageList);
 $('#wage-filter-status').addEventListener('change', renderWageList);
-['#wage-amount', '#wage-emp-select'].forEach(sel => {
+['#wage-amount', '#wage-absence', '#wage-emp-select'].forEach(sel => {
   $(sel).addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); $('#btn-gen-wages').click(); }
   });
@@ -995,12 +997,14 @@ $('#btn-gen-wages').addEventListener('click', async () => {
   const empId = $('#wage-emp-select').value;
   if (!empId) { toast('请选择员工'); return; }
   const amount = Math.round(Number($('#wage-amount').value) || 0);
+  const absence = Math.max(0, Math.round(Number($('#wage-absence').value) || 0));
   if (amount <= 0) { toast('请填写工资金额'); return; }
   if (S.wages.some(w => w.employeeId === empId && w.period === period)) { toast('该员工本月工资已生成'); return; }
-  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, paidDate: null, createdAt: Date.now() });
+  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, paidDate: null, createdAt: Date.now() });
   await loadState();
   renderWages();
   $('#wage-amount').value = '';
+  $('#wage-absence').value = '';
   toast('已生成 ' + empName(empId) + ' ' + period + ' 工资');
 });
 
@@ -1017,6 +1021,7 @@ function openWageModal(wid) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(w.employeeId)) + ' · ' + esc(w.period) + ' 工资</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>工资金额</span><b>' + fmtInt(w.amount) + '</b></div>'
+    + '<div class="kv"><span>缺勤</span><b>' + (w.absence ? w.absence + ' 天' : '—') + '</b></div>'
     + '<div class="kv"><span>状态</span><b>' + (w.paidDate ? '<span class="badge badge-ok">已发</span>' : '<span class="badge badge-gray">待发</span>') + '</b></div>'
     + (w.paidDate
       ? '<div class="kv"><span>发放日期</span><b>' + esc(w.paidDate) + '</b></div>'
@@ -1083,12 +1088,12 @@ $('#btn-export-xlsx').addEventListener('click', () => {
   XLSX.utils.book_append_sheet(wb, ws4, '发票台账');
 
   // 工作表5：工资表
-  const r5 = [['月份', '员工', '金额(元)', '状态', '发放日期']];
+  const r5 = [['月份', '员工', '金额(元)', '缺勤(天)', '状态', '发放日期']];
   S.wages.filter(w => all || !m || w.period === m)
     .sort((a, b) => a.period.localeCompare(b.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'))
-    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), w.paidDate ? '已发' : '待发', w.paidDate || '']));
+    .forEach(w => r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), Number(w.absence) || 0, w.paidDate ? '已发' : '待发', w.paidDate || '']));
   const ws5 = XLSX.utils.aoa_to_sheet(r5);
-  ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
+  ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, ws5, '工资表');
 
   XLSX.writeFile(wb, '账本报表_' + label + '.xlsx');
