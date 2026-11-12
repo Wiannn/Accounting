@@ -130,6 +130,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#24263A;color:#fff;padding:10px 22px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;z-index:99;pointer-events:none}
 #toast.show{opacity:.95}
 
+.card.add-card{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--border);cursor:pointer;min-height:76px;color:var(--muted);transition:.15s;user-select:none}
+.card.add-card:hover{border-color:var(--primary);color:var(--primary)}
+.card.add-card .add-plus{font-size:26px;line-height:1;color:inherit;font-weight:500}
+
 /* 月账本样式 */
 .ledger-topbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
 .ledger-topbar .lb-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -308,6 +312,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="page-head"><h1>客户</h1></div>
       <div class="cards">
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
+        <div class="card add-card" id="card-add-bill">
+          <div class="card-label">添加客户月账单</div>
+          <div class="card-num add-plus">＋</div>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-title">账单列表
@@ -322,7 +330,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           </span>
         </div>
         <div class="item-list" id="bills-list"></div>
-        <p class="muted" style="margin-top:8px">点击任意一张，可记收款、登记发票；新账单在「记一笔」+ 弹窗的「收入」标签添加</p>
+        <p class="muted" style="margin-top:8px">点击任意一张，可记收款、登记发票</p>
       </div>
       <div class="panel">
         <div class="panel-title">客户列表 <span class="muted">点击行查看该客户明细</span>
@@ -811,6 +819,11 @@ $('#ledger-list').addEventListener('click', e => {
 
 // FAB 打开新增表单
 $('#fab-add').addEventListener('click', openTxForm);
+$('#card-add-bill').addEventListener('click', () => {
+  openTxForm();
+  setTxTab('income');
+  setTimeout(() => { const el = $('#bill2-amount'); if (el) el.focus(); }, 60);
+});
 
 // 月份切换
 $('#ledger-month').addEventListener('change', renderLedger);
