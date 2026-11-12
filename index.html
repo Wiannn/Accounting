@@ -201,17 +201,17 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     </div>
     <div class="logo-sub">仓储账务 · 单机版</div>
     <nav>
-      <button class="nav-btn active" data-page="dashboard">首页</button>
-      <button class="nav-btn" data-page="add">记一笔</button>
+      <button class="nav-btn active" data-page="add">记一笔</button>
       <button class="nav-btn" data-page="bills">应收账单</button>
       <button class="nav-btn" data-page="wages">员工工资</button>
+      <button class="nav-btn" data-page="settings">设置</button>
     </nav>
   </aside>
   <main id="main">
 
-    <section id="page-dashboard" class="page active">
+    <section id="page-settings" class="page">
       <div class="page-head">
-        <h1>首页</h1>
+        <h1>设置</h1>
       </div>
       <div class="panel">
         <div class="panel-title">导出 Excel 报表</div>
@@ -233,7 +233,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       </div>
     </section>
 
-    <section id="page-add" class="page">
+    <section id="page-add" class="page active">
       <div class="ledger-topbar">
         <div class="lb-row">
           <span class="lb-title">记一笔</span>
@@ -546,7 +546,7 @@ function invState(b) {
 const invBadge = k => k === 'done' ? 'ok' : k === 'partial' ? 'info' : 'gray';
 
 /* ---------- 页面切换 ---------- */
-let currentPage = 'dashboard';
+let currentPage = 'add';
 $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchPage(b.dataset.page)));
 function switchPage(p) {
   currentPage = p;
@@ -555,17 +555,13 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ dashboard: () => { renderDashboard(); renderReports(); }, add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages }[p] || function () {})();
+  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
 }
 
 /* ---------- 待收总额（应收账单页顶部） ---------- */
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
-}
-
-/* ---------- 首页 ---------- */
-function renderDashboard() {
 }
 
 /* ---------- 记一笔 ---------- */
@@ -1410,9 +1406,7 @@ function openWageModal(wid) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-/* ---------- 报表中心 ---------- */
-function renderReports() {
-}
+/* ---------- 设置页（报表/备份） ---------- */
 $('#report-all').addEventListener('change', e => { $('#report-month').disabled = e.target.checked; });
 
 $('#btn-export-xlsx').addEventListener('click', () => {
@@ -1543,9 +1537,7 @@ async function importBackup(file) {
   if ($('#tx-date')) $('#tx-date').value = todayStr();
   $('#bill-period').value = monthStr();
   $('#wage-period').value = monthStr();
-  renderDashboard();
   renderUnpaid();
-  renderReports();
 })();
 </script>
 </body>
