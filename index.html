@@ -262,35 +262,32 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
       </div>
       <div class="ledger-list" id="ledger-list"></div>
-      <div class="panel" id="rb-quick-panel">
-        <div class="panel-title">员工报销记录 <span class="muted" id="rb-quick-sum"></span></div>
-        <div class="item-list" id="rb-quick-list"></div>
-        <p class="muted" style="margin-top:8px">点击任意一张，可标记已报销或撤销；新增报销点右下角 + 切到「员工报销」</p>
-      </div>
       <button id="fab-add" title="记一笔">+</button>
     </section>
 
-    <!-- 记一笔弹窗：支出 / 收入 / 员工报销 三个标签 -->
+    <!-- 记一笔弹窗：支出 / 收入 两个标签 -->
     <template id="tx-form-modal">
       <div class="modal-head"><h2>记一笔</h2><button class="modal-x" data-close>&times;</button></div>
       <div class="seg" style="margin-bottom:14px">
         <button class="seg-btn active" id="tab-expense">支出</button>
         <button class="seg-btn" id="tab-income">收入</button>
-        <button class="seg-btn" id="tab-reimb">员工报销</button>
       </div>
       <p class="muted" id="tx-hint" style="margin-bottom:12px"></p>
       <div id="tx-expense-fields">
         <div class="form-grid">
-          <label>分类 <select id="tx-group">
+          <label>主分类 <select id="tx-group">
             <option value="仓库">仓库</option>
+            <option value="车队">车队</option>
             <option value="其他">其他</option>
           </select></label>
           <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
-          <label>日期 <input type="date" id="tx-date"></label>
+          <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
           <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填" autocomplete="off"></label>
+          <label class="check span2" style="flex-direction:row;align-items:center"><input type="checkbox" id="tx-pending" style="width:auto"> 待报销（员工垫付，先挂账）</label>
+          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名" autocomplete="off"></label>
         </div>
         <button class="primary" id="btn-save-tx">保存</button>
+        <p class="muted" style="margin-top:8px">勾选「待报销」先挂账，不计入支出统计；确认报销后自动计入</p>
       </div>
       <div id="tx-income-fields" class="hidden">
         <div class="form-grid">
@@ -301,17 +298,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
         <button class="primary" id="btn-save-bill2">添加账单</button>
         <p class="muted" style="margin-top:8px">客户付款后在「客户」页的账单卡片里登记收款，收款会自动生成收入流水</p>
-      </div>
-      <div id="tx-reimb-fields" class="hidden">
-        <div class="form-grid">
-          <label>员工 <select id="rb2-employee"></select></label>
-          <label>分类 <select id="rb2-type"><option>上车费</option><option>高速费</option><option>打印费</option><option>其他</option></select></label>
-          <label>发生日期 <input type="date" id="rb2-date"></label>
-          <label>金额（元） <input type="number" id="rb2-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label class="span2">事由 <input type="text" id="rb2-note" placeholder="补充说明（选填）" autocomplete="off"></label>
-        </div>
-        <button class="primary" id="btn-save-rb2">登记报销</button>
-        <p class="muted" style="margin-top:8px">标记已报销后会自动生成支出（员工 · 报销）</p>
       </div>
     </template>
 
@@ -446,18 +432,19 @@ function toast(msg) {
 // 全局错误兜底：任何静默失败都以提示浮出，便于定位
 window.addEventListener('error', e => { try { toast('出错了：' + (e.message || '未知错误')); } catch (_) {} });
 window.addEventListener('unhandledrejection', e => { try { const r = e.reason; toast('操作失败：' + ((r && r.message) || r || '未知错误')); } catch (_) {} });
-const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'reimbursements', 'meta'];
+const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'meta'];
 let _db = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('company-ledger', 6);
+    const req = indexedDB.open('company-ledger', 7);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       STORES.forEach(s => { if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' }); });
       // 已删除功能的存储清理
       if (db.objectStoreNames.contains('assets')) db.deleteObjectStore('assets');
       if (db.objectStoreNames.contains('purchases')) db.deleteObjectStore('purchases');
+      if (db.objectStoreNames.contains('reimbursements')) db.deleteObjectStore('reimbursements');
     };
     req.onsuccess = e => {
       _db = e.target.result;
@@ -499,20 +486,19 @@ const DEFAULTS = {
   seeded: false,
   catGroups: {
     '仓库': ['办公用品', '工具材料', '油费'],
-    '车队': ['油费', '拖车费', '换轮胎', '其他'],
+    '车队': ['上车费', '高速费', '油费', '打印费'],
     '员工': ['员工工资', '报销']
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
-let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], reimbursements: [], settings: Object.assign({}, DEFAULTS) };
+let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
-  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, reimbursements, meta] = await Promise.all(STORES.map(dbGetAll));
+  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, meta] = await Promise.all(STORES.map(dbGetAll));
   S.customers = customers.sort((a, b) => a.createdAt - b.createdAt);
   S.incomes = incomes; S.expenses = expenses; S.bills = bills; S.payments = payments; S.invoices = invoices;
   S.employees = employees.sort((a, b) => a.createdAt - b.createdAt); S.wages = wages;
-  S.reimbursements = reimbursements;
   // 迁移：旧工资单若有 paidDate 但无 payments → 用已生成的支出记录反推一条 payment
   let needSave = false;
   for (const w of S.wages) {
@@ -540,7 +526,13 @@ async function loadState() {
 const saveSetting = (key, value) => dbPut('meta', { id: key, value: value });
 
 async function migrateCategories() {
-  // 老数据补上「报销」子分类
+  // 车队子分类统一为：上车费/高速费/油费/打印费（员工报销并入支出·车队）
+  const FLEET_SUBS = ['上车费', '高速费', '油费', '打印费'];
+  if (JSON.stringify(S.settings.catGroups['车队']) !== JSON.stringify(FLEET_SUBS)) {
+    S.settings.catGroups['车队'] = FLEET_SUBS;
+    await saveSetting('catGroups', S.settings.catGroups);
+  }
+  // 老数据补上「报销」子分类（历史报销生成的支出仍能显示分类名）
   if (!(S.settings.catGroups['员工'] || []).includes('报销')) {
     S.settings.catGroups['员工'] = (S.settings.catGroups['员工'] || []).concat(['报销']);
     await saveSetting('catGroups', S.settings.catGroups);
@@ -581,50 +573,7 @@ function invState(b) {
   return { invoiced, remaining, key, label };
 }
 const invBadge = k => k === 'done' ? 'ok' : k === 'partial' ? 'info' : 'gray';
-/* ---------- 员工报销（记一笔页） ---------- */
-function renderRbQuick() {
-  const pending = round2(S.reimbursements.filter(r => !r.paidDate).reduce((s, r) => s + Number(r.amount || 0), 0));
-  $('#rb-quick-sum').textContent = '待报销 ' + fmt(pending);
-  const list = S.reimbursements.slice().sort((a, b) => ((a.paidDate ? 1 : 0) - (b.paidDate ? 1 : 0)) || (b.date || '').localeCompare(a.date || ''));
-  $('#rb-quick-list').innerHTML = list.map(r => '<div class="item-card" data-rb="' + r.id + '">'
-    + '<div class="ic-main">'
-    + '<div class="ic-title">' + esc(empName(r.employeeId)) + ' ' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</div>'
-    + '<div class="ic-sub">' + esc(r.type || '其他') + (r.date ? ' · ' + r.date : '') + (r.note ? ' · ' + esc(r.note) : '') + '</div>'
-    + '</div>'
-    + '<div class="ic-right"><div class="ic-amt">' + fmt(r.amount) + '</div></div>'
-    + '</div>').join('')
-    || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无报销记录</div>';
-}
-$('#rb-quick-list').addEventListener('click', e => {
-  const card = e.target.closest('.item-card[data-rb]');
-  if (card) openRbModal(card.dataset.rb);
-});
-
-let currentRbId = null;
-function openRbModal(rid) {
-  const r = S.reimbursements.find(x => x.id === rid);
-  if (!r) return;
-  currentRbId = rid;
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + esc(empName(r.employeeId)) + ' · 报销</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>分类</span><b>' + esc(r.type || '—') + '</b></div>'
-    + '<div class="kv"><span>发生日期</span><b>' + (r.date || '—') + '</b></div>'
-    + '<div class="kv"><span>金额</span><b>' + fmt(r.amount) + '</b></div>'
-    + '<div class="kv"><span>事由</span><b>' + esc(r.note || '—') + '</b></div>'
-    + '<div class="kv"><span>状态</span><b>' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</b></div>'
-    + (r.paidDate
-      ? '<p class="muted" style="margin-top:8px">该笔已计入「记一笔」支出（员工 · 报销）。</p>'
-        + '<button class="ghost" id="btn-rb-cancel" style="margin-top:10px">撤销报销</button>'
-      : '<div class="inline-form" style="margin-top:10px">'
-        + '<input type="date" id="rb-pay-date" value="' + todayStr() + '">'
-        + '<input type="text" id="rb-pay-note" placeholder="备注（选填）">'
-        + '<button class="primary small" id="btn-rb-pay">标记已报销</button></div>'
-        + '<p class="muted" style="margin-top:8px">标记后自动在「记一笔」生成支出（员工 · 报销）</p>')
-    + '<div class="modal-foot"><button class="ghost danger" id="btn-del-rb">删除报销记录</button></div>';
-  $('#modal-mask').classList.remove('hidden');
-}
-
-/* ---------- 固定资产功能已删除 ---------- */
+/* ---------- 员工报销已并入记一笔支出（待报销挂账模式） ---------- */
 
 /* ---------- 页面切换 ---------- */
 let currentPage = 'add';
@@ -660,16 +609,20 @@ function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
   ledgerMonthCache = period;
   const [y, m] = period.split('-').map(Number);
-  // 当月收支
-  let income = 0, expense = 0;
+  // 当月收支（待报销的支出不计入统计）
+  let income = 0, expense = 0, pendingSum = 0;
   S.incomes.forEach(i => { if ((i.date || '').startsWith(period)) income += Number(i.amount || 0); });
-  S.expenses.forEach(e => { if ((e.date || '').startsWith(period)) expense += Number(e.amount || 0); });
+  S.expenses.forEach(e => {
+    if (!(e.date || '').startsWith(period)) return;
+    if (e.status === 'pending') pendingSum += Number(e.amount || 0);
+    else expense += Number(e.amount || 0);
+  });
   $('#ledger-income').textContent = '+' + fmt2(income);
-  $('#ledger-expense').textContent = '−' + fmt2(expense);
+  $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendingSum > 0 ? '（另有待报销 ' + fmt2(pendingSum) + '）' : '');
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
-    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note })))
+    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending' })))
     .filter(r => (r.date || '').startsWith(period))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   if (!all.length) {
@@ -696,25 +649,25 @@ function renderLedger() {
       lastDate = r.date;
     }
     const amtSign = r.type === 'income' ? '+' : '−';
+    const amtStyle = r.pending ? ' style="color:var(--warn)"' : '';
     html += '<div class="ledger-item ' + r.type + '" data-ledger="' + r.store + ':' + r.id + '">'
       + '<div class="li-main">'
-      + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + '</div>'
+      + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + (r.pending ? ' <span class="badge badge-warn">待报销</span>' : '') + '</div>'
       + '<div class="li-note">' + esc(r.note || '') + '</div>'
       + '</div>'
-      + '<div class="li-amt">' + amtSign + fmt2(r.amount) + '</div>'
+      + '<div class="li-amt"' + amtStyle + '>' + amtSign + fmt2(r.amount) + '</div>'
       + '<div class="li-date"></div>'
       + '</div>';
   });
   $('#ledger-list').innerHTML = html;
-  renderRbQuick();
 }
 
 function renderTxSubs() {
   const g = $('#tx-group').value;
   const wrap = $('#wrap-subcategory');
-  if (g === '仓库') {
+  const subs = S.settings.catGroups[g] || [];
+  if (g !== '其他' && subs.length) {
     wrap.classList.remove('hidden');
-    const subs = S.settings.catGroups['仓库'] || [];
     $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
   } else {
     wrap.classList.add('hidden');
@@ -725,13 +678,10 @@ function initTxForm() {
   $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
+  $('#tx-pending').checked = false;
+  $('#wrap-tx-date').classList.remove('hidden');
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
-  // 员工报销表单
-  $('#rb2-employee').innerHTML = S.employees.filter(e2 => e2.active).map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
-  $('#rb2-date').value = todayStr();
-  $('#rb2-amount').value = '';
-  $('#rb2-note').value = '';
   // 收入（添加账单）表单
   const prevC = $('#bill2-customer').value;
   $('#bill2-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
@@ -750,15 +700,11 @@ function setTxTab(t) {
   txTab = t;
   $('#tab-expense').classList.toggle('active', t === 'expense');
   $('#tab-income').classList.toggle('active', t === 'income');
-  $('#tab-reimb').classList.toggle('active', t === 'reimb');
   $('#tx-expense-fields').classList.toggle('hidden', t !== 'expense');
   $('#tx-income-fields').classList.toggle('hidden', t !== 'income');
-  $('#tx-reimb-fields').classList.toggle('hidden', t !== 'reimb');
   $('#tx-hint').textContent = t === 'expense'
-    ? '工资在发放时自动记录；客户收入 →「收入」标签建账单，收款自动生成。'
-    : t === 'income'
-      ? '客户应收账单：客户付款后在「客户」页账单卡片里登记收款。'
-      : '员工垫付的费用（如司机过路费），标记已报销后自动计入支出（员工 · 报销）。';
+    ? '工资在发放时自动记录；员工垫付费用选「车队」分类，可勾选待报销先挂账。'
+    : '客户应收账单：客户付款后在「客户」页账单卡片里登记收款。';
 }
 
 function openTxForm() {
@@ -774,18 +720,18 @@ function openTxForm() {
 function bindTxFormEvents() {
   $('#tab-expense').addEventListener('click', () => setTxTab('expense'));
   $('#tab-income').addEventListener('click', () => setTxTab('income'));
-  $('#tab-reimb').addEventListener('click', () => setTxTab('reimb'));
   $('#tx-group').addEventListener('change', renderTxSubs);
+  $('#tx-pending').addEventListener('change', () => {
+    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-pending').checked);
+  });
   $('#btn-save-tx').addEventListener('click', saveTx);
   $('#btn-save-bill2').addEventListener('click', saveBill2);
-  $('#btn-save-rb2').addEventListener('click', saveRb2);
   ['#tx-amount', '#tx-note'].forEach(sel => {
     $(sel).addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
     });
   });
   $('#bill2-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill2(); } });
-  $('#rb2-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveRb2(); } });
 }
 
 async function saveBill2() {
@@ -807,51 +753,50 @@ async function saveBill2() {
   toast('账单已添加，收款请在「客户」页登记');
 }
 
-async function saveRb2() {
-  const employeeId = $('#rb2-employee').value;
-  const date = $('#rb2-date').value;
-  const amount = round2($('#rb2-amount').value);
-  const note = $('#rb2-note').value.trim();
-  if (!employeeId) { toast('请先在「员工」页添加员工'); return; }
-  if (!date) { toast('请选择发生日期'); return; }
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  if (S.reimbursements.some(r => !r.paidDate && r.employeeId === employeeId && r.date === date && round2(Number(r.amount)) === amount)) {
-    if (!confirm(date + ' 该员工已有一笔相同金额的待报销记录，是否重复录入？')) return;
-  }
-  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, type: $('#rb2-type').value, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
-  await loadState();
-  closeModal();
-  renderRbQuick();
-  toast('报销已登记');
-}
-
 async function saveTx() {
-  const date = $('#tx-date').value;
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
-  if (!date) { toast('请选择日期'); return; }
+  const isPending = $('#tx-pending').checked;
+  const date = isPending ? todayStr() : $('#tx-date').value;
+  if (!isPending && !date) { toast('请选择日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   if (S.expenses.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
-    if (!confirm(date + ' 当天已有一笔 ' + fmt(amount) + ' 的支出，是否重复录入？')) return;
+    if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
   const group = $('#tx-group').value;
-  const sub = group === '仓库' ? ($('#tx-category').value || '') : '';
-  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, createdAt: Date.now() });
+  const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
+  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, createdAt: Date.now() });
   await loadState();
   closeModal();
   if (currentPage === 'add') renderLedger();
-  toast('已保存');
+  toast(isPending ? '已挂账（待报销）' : '已保存');
 }
 
-$('#ledger-list').addEventListener('click', async e => {
+let currentLedgerId = null;
+$('#ledger-list').addEventListener('click', e => {
   const item = e.target.closest('[data-ledger]');
   if (!item) return;
-  if (!confirm('删除这条记录？')) return;
-  const parts = item.dataset.ledger.split(':');
-  await dbDel(parts[0], parts[1]);
-  await loadState();
-  renderLedger();
-  toast('已删除');
+  const [store, id] = item.dataset.ledger.split(':');
+  const rec = store === 'incomes' ? S.incomes.find(x => x.id === id) : S.expenses.find(x => x.id === id);
+  if (!rec) return;
+  currentLedgerId = { store: store, id: id };
+  const isInc = store === 'incomes';
+  const pending = !isInc && rec.status === 'pending';
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + (isInc ? '收入详情' : '支出详情') + (pending ? ' <span class="badge badge-warn">待报销</span>' : '') + '</h2><button class="modal-x" data-close>&times;</button></div>'
+    + (isInc
+      ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId)) + '</b></div>'
+        + '<div class="kv"><span>费用类型</span><b>' + esc(rec.type || '—') + '</b></div>'
+      : '<div class="kv"><span>分类</span><b>' + esc(catLabel(rec)) + '</b></div>')
+    + '<div class="kv"><span>日期</span><b>' + (rec.date || '—') + '</b></div>'
+    + '<div class="kv"><span>金额</span><b>' + fmt(rec.amount) + '</b></div>'
+    + (rec.note ? '<div class="kv"><span>备注</span><b>' + esc(rec.note) + '</b></div>' : '')
+    + (pending
+      ? '<div class="inline-form" style="margin-top:12px"><input type="date" id="ledger-pay-date" value="' + todayStr() + '"><button class="primary small" id="btn-ledger-pay">确认报销</button></div>'
+        + '<p class="muted" style="margin-top:8px">确认后计入所选日期的支出统计（原挂账日期为 ' + (rec.date || '—') + '）</p>'
+      : '')
+    + '<div class="modal-foot"><button class="ghost danger" id="btn-ledger-del">删除这条记录</button></div>';
+  $('#modal-mask').classList.remove('hidden');
 });
 
 // FAB 打开新增表单
@@ -1002,7 +947,7 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; currentRbId = null; }
+function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 $('#modal').addEventListener('click', async e => {
@@ -1201,45 +1146,31 @@ $('#modal').addEventListener('click', async e => {
     toast('工资单已删除');
   }
 
-  if (t.id === 'btn-rb-pay') {
-    const r = S.reimbursements.find(x => x.id === currentRbId);
-    if (!r) return;
-    const date = $('#rb-pay-date').value;
-    const note = $('#rb-pay-note').value.trim();
+  if (t.id === 'btn-ledger-pay') {
+    if (!currentLedgerId) return;
+    const rec = S.expenses.find(x => x.id === currentLedgerId.id);
+    if (!rec) return;
+    const date = $('#ledger-pay-date').value;
     if (!date) { toast('请选择报销日期'); return; }
-    r.paidDate = date;
-    r.paidNote = note;
-    await dbPut('reimbursements', r);
-    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '报销', amount: round2(r.amount), note: empName(r.employeeId) + ' 报销' + (r.type ? '（' + r.type + (r.note ? '：' + r.note : '') + '）' : (r.note ? '（' + r.note + '）' : '')) + (note ? ' ' + note : ''), reimbursementId: r.id, createdAt: Date.now() });
-    await loadState();
-    openRbModal(currentRbId);
-    renderRbQuick();
-    toast('已报销，支出已计入记一笔');
-    return;
-  }
-  if (t.id === 'btn-rb-cancel') {
-    const r = S.reimbursements.find(x => x.id === currentRbId);
-    if (!r) return;
-    if (!confirm('撤销报销？对应的支出记录将一并删除。')) return;
-    for (const ex of S.expenses.filter(x => x.reimbursementId === r.id)) await dbDel('expenses', ex.id);
-    r.paidDate = null;
-    r.paidNote = null;
-    await dbPut('reimbursements', r);
-    await loadState();
-    openRbModal(currentRbId);
-    renderRbQuick();
-    return;
-  }
-  if (t.id === 'btn-del-rb') {
-    const r = S.reimbursements.find(x => x.id === currentRbId);
-    if (!r) return;
-    if (!confirm('删除这条报销记录？' + (r.paidDate ? '对应的支出记录将一并删除。' : ''))) return;
-    for (const ex of S.expenses.filter(x => x.reimbursementId === r.id)) await dbDel('expenses', ex.id);
-    await dbDel('reimbursements', r.id);
+    rec.date = date;
+    rec.status = null;
+    await dbPut('expenses', rec);
     await loadState();
     closeModal();
-    renderRbQuick();
-    toast('报销记录已删除');
+    currentLedgerId = null;
+    renderLedger();
+    toast('已确认报销，计入 ' + date + ' 支出');
+    return;
+  }
+  if (t.id === 'btn-ledger-del') {
+    if (!currentLedgerId) return;
+    if (!confirm('删除这条记录？')) return;
+    await dbDel(currentLedgerId.store, currentLedgerId.id);
+    await loadState();
+    closeModal();
+    currentLedgerId = null;
+    renderLedger();
+    toast('已删除');
     return;
   }
 
@@ -1444,7 +1375,6 @@ $('#btn-add-emp').addEventListener('click', async () => {
   $('#emp-name').value = '';
   $('#emp-role').value = '';
   renderWages();
-  renderRbQuick();
   toast('员工已添加');
 });
 
@@ -1636,7 +1566,6 @@ $('#btn-backup').addEventListener('click', () => {
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
     bills: S.bills, payments: S.payments, invoices: S.invoices,
     employees: S.employees, wages: S.wages,
-    reimbursements: S.reimbursements,
     settings: S.settings
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1669,7 +1598,7 @@ async function importBackup(file) {
   for (const em of data.employees || []) await dbPut('employees', em);
   for (const wg of data.wages || []) await dbPut('wages', wg);
   for (const p of data.purchases || []) { /* 采购功能已删除 */ }
-  for (const r of data.reimbursements || []) await dbPut('reimbursements', r);
+  // 报销功能已并入支出（车队分类），旧报销数据不再导入
   const st = data.settings || {};
   for (const k of Object.keys(st)) await dbPut('meta', { id: k, value: st[k] });
   await loadState();
