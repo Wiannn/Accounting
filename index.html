@@ -948,6 +948,32 @@ $('#modal').addEventListener('click', async e => {
     $('#btn-cust-manage').click(); // 刷新弹窗
     return;
   }
+  if (t.closest('[data-rencust-modal]')) {
+    const cid = t.closest('[data-rencust-modal]').dataset.rencustModal;
+    const c = S.customers.find(x => x.id === cid);
+    if (!c) return;
+    $('#modal').innerHTML =
+      '<div class="modal-head"><h2>重命名客户</h2><button class="modal-x" data-close>&times;</button></div>'
+      + '<div class="form-grid"><label class="span2">客户名称 <input type="text" id="cust-rename" autocomplete="off" value="' + esc(c.name) + '"></label></div>'
+      + '<button class="primary" id="btn-cust-rename-save" data-cust-id="' + cid + '">保存</button>';
+    setTimeout(() => { const el = $('#cust-rename'); if (el) { el.focus(); el.select(); } }, 30);
+    return;
+  }
+  if (t.id === 'btn-cust-rename-save') {
+    const cid = t.dataset.custId;
+    const c = S.customers.find(x => x.id === cid);
+    if (!c) return;
+    const name = $('#cust-rename').value.trim();
+    if (!name) { toast('请输入客户名称'); return; }
+    if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
+    await dbPut('customers', Object.assign({}, c, { name: name }));
+    await loadState();
+    renderCustomers();
+    renderBills();
+    toast('已重命名');
+    $('#btn-cust-manage').click(); // 刷新弹窗
+    return;
+  }
   if (t.closest('[data-delcust-modal]')) {
     const del = t.closest('[data-delcust-modal]');
     const cid = del.dataset.delcustModal;
@@ -1161,7 +1187,7 @@ $('#cust-table tbody').addEventListener('click', async e => {
 
 $('#btn-cust-manage').addEventListener('click', () => {
   const listHtml = S.customers.length
-    ? S.customers.map(c => '<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span>' + esc(c.name) + '</span><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></li>').join('')
+    ? S.customers.map(c => '<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span>' + esc(c.name) + '</span><span style="display:flex;gap:12px"><button class="link-btn" data-rencust-modal="' + c.id + '">重命名</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></span></li>').join('')
     : '<li class="empty">暂无客户</li>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>客户管理</h2><button class="modal-x" data-close>&times;</button></div>'
@@ -1527,7 +1553,7 @@ async function importBackup(file) {
   await loadState();
   await migrateCategories();
   if (!S.settings.seeded) {
-    for (const n of ['祺盾', '孙海洋', '陈武', '敖通']) {
+    for (const n of ['祺盾', '孙海洋', '陈武', '傲通']) {
       await dbPut('customers', { id: uid(), name: n, createdAt: Date.now() });
     }
     await saveSetting('seeded', true);
