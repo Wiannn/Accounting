@@ -723,8 +723,20 @@ async function saveTx() {
 async function addSubCat() {
   const group = $('#tx-group').value;
   if (!group) return;
-  const name = (prompt('在「' + group + '」下新增子分类名称：') || '').trim();
-  if (!name) return;
+  // 用自定义弹窗代替原生 prompt，避免手机输入法联想/自动填充带出无关内容
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>新增分类 · ' + esc(group) + '</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="form-grid"><label class="span2">子分类名称 <input type="text" id="new-sub-name" autocomplete="off" maxlength="10" placeholder=""></label></div>'
+    + '<button class="primary" id="btn-subcat-save">添加</button>';
+  $('#modal-mask').classList.remove('hidden');
+  $('#new-sub-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSubCat(group); } });
+  $('#btn-subcat-save').addEventListener('click', () => saveSubCat(group));
+  setTimeout(() => { const el = $('#new-sub-name'); if (el) el.focus(); }, 30);
+}
+
+async function saveSubCat(group) {
+  const name = ($('#new-sub-name').value || '').trim();
+  if (!name) { toast('请输入分类名称'); return; }
   const subs = S.settings.catGroups[group] || [];
   if (subs.indexOf(name) >= 0) { toast('分类已存在'); return; }
   subs.push(name);
@@ -732,6 +744,7 @@ async function addSubCat() {
   await saveSetting('catGroups', S.settings.catGroups);
   renderSubCats();
   $('#tx-category').value = name;
+  closeModal();
 }
 
 $('#ledger-list').addEventListener('click', async e => {
