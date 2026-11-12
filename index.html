@@ -219,8 +219,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <div class="logo-sub">仓储账务 · 单机版</div>
     <nav>
       <button class="nav-btn active" data-page="add">记一笔</button>
-      <button class="nav-btn" data-page="bills">账单</button>
-      <button class="nav-btn" data-page="wages">员工工资</button>
+      <button class="nav-btn" data-page="bills">客户</button>
+      <button class="nav-btn" data-page="wages">员工</button>
       <button class="nav-btn" data-page="settings">设置</button>
     </nav>
   </aside>
@@ -305,7 +305,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     </template>
 
     <section id="page-bills" class="page">
-      <div class="page-head"><h1>账单</h1></div>
+      <div class="page-head"><h1>客户</h1></div>
       <div class="cards">
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
       </div>
@@ -343,7 +343,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     </section>
 
     <section id="page-wages" class="page">
-      <div class="page-head"><h1>员工工资</h1></div>
+      <div class="page-head"><h1>员工</h1></div>
       <div class="panel">
         <div class="panel-title">员工管理 <span class="muted" id="emp-count-label"></span>
           <button class="ghost small" id="btn-toggle-emp" style="margin-left:auto">展开</button>
@@ -745,7 +745,7 @@ function setTxTab(t) {
   $('#tx-expense-fields').classList.toggle('hidden', t !== 'expense');
   $('#tx-reimb-fields').classList.toggle('hidden', t !== 'reimb');
   $('#tx-hint').textContent = t === 'expense'
-    ? '工资在发放时自动记录；客户收入 →「账单」页登记收款自动生成。'
+    ? '工资在发放时自动记录；客户收入 →「客户」页登记收款自动生成。'
     : '员工垫付的费用（如司机过路费），标记已报销后自动计入支出（员工 · 报销）。';
 }
 
@@ -778,7 +778,7 @@ async function saveRb2() {
   const date = $('#rb2-date').value;
   const amount = round2($('#rb2-amount').value);
   const note = $('#rb2-note').value.trim();
-  if (!employeeId) { toast('请先在「员工工资」页添加员工'); return; }
+  if (!employeeId) { toast('请先在「员工」页添加员工'); return; }
   if (!date) { toast('请选择发生日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   if (S.reimbursements.some(r => !r.paidDate && r.employeeId === employeeId && r.date === date && round2(Number(r.amount)) === amount)) {
@@ -923,7 +923,7 @@ $('#btn-save-bill').addEventListener('click', async () => {
   const cid = $('#bill-customer').value;
   const period = $('#bill-period').value;
   const amount = round2($('#bill-amount').value);
-  if (!cid) { toast('请先在「账单」页添加客户'); return; }
+  if (!cid) { toast('请先在「客户」页添加客户'); return; }
   if (!period) { toast('请选择账期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
