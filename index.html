@@ -728,7 +728,6 @@ function openTxForm() {
   $('#modal-mask').classList.remove('hidden');
   initTxForm();
   bindTxFormEvents();
-  setTimeout(() => { const el = $('#tx-amount'); if (el) el.focus(); }, 30);
 }
 
 // 弹窗内容是动态注入的，事件必须在注入后再绑定
@@ -822,7 +821,6 @@ $('#fab-add').addEventListener('click', openTxForm);
 $('#card-add-bill').addEventListener('click', () => {
   openTxForm();
   setTxTab('income');
-  setTimeout(() => { const el = $('#bill2-amount'); if (el) el.focus(); }, 60);
 });
 
 // 月份切换
