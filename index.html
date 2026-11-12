@@ -324,6 +324,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <div class="card-label">添加客户月账单</div>
           <div class="card-num add-plus">＋</div>
         </div>
+        <div class="card add-card" id="card-cust-manage">
+          <div class="card-label">客户管理</div>
+          <div class="card-num add-plus">＋</div>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-title">账单列表
@@ -338,13 +342,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           </span>
         </div>
         <div class="item-list" id="bills-list"></div>
-        <p class="muted" style="margin-top:8px">点击任意一张，可记收款、登记发票</p>
-      </div>
-      <div class="panel">
-        <div class="panel-title">客户列表 <span class="muted">点击行查看该客户明细</span>
-          <span class="filters"><button class="primary small" id="btn-cust-manage">客户管理</button></span>
-        </div>
-        <div class="item-list" id="cust-list"></div>
+        <p class="muted" style="margin-top:8px">点客户名展开账单和「客户详情」，点任意一张账单可记收款、登记发票</p>
       </div>
     </section>
 
@@ -604,7 +602,7 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
 }
 
 /* ---------- 待收总额（账单页顶部） ---------- */
@@ -769,7 +767,6 @@ async function saveBill3() {
   await loadState();
   closeModal();
   renderBills();
-  renderCustomers();
   toast('月账单已添加（待收）');
 }
 
@@ -936,7 +933,7 @@ function renderBills() {
   else if (fs) list = list.filter(b => billState(b).key === fs);
   if (fc2) list = list.filter(b => b.customerId === fc2);
 
-  // 按顾客折叠分组，默认收起
+  // 按顾客折叠分组（组头含客户信息），默认收起
   const billCardHtml = b => {
     const st = billState(b);
     const ist = invState(b);
@@ -948,8 +945,11 @@ function renderBills() {
       + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
       + '</div>';
   };
+  const filtered = !!fs || !!fc2;
   const order = [];
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
+  // 无筛选时，把没有账单的客户也补进来（保证客户都可管理）
+  if (!filtered) S.customers.forEach(c => { if (!order.includes(c.id)) order.push(c.id); });
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
     const sum = bills.reduce((acc, b) => {
@@ -958,16 +958,19 @@ function renderBills() {
       if (s.key !== 'settled') acc.open++;
       return acc;
     }, { remaining: 0, open: 0 });
+    const inc = round2(S.incomes.filter(i => i.customerId === cid).reduce((s, i) => s + Number(i.amount), 0));
     const isOpen = expandedBillGroups.has(cid);
+    const sub = (bills.length ? (sum.open > 0 ? '待收 ' + sum.open + ' 张' : '全部已结清') : '暂无账单')
+      + ' · 现结收入 ' + fmt(inc);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(custName(cid)) + '<span class="badge badge-gray">' + bills.length + ' 张</span></div>'
-      + '<div class="ic-sub">' + (sum.open > 0 ? '待收 ' + sum.open + ' 张' : '全部已结清') + '</div>'
+      + '<div class="ic-title">' + esc(custName(cid)) + (bills.length ? '<span class="badge badge-gray">' + bills.length + ' 张</span>' : '') + '</div>'
+      + '<div class="ic-sub">' + sub + '</div>'
       + '</div>'
-      + '<div class="ic-right"><div class="ic-amt">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
+      + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '</div>'
-      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '</div>' : '')
+      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">客户详情</button></div></div>' : '')
       + '</div>';
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，点上方「添加客户月账单」卡片</div>';
   $('#bills-list').innerHTML = html;
@@ -986,7 +989,9 @@ $('#bills-list').addEventListener('click', e => {
     return;
   }
   const tr = e.target.closest('.item-card[data-bill]');
-  if (tr) openBillModal(tr.dataset.bill);
+  if (tr) { openBillModal(tr.dataset.bill); return; }
+  const cd = e.target.closest('[data-custdetail]');
+  if (cd) openCustModal(cd.dataset.custdetail);
 });
 
 /* ---------- 账单详情弹窗 ---------- */
@@ -1050,10 +1055,9 @@ $('#modal').addEventListener('click', async e => {
     if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
     await dbPut('customers', { id: uid(), name: name, createdAt: Date.now() });
     await loadState();
-    renderCustomers();
     renderBills();
     toast('客户已添加');
-    $('#btn-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新弹窗
     return;
   }
   if (t.closest('[data-rencust-modal]')) {
@@ -1076,10 +1080,9 @@ $('#modal').addEventListener('click', async e => {
     if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
     await dbPut('customers', Object.assign({}, c, { name: name }));
     await loadState();
-    renderCustomers();
     renderBills();
     toast('已重命名');
-    $('#btn-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新弹窗
     return;
   }
   if (t.closest('[data-delcust-modal]')) {
@@ -1093,8 +1096,7 @@ $('#modal').addEventListener('click', async e => {
     await dbDel('customers', cid);
     await loadState();
     renderBills();
-    renderCustomers();
-    $('#btn-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新弹窗
     return;
   }
 
@@ -1112,7 +1114,6 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
-    renderCustomers();
     toast('收款已登记，收入已计入记一笔');
     return;
   }
@@ -1123,7 +1124,6 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
-    renderCustomers();
     return;
   }
   if (t.id === 'btn-add-inv') {
@@ -1134,7 +1134,6 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
-    renderCustomers();
     toast('开票已登记');
     return;
   }
@@ -1144,7 +1143,6 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     openBillModal(currentBillId);
     renderBills();
-    renderCustomers();
     return;
   }
   if (t.id === 'btn-del-bill') {
@@ -1157,7 +1155,6 @@ $('#modal').addEventListener('click', async e => {
     await loadState();
     closeModal();
     renderBills();
-    renderCustomers();
     toast('账单已删除');
   }
 
@@ -1297,39 +1294,7 @@ $('#modal').addEventListener('keydown', e => {
 });
 
 /* ---------- 客户 ---------- */
-function renderCustomers() {
-  $('#cust-list').innerHTML = S.customers.map(c => {
-    const inc = round2(S.incomes.filter(i => i.customerId === c.id).reduce((s, i) => s + Number(i.amount), 0));
-    const bills = S.bills.filter(b => b.customerId === c.id);
-    const totalBill = round2(bills.reduce((s, b) => s + Number(b.amount), 0));
-    const paid = round2(bills.reduce((s, b) => s + paidOf(b.id), 0));
-    const owed = round2(totalBill - paid);
-    return '<div class="item-card" data-cust="' + c.id + '">'
-      + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(c.name) + (owed > 0 ? '<span class="badge badge-warn">待收</span>' : '') + '</div>'
-      + '<div class="ic-sub">现结收入 ' + fmt(inc) + ' · 应收 ' + fmt(totalBill) + ' · 已收 ' + fmt(paid) + '</div>'
-      + '</div>'
-      + '<div class="ic-right"><div class="ic-amt ' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</div><div class="ic-sub2">当前欠款</div></div>'
-      + '</div>';
-  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户</div>';
-}
-
-$('#cust-list').addEventListener('click', async e => {
-  const del = e.target.closest('[data-delcust]');
-  if (del) {
-    const cid = del.dataset.delcust;
-    const used = S.incomes.some(i => i.customerId === cid) || S.bills.some(b => b.customerId === cid);
-    if (used) { alert('该客户名下已有收入或账单记录，不能删除'); return; }
-    if (!confirm('确定删除该客户？')) return;
-    await dbDel('customers', cid);
-    await loadState();
-    renderBills();
-    renderCustomers();
-    return;
-  }
-});
-
-$('#btn-cust-manage').addEventListener('click', () => {
+$('#card-cust-manage').addEventListener('click', () => {
   const listHtml = S.customers.length
     ? S.customers.map(c => '<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span>' + esc(c.name) + '</span><span style="display:flex;gap:12px"><button class="link-btn" data-rencust-modal="' + c.id + '">重命名</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></span></li>').join('')
     : '<li class="empty">暂无客户</li>';
@@ -1340,12 +1305,6 @@ $('#btn-cust-manage').addEventListener('click', () => {
     + '<div class="sub-title">客户列表（' + S.customers.length + '）</div>'
     + '<ul style="list-style:none;padding:0;margin:0;max-height:240px;overflow:auto">' + listHtml + '</ul>';
   $('#modal-mask').classList.remove('hidden');
-  setTimeout(() => { const el = $('#cust-name'); if (el) el.focus(); }, 30);
-});
-
-$('#cust-list').addEventListener('click', async e => {
-  const tr = e.target.closest('.item-card[data-cust]');
-  if (tr) openCustModal(tr.dataset.cust);
 });
 
 function openCustModal(cid) {
@@ -1361,7 +1320,7 @@ function openCustModal(cid) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>收入合计（现结）</span><b>' + fmt(incTotal) + '</b></div>'
-    + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　修理费 ' + fmt(typeSum('修理费')) + '　·　放单费 ' + fmt(typeSum('放单费')) + '</span><b></b></div>'
+    + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　打印费 ' + fmt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
     + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>状态</th></tr></thead><tbody>'
