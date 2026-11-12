@@ -429,9 +429,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="panel-title">员工报销 <span class="muted">员工垫付的费用（如司机过路费），标记已报销后自动计入「记一笔」支出</span></div>
         <div class="form-grid">
           <label>员工 <select id="rb-employee"></select></label>
+          <label>分类 <select id="rb-type"><option>上车费</option><option>高速费</option><option>打印费</option><option>其他</option></select></label>
           <label>发生日期 <input type="date" id="rb-date"></label>
           <label>金额（元） <input type="number" id="rb-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label>事由 <input type="text" id="rb-note" placeholder="如：高速过路费" autocomplete="off"></label>
+          <label>事由 <input type="text" id="rb-note" placeholder="补充说明（选填）" autocomplete="off"></label>
         </div>
         <button class="primary" id="btn-save-rb">添加报销</button>
         <div class="panel-title" style="margin-top:16px">报销记录
@@ -444,7 +445,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           </span>
         </div>
         <table id="rb-table">
-          <thead><tr><th>员工</th><th>日期</th><th>金额</th><th>事由</th><th>状态</th></tr></thead>
+          <thead><tr><th>员工</th><th>分类</th><th>日期</th><th>金额</th><th>事由</th><th>状态</th></tr></thead>
           <tbody></tbody>
         </table>
         <p class="muted" style="margin-top:8px">点击任意一行，可标记已报销或撤销</p>
@@ -733,11 +734,12 @@ function renderReimb() {
   if (fs) list = list.filter(r => (r.paidDate ? 'paid' : 'pending') === fs);
   $('#rb-table tbody').innerHTML = list.map(r => '<tr class="clickable" data-rb="' + r.id + '">'
     + '<td>' + esc(empName(r.employeeId)) + '</td>'
+    + '<td>' + esc(r.type || '—') + '</td>'
     + '<td>' + (r.date || '') + '</td>'
     + '<td>' + fmt(r.amount) + '</td>'
     + '<td>' + esc(r.note || '') + '</td>'
     + '<td>' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</td></tr>').join('')
-    || '<tr><td colspan="5" class="empty">暂无报销记录</td></tr>';
+    || '<tr><td colspan="6" class="empty">暂无报销记录</td></tr>';
 }
 $('#rb-filter-status').addEventListener('change', renderReimb);
 $('#btn-save-rb').addEventListener('click', async () => {
@@ -748,7 +750,7 @@ $('#btn-save-rb').addEventListener('click', async () => {
   if (!employeeId) { toast('请先添加员工'); return; }
   if (!date) { toast('请选择发生日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
+  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, type: $('#rb-type').value, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
   await loadState();
   $('#rb-amount').value = ''; $('#rb-note').value = '';
   renderReimb();
@@ -767,6 +769,7 @@ function openRbModal(rid) {
   currentRbId = rid;
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(empName(r.employeeId)) + ' · 报销</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>分类</span><b>' + esc(r.type || '—') + '</b></div>'
     + '<div class="kv"><span>发生日期</span><b>' + (r.date || '—') + '</b></div>'
     + '<div class="kv"><span>金额</span><b>' + fmt(r.amount) + '</b></div>'
     + '<div class="kv"><span>事由</span><b>' + esc(r.note || '—') + '</b></div>'
@@ -1409,7 +1412,7 @@ $('#modal').addEventListener('click', async e => {
     r.paidDate = date;
     r.paidNote = note;
     await dbPut('reimbursements', r);
-    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '报销', amount: round2(r.amount), note: empName(r.employeeId) + ' 报销' + (r.note ? '（' + r.note + '）' : '') + (note ? ' ' + note : ''), reimbursementId: r.id, createdAt: Date.now() });
+    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '报销', amount: round2(r.amount), note: empName(r.employeeId) + ' 报销' + (r.type ? '（' + r.type + (r.note ? '：' + r.note : '') + '）' : (r.note ? '（' + r.note + '）' : '')) + (note ? ' ' + note : ''), reimbursementId: r.id, createdAt: Date.now() });
     await loadState();
     openRbModal(currentRbId);
     renderReimb();
