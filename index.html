@@ -348,36 +348,15 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 
     <section id="page-wages" class="page">
       <div class="page-head"><h1>员工</h1></div>
-      <div class="panel">
-        <div class="panel-title">员工管理 <span class="muted" id="emp-count-label"></span>
-          <button class="ghost small" id="btn-toggle-emp" style="margin-left:auto">展开</button>
+      <div class="cards">
+        <div class="card add-card" id="card-emp-manage">
+          <div class="card-label">员工管理</div>
+          <div class="card-num add-plus">＋</div>
         </div>
-        <div id="emp-manage-body" class="hidden">
-          <div class="form-grid">
-            <label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>
-            <label>职位 <select id="emp-role">
-              <option value="">请选择</option>
-              <option>叉车工</option>
-              <option>装卸工</option>
-              <option>司机</option>
-              <option>调度</option>
-              <option>操作</option>
-              <option>换单</option>
-            </select></label>
-          </div>
-          <button class="primary" id="btn-add-emp">添加员工</button>
-          <div class="item-list" id="emp-list" style="margin-top:12px"></div>
+        <div class="card add-card" id="card-wage-gen">
+          <div class="card-label">生成月工资单</div>
+          <div class="card-num add-plus">＋</div>
         </div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">生成月工资单</div>
-        <div class="form-grid">
-          <label>工资月份 <input type="month" id="wage-period"></label>
-          <label>员工 <select id="wage-emp-select"></select></label>
-          <label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>
-          <label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>
-        </div>
-        <button class="primary" id="btn-gen-wages">生成工资单</button>
       </div>
       <div class="panel">
         <div class="panel-title">工资单
@@ -1049,6 +1028,57 @@ $('#modal').addEventListener('click', async e => {
   const t = e.target;
   if (t.closest('[data-close]')) { closeModal(); return; }
 
+  if (t.id === 'btn-add-emp') {
+    const name = $('#emp-name').value.trim();
+    const role = $('#emp-role').value;
+    if (!name) { toast('请输入员工姓名'); return; }
+    if (!role) { toast('请选择职位'); return; }
+    if (S.employees.some(e2 => e2.name === name)) { toast('员工已存在'); return; }
+    await dbPut('employees', { id: uid(), name: name, role: role, active: true, createdAt: Date.now() });
+    await loadState();
+    $('#emp-name').value = '';
+    $('#emp-role').value = '';
+    renderEmpList();
+    toast('员工已添加');
+    return;
+  }
+  if (t.dataset.toggleEmp) {
+    const emp = S.employees.find(x => x.id === t.dataset.toggleEmp);
+    if (!emp) return;
+    if (emp.active && !confirm('将「' + emp.name + '」设为离职？离职后生成工资单不再包含该员工。')) return;
+    emp.active = !emp.active;
+    await dbPut('employees', emp);
+    await loadState();
+    renderEmpList();
+    return;
+  }
+  if (t.dataset.delEmp) {
+    const emp = S.employees.find(x => x.id === t.dataset.delEmp);
+    if (!emp) return;
+    if (S.wages.some(w => w.employeeId === emp.id)) { alert('该员工已有工资单记录，不能删除；可设为离职'); return; }
+    if (!confirm('确定删除员工「' + emp.name + '」？')) return;
+    await dbDel('employees', emp.id);
+    await loadState();
+    renderEmpList();
+    toast('员工已删除');
+    return;
+  }
+  if (t.id === 'btn-gen-wages') {
+    const period = $('#wage-period').value;
+    if (!period) { toast('请选择工资月份'); return; }
+    const empId = $('#wage-emp-select').value;
+    if (!empId) { toast('请选择员工'); return; }
+    const amount = Math.round(Number($('#wage-amount').value) || 0);
+    const absence = Math.max(0, Math.round(Number($('#wage-absence').value) || 0));
+    if (S.wages.some(w => w.employeeId === empId && w.period === period)) { toast('该员工本月工资已生成'); return; }
+    await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, absenceDates: [], paidDate: null, payments: [], createdAt: Date.now() });
+    await loadState();
+    closeModal();
+    renderWageList();
+    toast('已生成 ' + empName(empId) + ' ' + period + ' 工资');
+    return;
+  }
+
   if (t.id === 'btn-add-cust') {
     const name = $('#cust-name').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
@@ -1291,7 +1321,24 @@ $('#modal').addEventListener('keydown', e => {
     const btn = $('#btn-add-cust');
     if (btn) btn.click();
   }
+  if (e.target.id === 'emp-name' && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = $('#btn-add-emp');
+    if (btn) btn.click();
+  }
+  if ((e.target.id === 'wage-amount' || e.target.id === 'wage-absence' || e.target.id === 'wage-emp-select') && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = $('#btn-gen-wages');
+    if (btn) btn.click();
+  }
 });
+
+$('#modal').addEventListener('change', e => {
+  if (e.target.id === 'wage-period') renderWageGen();
+});
+
+$('#card-emp-manage').addEventListener('click', openEmpManage);
+$('#card-wage-gen').addEventListener('click', openWageGen);
 
 /* ---------- 客户 ---------- */
 $('#card-cust-manage').addEventListener('click', () => {
@@ -1340,6 +1387,13 @@ function openCustModal(cid) {
 
 /* ---------- 员工工资 ---------- */
 function renderWages() {
+  renderEmpList(); // 弹窗未打开时 #emp-list 不存在，内部安全返回
+  renderWageList();
+}
+
+function renderEmpList() {
+  const el = $('#emp-list');
+  if (!el) return;
   const sortedEmps = S.employees.slice().sort((a, b) => {
     const ai = ROLE_ORDER.indexOf(a.role);
     const bi = ROLE_ORDER.indexOf(b.role);
@@ -1348,7 +1402,7 @@ function renderWages() {
     if (ar !== br) return ar - br;
     return (a.name || '').localeCompare(b.name || '', 'zh-CN');
   });
-  $('#emp-list').innerHTML = sortedEmps.map(e2 =>
+  el.innerHTML = sortedEmps.map(e2 =>
     '<div class="item-card">'
     + '<div class="ic-main">'
     + '<div class="ic-title">' + esc(e2.name) + ' ' + (e2.role ? '<span class="badge badge-info">' + esc(e2.role) + '</span>' : '') + '</div>'
@@ -1359,15 +1413,41 @@ function renderWages() {
     + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button>'
     + '</div></div>'
   ).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无员工</div>';
-  const empCount = S.employees.length;
-  const label = $('#emp-count-label');
-  if (label) label.textContent = '（共 ' + empCount + ' 人）';
+}
+
+function openEmpManage() {
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>员工管理</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="form-grid">'
+    + '<label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>'
+    + '<label>职位 <select id="emp-role">'
+    + '<option value="">请选择</option><option>叉车工</option><option>装卸工</option><option>司机</option><option>调度</option><option>操作</option><option>换单</option>'
+    + '</select></label>'
+    + '</div>'
+    + '<button class="primary" id="btn-add-emp">添加员工</button>'
+    + '<div class="sub-title">员工列表（' + S.employees.length + ' 人）</div>'
+    + '<div class="item-list" id="emp-list"></div>';
+  renderEmpList();
+  $('#modal-mask').classList.remove('hidden');
+}
+
+function openWageGen() {
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>生成月工资单</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="form-grid">'
+    + '<label>工资月份 <input type="month" id="wage-period"></label>'
+    + '<label>员工 <select id="wage-emp-select"></select></label>'
+    + '<label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>'
+    + '<label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>'
+    + '</div>'
+    + '<button class="primary" id="btn-gen-wages">生成工资单</button>';
   renderWageGen();
-  renderWageList();
+  $('#modal-mask').classList.remove('hidden');
 }
 
 function renderWageGen() {
   const periodInput = $('#wage-period');
+  if (!periodInput) return;
   if (!periodInput.value) periodInput.value = monthStr();
   const period = periodInput.value;
   const actives = S.employees.filter(e2 => e2.active);
@@ -1404,80 +1484,9 @@ function renderWageList() {
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无工资单</div>';
 }
 
-$('#wage-period').addEventListener('change', renderWageGen);
 $('#wage-filter-month').addEventListener('change', renderWageList);
 $('#wage-filter-status').addEventListener('change', renderWageList);
 $('#wage-filter-name').addEventListener('input', renderWageList);
-['#wage-amount', '#wage-absence', '#wage-emp-select'].forEach(sel => {
-  $(sel).addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); $('#btn-gen-wages').click(); }
-  });
-});
-
-$('#btn-add-emp').addEventListener('click', async () => {
-  const name = $('#emp-name').value.trim();
-  const role = $('#emp-role').value;
-  if (!name) { toast('请输入员工姓名'); return; }
-  if (!role) { toast('请选择职位'); return; }
-  if (S.employees.some(e2 => e2.name === name)) { toast('员工已存在'); return; }
-  await dbPut('employees', { id: uid(), name: name, role: role, active: true, createdAt: Date.now() });
-  await loadState();
-  $('#emp-name').value = '';
-  $('#emp-role').value = '';
-  renderWages();
-  toast('员工已添加');
-});
-
-$('#emp-name').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
-});
-
-$('#emp-list').addEventListener('click', async e => {
-  const t = e.target;
-  if (t.dataset.toggleEmp) {
-    const emp = S.employees.find(x => x.id === t.dataset.toggleEmp);
-    if (!emp) return;
-    if (emp.active && !confirm('将「' + emp.name + '」设为离职？离职后生成工资单不再包含该员工。')) return;
-    emp.active = !emp.active;
-    await dbPut('employees', emp);
-    await loadState();
-    renderWages();
-    return;
-  }
-  if (t.dataset.delEmp) {
-    const emp = S.employees.find(x => x.id === t.dataset.delEmp);
-    if (!emp) return;
-    if (S.wages.some(w => w.employeeId === emp.id)) { alert('该员工已有工资单记录，不能删除；可设为离职'); return; }
-    if (!confirm('确定删除员工「' + emp.name + '」？')) return;
-    await dbDel('employees', emp.id);
-    await loadState();
-    renderWages();
-    toast('员工已删除');
-  }
-});
-
-$('#btn-toggle-emp').addEventListener('click', () => {
-  const body = $('#emp-manage-body');
-  const btn = $('#btn-toggle-emp');
-  const hidden = body.classList.toggle('hidden');
-  btn.textContent = hidden ? '展开' : '收起';
-});
-
-$('#btn-gen-wages').addEventListener('click', async () => {
-  const period = $('#wage-period').value;
-  if (!period) { toast('请选择工资月份'); return; }
-  const empId = $('#wage-emp-select').value;
-  if (!empId) { toast('请选择员工'); return; }
-  const amount = Math.round(Number($('#wage-amount').value) || 0);
-  const absence = Math.max(0, Math.round(Number($('#wage-absence').value) || 0));
-  if (S.wages.some(w => w.employeeId === empId && w.period === period)) { toast('该员工本月工资已生成'); return; }
-  await dbPut('wages', { id: uid(), employeeId: empId, period: period, amount: amount, absence: absence, absenceDates: [], paidDate: null, payments: [], createdAt: Date.now() });
-  await loadState();
-  renderWages();
-  $('#wage-amount').value = '';
-  $('#wage-absence').value = '';
-  toast('已生成 ' + empName(empId) + ' ' + period + ' 工资');
-});
 
 $('#wage-list').addEventListener('click', e => {
   const tr = e.target.closest('.item-card[data-wage]');
