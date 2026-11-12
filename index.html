@@ -100,6 +100,11 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .check{flex-direction:row !important;align-items:center;gap:8px}
 #modal-mask{position:fixed;inset:0;background:rgba(20,22,40,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
 #modal{background:#fff;border-radius:14px;padding:20px 22px;width:100%;max-width:560px}
+@media(max-width:820px){
+  #modal-mask{align-items:flex-end;padding:0}
+  #modal{max-width:100%;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto;animation:sheetUp .22s ease}
+}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:.6}to{transform:translateY(0);opacity:1}}
 .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .modal-head h2{font-size:16px}
 .modal-x{background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
@@ -203,7 +208,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <nav>
       <button class="nav-btn active" data-page="add">记一笔</button>
       <button class="nav-btn" data-page="bills">账单</button>
-      <button class="nav-btn" data-page="assets">固定资产</button>
       <button class="nav-btn" data-page="wages">员工工资</button>
       <button class="nav-btn" data-page="settings">设置</button>
     </nav>
@@ -334,39 +338,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <tbody></tbody>
         </table>
         <p class="muted" style="margin-top:8px">点击任意一行，可登记付款、查看付款记录</p>
-      </div>
-    </section>
-
-    <section id="page-assets" class="page">
-      <div class="page-head"><h1>固定资产</h1></div>
-      <div class="cards">
-        <div class="card"><div class="card-label">资产总值（在用）</div><div class="card-num" id="stat-asset">¥0.00</div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">添加资产 <span class="muted">购买付款请走「记一笔」（仓库 · 固定资产）或应付采购，台账不重复计支出</span></div>
-        <div class="form-grid">
-          <label>资产名称 <input type="text" id="asset-name" placeholder="如：吊机、台式电脑" autocomplete="off"></label>
-          <label>购置日期 <input type="date" id="asset-date"></label>
-          <label>金额（元） <input type="number" id="asset-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label>备注 <input type="text" id="asset-note" placeholder="型号 / 存放位置（选填）" autocomplete="off"></label>
-        </div>
-        <button class="primary" id="btn-save-asset">添加资产</button>
-      </div>
-      <div class="panel">
-        <div class="panel-title">资产清单
-          <span class="filters">
-            <select id="asset-filter-status">
-              <option value="">全部</option>
-              <option value="inuse">在用</option>
-              <option value="disposed">已处置</option>
-            </select>
-          </span>
-        </div>
-        <table id="assets-table">
-          <thead><tr><th>名称</th><th>购置日期</th><th>金额</th><th>备注</th><th>状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p class="muted" style="margin-top:8px">点击任意一行，可标记已处置或删除</p>
       </div>
     </section>
 
@@ -504,15 +475,17 @@ function toast(msg) {
 // 全局错误兜底：任何静默失败都以提示浮出，便于定位
 window.addEventListener('error', e => { try { toast('出错了：' + (e.message || '未知错误')); } catch (_) {} });
 window.addEventListener('unhandledrejection', e => { try { const r = e.reason; toast('操作失败：' + ((r && r.message) || r || '未知错误')); } catch (_) {} });
-const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'purchases', 'reimbursements', 'assets', 'meta'];
+const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'purchases', 'reimbursements', 'meta'];
 let _db = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('company-ledger', 4);
+    const req = indexedDB.open('company-ledger', 5);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       STORES.forEach(s => { if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' }); });
+      // 固定资产功能已删除，清理其存储
+      if (db.objectStoreNames.contains('assets')) db.deleteObjectStore('assets');
     };
     req.onsuccess = e => {
       _db = e.target.result;
@@ -553,21 +526,21 @@ const DEFAULTS = {
   overdueDays: 30,
   seeded: false,
   catGroups: {
-    '仓库': ['办公用品', '工具材料', '油费', '固定资产'],
+    '仓库': ['办公用品', '工具材料', '油费'],
     '车队': ['油费', '拖车费', '换轮胎', '其他'],
     '员工': ['员工工资', '报销']
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
-let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], purchases: [], reimbursements: [], assets: [], settings: Object.assign({}, DEFAULTS) };
+let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], purchases: [], reimbursements: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
-  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, purchases, reimbursements, assets, meta] = await Promise.all(STORES.map(dbGetAll));
+  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, purchases, reimbursements, meta] = await Promise.all(STORES.map(dbGetAll));
   S.customers = customers.sort((a, b) => a.createdAt - b.createdAt);
   S.incomes = incomes; S.expenses = expenses; S.bills = bills; S.payments = payments; S.invoices = invoices;
   S.employees = employees.sort((a, b) => a.createdAt - b.createdAt); S.wages = wages;
-  S.purchases = purchases; S.reimbursements = reimbursements; S.assets = assets;
+  S.purchases = purchases; S.reimbursements = reimbursements;
   // 迁移：旧工资单若有 paidDate 但无 payments → 用已生成的支出记录反推一条 payment
   let needSave = false;
   for (const w of S.wages) {
@@ -595,13 +568,9 @@ async function loadState() {
 const saveSetting = (key, value) => dbPut('meta', { id: key, value: value });
 
 async function migrateCategories() {
-  // 老数据补上「报销」「固定资产」子分类
+  // 老数据补上「报销」子分类
   if (!(S.settings.catGroups['员工'] || []).includes('报销')) {
     S.settings.catGroups['员工'] = (S.settings.catGroups['员工'] || []).concat(['报销']);
-    await saveSetting('catGroups', S.settings.catGroups);
-  }
-  if (!(S.settings.catGroups['仓库'] || []).includes('固定资产')) {
-    S.settings.catGroups['仓库'] = (S.settings.catGroups['仓库'] || []).concat(['固定资产']);
     await saveSetting('catGroups', S.settings.catGroups);
   }
   if (S.settings.catMigrated) return;
@@ -789,62 +758,7 @@ function openRbModal(rid) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-/* ---------- 固定资产 ---------- */
-function renderAssets() {
-  const inUse = S.assets.filter(a => !a.disposedDate);
-  $('#stat-asset').textContent = fmt(round2(inUse.reduce((s, a) => s + Number(a.amount || 0), 0)));
-  const fs = $('#asset-filter-status').value;
-  let list = S.assets.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (fs) list = list.filter(a => (a.disposedDate ? 'disposed' : 'inuse') === fs);
-  $('#assets-table tbody').innerHTML = list.map(a => '<tr class="clickable" data-asset="' + a.id + '">'
-    + '<td>' + esc(a.name) + '</td>'
-    + '<td>' + (a.date || '') + '</td>'
-    + '<td>' + fmt(a.amount) + '</td>'
-    + '<td>' + esc(a.note || '') + '</td>'
-    + '<td>' + (a.disposedDate ? '<span class="badge badge-gray">已处置 ' + a.disposedDate + '</span>' : '<span class="badge badge-ok">在用</span>') + '</td></tr>').join('')
-    || '<tr><td colspan="5" class="empty">暂无固定资产</td></tr>';
-}
-$('#asset-filter-status').addEventListener('change', renderAssets);
-$('#btn-save-asset').addEventListener('click', async () => {
-  const name = $('#asset-name').value.trim();
-  const date = $('#asset-date').value;
-  const amount = round2($('#asset-amount').value);
-  const note = $('#asset-note').value.trim();
-  if (!name) { toast('请输入资产名称'); return; }
-  if (!date) { toast('请选择购置日期'); return; }
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  await dbPut('assets', { id: uid(), name: name, date: date, amount: amount, note: note, disposedDate: null, createdAt: Date.now() });
-  await loadState();
-  $('#asset-name').value = ''; $('#asset-amount').value = ''; $('#asset-note').value = '';
-  renderAssets();
-  toast('资产已登记');
-});
-$('#asset-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-asset').click(); } });
-$('#assets-table tbody').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-asset]');
-  if (tr) openAssetModal(tr.dataset.asset);
-});
-
-let currentAssetId = null;
-function openAssetModal(aid) {
-  const a = S.assets.find(x => x.id === aid);
-  if (!a) return;
-  currentAssetId = aid;
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + esc(a.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>购置日期</span><b>' + (a.date || '—') + '</b></div>'
-    + '<div class="kv"><span>金额</span><b>' + fmt(a.amount) + '</b></div>'
-    + '<div class="kv"><span>备注</span><b>' + esc(a.note || '—') + '</b></div>'
-    + '<div class="kv"><span>状态</span><b>' + (a.disposedDate ? '<span class="badge badge-gray">已处置 ' + a.disposedDate + '</span>' : '<span class="badge badge-ok">在用</span>') + '</b></div>'
-    + '<p class="muted" style="margin-top:8px">购买付款走「记一笔」或应付采购，此处台账不产生收支。</p>'
-    + (a.disposedDate
-      ? '<button class="ghost" id="btn-asset-restore" style="margin-top:10px">恢复为在用</button>'
-      : '<div class="inline-form" style="margin-top:10px">'
-        + '<input type="date" id="asset-dispose-date" value="' + todayStr() + '">'
-        + '<button class="primary small" id="btn-asset-dispose">标记已处置</button></div>')
-    + '<div class="modal-foot"><button class="ghost danger" id="btn-del-asset">删除资产记录</button></div>';
-  $('#modal-mask').classList.remove('hidden');
-}
+/* ---------- 固定资产功能已删除 ---------- */
 
 /* ---------- 页面切换 ---------- */
 let currentPage = 'add';
@@ -856,7 +770,7 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); renderPurchases(); }, assets: renderAssets, wages: () => { renderWages(); renderReimb(); }, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); renderPurchases(); }, wages: () => { renderWages(); renderReimb(); }, settings: () => {} }[p] || function () {})();
 }
 
 /* ---------- 待收总额（账单页顶部） ---------- */
@@ -1159,7 +1073,7 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; currentPurId = null; currentRbId = null; currentAssetId = null; }
+function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; currentPurId = null; currentRbId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 $('#modal').addEventListener('click', async e => {
@@ -1445,41 +1359,6 @@ $('#modal').addEventListener('click', async e => {
     closeModal();
     renderReimb();
     toast('报销记录已删除');
-    return;
-  }
-
-  if (t.id === 'btn-asset-dispose') {
-    const a = S.assets.find(x => x.id === currentAssetId);
-    if (!a) return;
-    const date = $('#asset-dispose-date').value;
-    if (!date) { toast('请选择处置日期'); return; }
-    if (!confirm('标记为已处置？台账仅记录状态，不产生收支。')) return;
-    a.disposedDate = date;
-    await dbPut('assets', a);
-    await loadState();
-    openAssetModal(currentAssetId);
-    renderAssets();
-    return;
-  }
-  if (t.id === 'btn-asset-restore') {
-    const a = S.assets.find(x => x.id === currentAssetId);
-    if (!a) return;
-    a.disposedDate = null;
-    await dbPut('assets', a);
-    await loadState();
-    openAssetModal(currentAssetId);
-    renderAssets();
-    return;
-  }
-  if (t.id === 'btn-del-asset') {
-    const a = S.assets.find(x => x.id === currentAssetId);
-    if (!a) return;
-    if (!confirm('删除这条资产记录？')) return;
-    await dbDel('assets', a.id);
-    await loadState();
-    closeModal();
-    renderAssets();
-    toast('资产记录已删除');
     return;
   }
 
@@ -1869,7 +1748,7 @@ $('#btn-backup').addEventListener('click', () => {
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
     bills: S.bills, payments: S.payments, invoices: S.invoices,
     employees: S.employees, wages: S.wages,
-    purchases: S.purchases, reimbursements: S.reimbursements, assets: S.assets,
+    purchases: S.purchases, reimbursements: S.reimbursements,
     settings: S.settings
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1903,7 +1782,6 @@ async function importBackup(file) {
   for (const wg of data.wages || []) await dbPut('wages', wg);
   for (const p of data.purchases || []) await dbPut('purchases', p);
   for (const r of data.reimbursements || []) await dbPut('reimbursements', r);
-  for (const a of data.assets || []) await dbPut('assets', a);
   const st = data.settings || {};
   for (const k of Object.keys(st)) await dbPut('meta', { id: k, value: st[k] });
   await loadState();
@@ -1933,7 +1811,6 @@ async function importBackup(file) {
   $('#wage-period').value = monthStr();
   $('#pur-date').value = todayStr();
   $('#rb-date').value = todayStr();
-  $('#asset-date').value = todayStr();
   renderUnpaid();
 })();
 </script>
