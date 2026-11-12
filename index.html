@@ -112,6 +112,18 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .kv span{color:var(--muted)}
 .sub-title{font-size:13px;font-weight:600;margin:16px 0 8px}
 .mini-table th,.mini-table td{padding:7px 8px;font-size:13px}
+
+/* App 风格卡片列表 */
+.item-list{display:flex;flex-direction:column;gap:10px}
+.item-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
+.item-card:hover,.item-card:active{background:var(--gray-bg)}
+.ic-main{flex:1;min-width:0}
+.ic-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ic-sub{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ic-right{text-align:right;flex-shrink:0}
+.ic-amt{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.ic-sub2{font-size:12px;color:var(--muted);margin-top:2px}
+.ic-act{display:flex;gap:10px;flex-shrink:0}
 .inline-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .inline-form input{flex:1;min-width:110px}
 .modal-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end}
@@ -293,20 +305,14 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             </select>
           </span>
         </div>
-        <table id="bills-table">
-          <thead><tr><th>客户</th><th>账期</th><th>账单金额</th><th>已收</th><th>待收</th><th>收款状态</th><th>开票状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p class="muted" style="margin-top:8px">点击任意一行，可记收款、登记发票</p>
+        <div class="item-list" id="bills-list"></div>
+        <p class="muted" style="margin-top:8px">点击任意一张，可记收款、登记发票</p>
       </div>
       <div class="panel">
         <div class="panel-title">客户列表 <span class="muted">点击行查看该客户明细</span>
           <span class="filters"><button class="primary small" id="btn-cust-manage">客户管理</button></span>
         </div>
-        <table id="cust-table">
-          <thead><tr><th>客户</th><th>收入合计(现结)</th><th>应收总额</th><th>已收总额</th><th>当前欠款</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <div class="item-list" id="cust-list"></div>
       </div>
 
       <div class="sub-title" style="font-size:16px;margin-top:6px">应付采购 <span class="muted" style="font-weight:400">供应商欠款（周结/月结）登记在这里，登记付款时自动计入「记一笔」支出</span></div>
@@ -333,11 +339,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             </select>
           </span>
         </div>
-        <table id="pur-table">
-          <thead><tr><th>供应商</th><th>日期</th><th>金额</th><th>已付</th><th>待付</th><th>结算方式</th><th>状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p class="muted" style="margin-top:8px">点击任意一行，可登记付款、查看付款记录</p>
+        <div class="item-list" id="pur-list"></div>
+        <p class="muted" style="margin-top:8px">点击任意一张，可登记付款、查看付款记录</p>
       </div>
     </section>
 
@@ -361,10 +364,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             </select></label>
           </div>
           <button class="primary" id="btn-add-emp">添加员工</button>
-          <table id="emp-table" style="margin-top:12px">
-            <thead><tr><th>员工</th><th>职位</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody></tbody>
-          </table>
+          <div class="item-list" id="emp-list" style="margin-top:12px"></div>
         </div>
       </div>
       <div class="panel">
@@ -390,11 +390,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             </select>
           </span>
         </div>
-        <table id="wage-table">
-          <thead><tr><th>月份</th><th>员工</th><th>金额</th><th>缺勤</th><th>状态</th><th>发放日期</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p class="muted" style="margin-top:8px">点击行：待发可标记已发（自动生成工资支出），已发可撤销</p>
+        <div class="item-list" id="wage-list"></div>
+        <p class="muted" style="margin-top:8px">点击任意一张：待发可标记已发（自动生成工资支出），已发可撤销</p>
       </div>
       <div class="panel">
         <div class="panel-title">员工报销 <span class="muted">员工垫付的费用（如司机过路费），标记已报销后自动计入「记一笔」支出</span></div>
@@ -415,11 +412,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             </select>
           </span>
         </div>
-        <table id="rb-table">
-          <thead><tr><th>员工</th><th>分类</th><th>日期</th><th>金额</th><th>事由</th><th>状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p class="muted" style="margin-top:8px">点击任意一行，可标记已报销或撤销</p>
+        <div class="item-list" id="rb-list"></div>
+        <p class="muted" style="margin-top:8px">点击任意一张，可标记已报销或撤销</p>
       </div>
     </section>
 
@@ -630,17 +624,16 @@ function renderPurchases() {
   const fs = $('#pur-filter-status').value;
   let list = S.purchases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (fs) list = list.filter(p => purchaseState(p).key === fs);
-  $('#pur-table tbody').innerHTML = list.map(p => {
+  $('#pur-list').innerHTML = list.map(p => {
     const st = purchaseState(p);
-    return '<tr class="clickable" data-pur="' + p.id + '">'
-      + '<td>' + esc(p.vendor) + '</td>'
-      + '<td>' + (p.date || '') + '</td>'
-      + '<td>' + fmt(p.amount) + '</td>'
-      + '<td>' + fmt(st.paid) + '</td>'
-      + '<td class="strong">' + fmt(st.remaining) + '</td>'
-      + '<td>' + esc(p.settleType || '') + '</td>'
-      + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td></tr>';
-  }).join('') || '<tr><td colspan="7" class="empty">暂无采购记录</td></tr>';
+    return '<div class="item-card" data-pur="' + p.id + '">'
+      + '<div class="ic-main">'
+      + '<div class="ic-title">' + esc(p.vendor) + ' <span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></div>'
+      + '<div class="ic-sub">' + (p.date || '') + ' · ' + catLabel(p) + (p.settleType ? ' · ' + esc(p.settleType) : '') + ' · 已付 ' + fmt(st.paid) + '</div>'
+      + '</div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmt(p.amount) + '</div><div class="ic-sub2">待付 ' + fmt(st.remaining) + '</div></div>'
+      + '</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无采购记录</div>';
 }
 $('#pur-group').addEventListener('change', () => {
   $('#pur-sub').innerHTML = (S.settings.catGroups[$('#pur-group').value] || []).map(s => '<option>' + esc(s) + '</option>').join('');
@@ -660,8 +653,8 @@ $('#btn-save-pur').addEventListener('click', async () => {
   toast('采购已登记');
 });
 $('#pur-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-pur').click(); } });
-$('#pur-table tbody').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-pur]');
+$('#pur-list').addEventListener('click', e => {
+  const tr = e.target.closest('.item-card[data-pur]');
   if (tr) openPurModal(tr.dataset.pur);
 });
 
@@ -704,14 +697,14 @@ function renderReimb() {
   const fs = $('#rb-filter-status').value;
   let list = S.reimbursements.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (fs) list = list.filter(r => (r.paidDate ? 'paid' : 'pending') === fs);
-  $('#rb-table tbody').innerHTML = list.map(r => '<tr class="clickable" data-rb="' + r.id + '">'
-    + '<td>' + esc(empName(r.employeeId)) + '</td>'
-    + '<td>' + esc(r.type || '—') + '</td>'
-    + '<td>' + (r.date || '') + '</td>'
-    + '<td>' + fmt(r.amount) + '</td>'
-    + '<td>' + esc(r.note || '') + '</td>'
-    + '<td>' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</td></tr>').join('')
-    || '<tr><td colspan="6" class="empty">暂无报销记录</td></tr>';
+  $('#rb-list').innerHTML = list.map(r => '<div class="item-card" data-rb="' + r.id + '">'
+    + '<div class="ic-main">'
+    + '<div class="ic-title">' + esc(empName(r.employeeId)) + ' ' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</div>'
+    + '<div class="ic-sub">' + esc(r.type || '其他') + (r.date ? ' · ' + r.date : '') + (r.note ? ' · ' + esc(r.note) : '') + '</div>'
+    + '</div>'
+    + '<div class="ic-right"><div class="ic-amt">' + fmt(r.amount) + '</div></div>'
+    + '</div>').join('')
+    || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无报销记录</div>';
 }
 $('#rb-filter-status').addEventListener('change', renderReimb);
 $('#btn-save-rb').addEventListener('click', async () => {
@@ -729,8 +722,8 @@ $('#btn-save-rb').addEventListener('click', async () => {
   toast('报销已登记');
 });
 $('#rb-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-rb').click(); } });
-$('#rb-table tbody').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-rb]');
+$('#rb-list').addEventListener('click', e => {
+  const tr = e.target.closest('.item-card[data-rb]');
   if (tr) openRbModal(tr.dataset.rb);
 });
 
@@ -981,19 +974,17 @@ function renderBills() {
   if (fs) list = list.filter(b => billState(b).key === fs);
   if (fc2) list = list.filter(b => b.customerId === fc2);
 
-  $('#bills-table tbody').innerHTML = list.map(b => {
+  $('#bills-list').innerHTML = list.map(b => {
     const st = billState(b);
     const ist = invState(b);
-    return '<tr class="clickable" data-bill="' + b.id + '">'
-      + '<td>' + esc(custName(b.customerId)) + '</td>'
-      + '<td>' + esc(b.period) + '</td>'
-      + '<td>' + fmt(b.amount) + '</td>'
-      + '<td>' + fmt(st.paid) + '</td>'
-      + '<td class="strong">' + fmt(st.remaining) + '</td>'
-      + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
-      + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
-      + '</tr>';
-  }).join('') || '<tr><td colspan="7" class="empty">暂无账单，先在上方添加</td></tr>';
+    return '<div class="item-card" data-bill="' + b.id + '">'
+      + '<div class="ic-main">'
+      + '<div class="ic-title">' + esc(custName(b.customerId)) + ' <span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
+      + '<div class="ic-sub">' + esc(b.period) + (b.feeType ? ' · ' + esc(b.feeType) : '') + ' · 已收 ' + fmt(st.paid) + '</div>'
+      + '</div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
+      + '</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，先在上方添加</div>';
 }
 $('#bill-filter-status').addEventListener('change', renderBills);
 $('#bill-filter-customer').addEventListener('change', renderBills);
@@ -1020,8 +1011,8 @@ $('#bill-amount').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-bill').click(); }
 });
 
-$('#bills-table tbody').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-bill]');
+$('#bills-list').addEventListener('click', e => {
+  const tr = e.target.closest('.item-card[data-bill]');
   if (tr) openBillModal(tr.dataset.bill);
 });
 
@@ -1395,23 +1386,23 @@ $('#modal').addEventListener('keydown', e => {
 
 /* ---------- 客户 ---------- */
 function renderCustomers() {
-  $('#cust-table tbody').innerHTML = S.customers.map(c => {
+  $('#cust-list').innerHTML = S.customers.map(c => {
     const inc = round2(S.incomes.filter(i => i.customerId === c.id).reduce((s, i) => s + Number(i.amount), 0));
     const bills = S.bills.filter(b => b.customerId === c.id);
     const totalBill = round2(bills.reduce((s, b) => s + Number(b.amount), 0));
     const paid = round2(bills.reduce((s, b) => s + paidOf(b.id), 0));
     const owed = round2(totalBill - paid);
-    return '<tr class="clickable" data-cust="' + c.id + '">'
-      + '<td class="strong">' + esc(c.name) + '</td>'
-      + '<td>' + fmt(inc) + '</td>'
-      + '<td>' + fmt(totalBill) + '</td>'
-      + '<td>' + fmt(paid) + '</td>'
-      + '<td class="' + (owed > 0 ? 'neg strong' : 'strong') + '">' + fmt(owed) + '</td>'
-      + '<td><button class="link-btn danger" data-delcust="' + c.id + '">删除</button></td></tr>';
-  }).join('') || '<tr><td colspan="6" class="empty">暂无客户</td></tr>';
+    return '<div class="item-card" data-cust="' + c.id + '">'
+      + '<div class="ic-main">'
+      + '<div class="ic-title">' + esc(c.name) + (owed > 0 ? '<span class="badge badge-warn">待收</span>' : '') + '</div>'
+      + '<div class="ic-sub">现结收入 ' + fmt(inc) + ' · 应收 ' + fmt(totalBill) + ' · 已收 ' + fmt(paid) + '</div>'
+      + '</div>'
+      + '<div class="ic-right"><div class="ic-amt ' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</div><div class="ic-sub2">当前欠款</div></div>'
+      + '</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户</div>';
 }
 
-$('#cust-table tbody').addEventListener('click', async e => {
+$('#cust-list').addEventListener('click', async e => {
   const del = e.target.closest('[data-delcust]');
   if (del) {
     const cid = del.dataset.delcust;
@@ -1440,8 +1431,8 @@ $('#btn-cust-manage').addEventListener('click', () => {
   setTimeout(() => { const el = $('#cust-name'); if (el) el.focus(); }, 30);
 });
 
-$('#cust-table tbody').addEventListener('click', async e => {
-  const tr = e.target.closest('tr[data-cust]');
+$('#cust-list').addEventListener('click', async e => {
+  const tr = e.target.closest('.item-card[data-cust]');
   if (tr) openCustModal(tr.dataset.cust);
 });
 
@@ -1486,13 +1477,17 @@ function renderWages() {
     if (ar !== br) return ar - br;
     return (a.name || '').localeCompare(b.name || '', 'zh-CN');
   });
-  $('#emp-table tbody').innerHTML = sortedEmps.map(e2 =>
-    '<tr><td class="strong">' + esc(e2.name) + '</td>'
-    + '<td>' + (e2.role ? esc(e2.role) : '—') + '</td>'
-    + '<td>' + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>') + '</td>'
-    + '<td><button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '设为离职' : '恢复在职') + '</button>'
-    + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button></td></tr>'
-  ).join('') || '<tr><td colspan="4" class="empty">暂无员工</td></tr>';
+  $('#emp-list').innerHTML = sortedEmps.map(e2 =>
+    '<div class="item-card">'
+    + '<div class="ic-main">'
+    + '<div class="ic-title">' + esc(e2.name) + ' ' + (e2.role ? '<span class="badge badge-info">' + esc(e2.role) + '</span>' : '') + '</div>'
+    + '</div>'
+    + '<div class="ic-act">'
+    + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>')
+    + '<button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '离职' : '恢复') + '</button>'
+    + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button>'
+    + '</div></div>'
+  ).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无员工</div>';
   const empCount = S.employees.length;
   const label = $('#emp-count-label');
   if (label) label.textContent = '（共 ' + empCount + ' 人）';
@@ -1525,14 +1520,17 @@ function renderWageList() {
   if (st === 'partial') list = list.filter(w => wageStatus(w) === 'partial');
   if (st === 'paid') list = list.filter(w => wageStatus(w) === 'paid');
   if (n) list = list.filter(w => empName(w.employeeId).indexOf(n) >= 0);
-  $('#wage-table tbody').innerHTML = list.map(w => {
+  $('#wage-list').innerHTML = list.map(w => {
     const paid = wagePaid(w);
-    const paidCol = wageStatus(w) === 'pending' ? '—' : fmtInt(paid);
-    return '<tr class="clickable" data-wage="' + w.id + '"><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtInt(w.amount) + '</td>'
-      + '<td data-abs="' + w.id + '" title="点击查看/修改缺勤日期">' + (absCount(w) === 0 ? '全勤' : absCount(w) + ' 天') + '</td>'
-      + '<td>' + stLabel(wageStatus(w)) + '</td>'
-      + '<td>' + paidCol + '</td></tr>';
-  }).join('') || '<tr><td colspan="6" class="empty">暂无工资单</td></tr>';
+    const abs = absCount(w);
+    return '<div class="item-card" data-wage="' + w.id + '">'
+      + '<div class="ic-main">'
+      + '<div class="ic-title">' + esc(empName(w.employeeId)) + ' ' + stLabel(wageStatus(w)) + '</div>'
+      + '<div class="ic-sub">' + esc(w.period) + ' · ' + (abs === 0 ? '全勤' : '缺勤 ' + abs + ' 天') + '</div>'
+      + '</div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(w.amount) + ' 元</div><div class="ic-sub2">' + (wageStatus(w) === 'pending' ? '未发放' : '已发 ' + fmtInt(paid)) + '</div></div>'
+      + '</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无工资单</div>';
 }
 
 $('#wage-period').addEventListener('change', renderWageGen);
@@ -1564,7 +1562,7 @@ $('#emp-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#btn-add-emp').click(); }
 });
 
-$('#emp-table tbody').addEventListener('click', async e => {
+$('#emp-list').addEventListener('click', async e => {
   const t = e.target;
   if (t.dataset.toggleEmp) {
     const emp = S.employees.find(x => x.id === t.dataset.toggleEmp);
@@ -1611,8 +1609,8 @@ $('#btn-gen-wages').addEventListener('click', async () => {
   toast('已生成 ' + empName(empId) + ' ' + period + ' 工资');
 });
 
-$('#wage-table tbody').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-wage]');
+$('#wage-list').addEventListener('click', e => {
+  const tr = e.target.closest('.item-card[data-wage]');
   if (tr) openWageModal(tr.dataset.wage);
 });
 
