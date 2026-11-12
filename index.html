@@ -282,13 +282,13 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
         <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
         <label>付款状态 <select id="tx-status">
-          <option value="paid">现结（已付款）</option>
-          <option value="pending">应付（先挂账）</option>
+          <option value="paid">现结</option>
+          <option value="pending">挂账</option>
         </select></label>
         <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
-      <p class="muted" style="margin-top:8px">选「应付」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
+      <p class="muted" style="margin-top:8px">选「挂账」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
     </template>
 
     <!-- 客户页：添加月账单弹窗（应收台账，与收支无关） -->
@@ -625,7 +625,7 @@ function renderLedger() {
       else reimbSum += Number(e.amount || 0);
     } else expense += Number(e.amount || 0);
   });
-  const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '应付 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
+  const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
   $('#ledger-income').textContent = '+' + fmt2(income);
   $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendNote ? '（另有' + pendNote + '）' : '');
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
@@ -659,7 +659,7 @@ function renderLedger() {
     }
     const amtSign = r.type === 'income' ? '+' : '−';
     const amtStyle = r.pending ? ' style="color:var(--warn)"' : '';
-    const pendBadge = r.pending ? ' <span class="badge badge-warn">' + (r.kind === 'payable' ? '应付' : '待报销') + '</span>' : '';
+    const pendBadge = r.pending ? ' <span class="badge badge-warn">' + (r.kind === 'payable' ? '挂账' : '待报销') + '</span>' : '';
     html += '<div class="ledger-item ' + r.type + '" data-ledger="' + r.store + ':' + r.id + '">'
       + '<div class="li-main">'
       + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + pendBadge + '</div>'
@@ -772,7 +772,7 @@ async function saveTx() {
   await loadState();
   closeModal();
   if (currentPage === 'add') renderLedger();
-  toast(isPending ? '已挂账（应付）' : '已保存');
+  toast(isPending ? '已挂账' : '已保存');
 }
 
 let currentLedgerId = null;
@@ -786,7 +786,7 @@ $('#ledger-list').addEventListener('click', e => {
   const isInc = store === 'incomes';
   const pending = !isInc && rec.status === 'pending';
   const kind = rec.pendingKind === 'payable' ? 'payable' : 'reimb';
-  const pendLabel = kind === 'payable' ? '应付' : '待报销';
+  const pendLabel = kind === 'payable' ? '挂账' : '待报销';
   const payLabel = kind === 'payable' ? '登记付款' : '确认报销';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + (isInc ? '收入详情' : '支出详情') + (pending ? ' <span class="badge badge-warn">' + pendLabel + '</span>' : '') + '</h2><button class="modal-x" data-close>&times;</button></div>'
