@@ -315,7 +315,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
             <select id="bill-filter-customer"></select>
             <select id="bill-filter-status">
               <option value="">全部状态</option>
-              <option value="unpaid">待收</option>
+              <option value="unpaid" selected>待收</option>
               <option value="partial">部分收款</option>
               <option value="settled">已结清</option>
             </select>
@@ -886,7 +886,8 @@ function renderBills() {
   const fs = $('#bill-filter-status').value;
   const fc2 = $('#bill-filter-customer').value;
   let list = S.bills.slice().sort((a, b) => b.period.localeCompare(a.period) || b.billDate.localeCompare(a.billDate));
-  if (fs) list = list.filter(b => billState(b).key === fs);
+  if (fs === 'unpaid') list = list.filter(b => ['unpaid', 'partial'].includes(billState(b).key));
+  else if (fs) list = list.filter(b => billState(b).key === fs);
   if (fc2) list = list.filter(b => b.customerId === fc2);
 
   $('#bills-list').innerHTML = list.map(b => {
