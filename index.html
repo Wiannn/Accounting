@@ -284,11 +284,12 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <label>付款状态 <select id="tx-status">
           <option value="paid">现结</option>
           <option value="pending">挂账</option>
+          <option value="reimb">待报销</option>
         </select></label>
         <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
-      <p class="muted" style="margin-top:8px">选「挂账」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
+      <p class="muted" style="margin-top:8px">选「挂账」或「待报销」先挂账，不计入支出统计；点流水里的挂账条目可登记付款或确认报销，之后计入支出</p>
     </template>
 
     <!-- 客户页：添加月账单弹窗（应收台账，与收支无关） -->
@@ -746,7 +747,7 @@ async function saveBill3() {
 function bindTxFormEvents() {
   $('#tx-group').addEventListener('change', renderTxSubs);
   $('#tx-status').addEventListener('change', () => {
-    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value === 'pending');
+    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value !== 'paid');
   });
   $('#btn-save-tx').addEventListener('click', saveTx);
   ['#tx-amount', '#tx-note'].forEach(sel => {
@@ -759,7 +760,8 @@ function bindTxFormEvents() {
 async function saveTx() {
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
-  const isPending = $('#tx-status').value === 'pending';
+  const statusVal = $('#tx-status').value;
+  const isPending = statusVal !== 'paid';
   const date = isPending ? todayStr() : $('#tx-date').value;
   if (!isPending && !date) { toast('请选择日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
@@ -768,11 +770,11 @@ async function saveTx() {
   }
   const group = $('#tx-group').value;
   const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
-  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (group === '仓库' ? 'payable' : 'reimb') : null, createdAt: Date.now() });
+  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
   await loadState();
   closeModal();
   if (currentPage === 'add') renderLedger();
-  toast(isPending ? '已挂账' : '已保存');
+  toast(isPending ? (statusVal === 'reimb' ? '已挂账（待报销）' : '已挂账') : '已保存');
 }
 
 let currentLedgerId = null;
