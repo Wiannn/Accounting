@@ -133,6 +133,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .card.add-card{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--border);cursor:pointer;min-height:76px;color:var(--muted);transition:.15s;user-select:none}
 .card.add-card:hover{border-color:var(--primary);color:var(--primary)}
 .card.add-card .add-plus{font-size:26px;line-height:1;color:inherit;font-weight:500}
+.bill-group{margin-bottom:10px}
+.bill-group-head{cursor:pointer;background:var(--gray-bg)}
+.bill-group-head .ic-title{font-weight:600}
+.bill-group-inner{margin:8px 0 0 10px;display:flex;flex-direction:column;gap:8px}
 
 /* 月账本样式 */
 .ledger-topbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
@@ -891,22 +895,55 @@ function renderBills() {
   else if (fs) list = list.filter(b => billState(b).key === fs);
   if (fc2) list = list.filter(b => b.customerId === fc2);
 
-  $('#bills-list').innerHTML = list.map(b => {
+  // 按顾客折叠分组，默认收起
+  const billCardHtml = b => {
     const st = billState(b);
     const ist = invState(b);
     return '<div class="item-card" data-bill="' + b.id + '">'
       + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(custName(b.customerId)) + ' <span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
+      + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
       + '<div class="ic-sub">' + esc(b.period) + (b.feeType ? ' · ' + esc(b.feeType) : '') + ' · 已收 ' + fmt(st.paid) + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
       + '</div>';
+  };
+  const order = [];
+  list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
+  const html = order.map(cid => {
+    const bills = list.filter(b => b.customerId === cid);
+    const sum = bills.reduce((acc, b) => {
+      const s = billState(b);
+      acc.remaining += s.remaining;
+      if (s.key !== 'settled') acc.open++;
+      return acc;
+    }, { remaining: 0, open: 0 });
+    const isOpen = expandedBillGroups.has(cid);
+    return '<div class="bill-group">'
+      + '<div class="item-card bill-group-head" data-group="' + cid + '">'
+      + '<div class="ic-main">'
+      + '<div class="ic-title">' + esc(custName(cid)) + '<span class="badge badge-gray">' + bills.length + ' 张</span></div>'
+      + '<div class="ic-sub">' + (sum.open > 0 ? '待收 ' + sum.open + ' 张' : '全部已结清') + '</div>'
+      + '</div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
+      + '</div>'
+      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '</div>' : '')
+      + '</div>';
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，点上方「添加客户月账单」卡片</div>';
+  $('#bills-list').innerHTML = html;
 }
+const expandedBillGroups = new Set();
 $('#bill-filter-status').addEventListener('change', renderBills);
 $('#bill-filter-customer').addEventListener('change', renderBills);
 
 $('#bills-list').addEventListener('click', e => {
+  const head = e.target.closest('.bill-group-head');
+  if (head) {
+    const cid = head.dataset.group;
+    if (expandedBillGroups.has(cid)) expandedBillGroups.delete(cid);
+    else expandedBillGroups.add(cid);
+    renderBills();
+    return;
+  }
   const tr = e.target.closest('.item-card[data-bill]');
   if (tr) openBillModal(tr.dataset.bill);
 });
