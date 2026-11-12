@@ -246,26 +246,17 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
       </div>
       <div class="ledger-list" id="ledger-list"></div>
-      <button id="fab-add" title="新增收支">+</button>
+      <button id="fab-add" title="记其他支出">+</button>
     </section>
 
     <!-- 新增收支表单弹窗（所有 id 保持不变） -->
     <template id="tx-form-modal">
-      <div class="modal-head"><h2>新增收支</h2><button class="modal-x" data-close>&times;</button></div>
-      <div class="seg">
-        <button class="seg-btn active" id="type-expense">支出</button>
-        <button class="seg-btn" id="type-income">收入</button>
-      </div>
+      <div class="modal-head"><h2>其他支出</h2><button class="modal-x" data-close>&times;</button></div>
+      <p class="muted" style="margin-bottom:12px">仓库采购 →「账单」页应付采购；司机费用 →「员工工资」页员工报销；工资在发放时自动记录；客户收入 →「账单」页登记收款自动生成。</p>
       <div class="form-grid">
         <label>日期 <input type="date" id="tx-date"></label>
         <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        <label id="wrap-category">主分类 <select id="tx-group"></select></label>
-        <label id="wrap-subcategory">子分类
-          <span class="inline-flex"><select id="tx-category"></select><button class="mini-btn" id="btn-add-cat">新增分类</button></span>
-        </label>
-        <label id="wrap-customer" class="hidden">客户 <select id="tx-customer"></select></label>
-        <label id="wrap-intype" class="hidden">类型 <select id="tx-intype"><option>进仓费</option><option>修理费</option><option>放单费</option></select></label>
-        <label class="span2">备注 <input type="text" id="tx-note"></label>
+        <label class="span2">备注 <input type="text" id="tx-note" placeholder="如：水电费、杂费" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
     </template>
@@ -280,6 +271,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <div class="panel-title">添加账单 <span class="muted">每月算出应收后录到这里（如：祺盾 9月 73000）</span></div>
         <div class="form-grid">
           <label>客户 <select id="bill-customer"></select></label>
+          <label>费用类型 <select id="bill-fee-type"><option>进仓费</option><option>修理费</option><option>放单费</option><option>其他</option></select></label>
           <label>账期（月份） <input type="month" id="bill-period"></label>
           <label>金额（元） <input type="number" id="bill-amount" min="0.01" step="0.01" inputmode="decimal"></label>
         </div>
@@ -868,34 +860,13 @@ function renderUnpaid() {
 }
 
 /* ---------- 记一笔 ---------- */
-let txType = 'expense';
-function setTxType(t) {
-  txType = t;
-  $('#type-expense').classList.toggle('active', t === 'expense');
-  $('#type-income').classList.toggle('active', t === 'income');
-  $('#wrap-category').classList.toggle('hidden', t === 'income');
-  $('#wrap-subcategory').classList.toggle('hidden', t === 'income');
-  $('#wrap-customer').classList.toggle('hidden', t === 'expense');
-  $('#wrap-intype').classList.toggle('hidden', t === 'expense');
-}
-
 const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');
-function renderSubCats() {
-  const g = $('#tx-group').value;
-  const subs = (S.settings.catGroups[g] || []);
-  $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
-  if (g === S.settings.lastExpenseGroup && subs.indexOf(S.settings.lastExpenseCategory) >= 0) {
-    $('#tx-category').value = S.settings.lastExpenseCategory;
-  }
-}
 
 function renderAdd() {
   // page-add 显示月账本，表单按需弹出
   const lm = $('#ledger-month');
   if (lm && !lm.value) lm.value = todayStr().slice(0, 7);
   renderLedger();
-  // 弹窗打开时不要重置表单
-  if ($('#tx-group') && $('#modal-mask').classList.contains('hidden')) initTxForm();
 }
 
 let ledgerMonthCache = null;
@@ -911,7 +882,7 @@ function renderLedger() {
   $('#ledger-expense').textContent = '−' + fmt2(expense);
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）
-  const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '进仓费', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
+  const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note })))
     .filter(r => (r.date || '').startsWith(period))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
@@ -952,14 +923,6 @@ function renderLedger() {
 }
 
 function initTxForm() {
-  const groups = Object.keys(S.settings.catGroups).filter(g => g !== '员工');
-  $('#tx-group').innerHTML = groups.map(g => '<option>' + esc(g) + '</option>').join('');
-  if (groups.indexOf(S.settings.lastExpenseGroup) >= 0) $('#tx-group').value = S.settings.lastExpenseGroup;
-  renderSubCats();
-  $('#tx-customer').innerHTML = S.customers.length
-    ? S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
-    : '<option value="">（请先到「账单」页添加）</option>';
-  setTxType('expense');
   $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
@@ -979,11 +942,7 @@ function openTxForm() {
 
 // 弹窗内容是动态注入的，事件必须在注入后再绑定
 function bindTxFormEvents() {
-  $('#type-expense').addEventListener('click', () => setTxType('expense'));
-  $('#type-income').addEventListener('click', () => setTxType('income'));
-  $('#tx-group').addEventListener('change', renderSubCats);
   $('#btn-save-tx').addEventListener('click', saveTx);
-  $('#btn-add-cat').addEventListener('click', addSubCat);
   ['#tx-amount', '#tx-note'].forEach(sel => {
     $(sel).addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
@@ -997,53 +956,14 @@ async function saveTx() {
   const note = $('#tx-note').value.trim();
   if (!date) { toast('请选择日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  const dupList = txType === 'income' ? S.incomes : S.expenses;
-  if (dupList.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
-    if (!confirm(date + ' 当天已有一笔 ' + fmt(amount) + ' 的' + (txType === 'income' ? '收入' : '支出') + '，是否重复录入？')) return;
+  if (S.expenses.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
+    if (!confirm(date + ' 当天已有一笔 ' + fmt(amount) + ' 的支出，是否重复录入？')) return;
   }
-  if (txType === 'income') {
-    const cid = $('#tx-customer').value;
-    if (!cid) { toast('请选择客户'); return; }
-    await dbPut('incomes', { id: uid(), date: date, type: $('#tx-intype').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
-  } else {
-    const group = $('#tx-group').value;
-    const sub = $('#tx-category').value;
-    if (!group || !sub) { toast('请选择主分类和子分类'); return; }
-    await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, createdAt: Date.now() });
-    await saveSetting('lastExpenseGroup', group);
-    await saveSetting('lastExpenseCategory', sub);
-  }
+  await dbPut('expenses', { id: uid(), date: date, category: '其他', sub: '', amount: amount, note: note, createdAt: Date.now() });
   await loadState();
   closeModal();
   if (currentPage === 'add') renderLedger();
   toast('已保存');
-}
-
-async function addSubCat() {
-  const group = $('#tx-group').value;
-  if (!group) return;
-  // 用自定义弹窗代替原生 prompt，避免手机输入法联想/自动填充带出无关内容
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>新增分类 · ' + esc(group) + '</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="form-grid"><label class="span2">子分类名称 <input type="text" id="new-sub-name" autocomplete="off" maxlength="10" placeholder=""></label></div>'
-    + '<button class="primary" id="btn-subcat-save">添加</button>';
-  $('#modal-mask').classList.remove('hidden');
-  $('#new-sub-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSubCat(group); } });
-  $('#btn-subcat-save').addEventListener('click', () => saveSubCat(group));
-  setTimeout(() => { const el = $('#new-sub-name'); if (el) el.focus(); }, 30);
-}
-
-async function saveSubCat(group) {
-  const name = ($('#new-sub-name').value || '').trim();
-  if (!name) { toast('请输入分类名称'); return; }
-  const subs = S.settings.catGroups[group] || [];
-  if (subs.indexOf(name) >= 0) { toast('分类已存在'); return; }
-  subs.push(name);
-  S.settings.catGroups[group] = subs;
-  await saveSetting('catGroups', S.settings.catGroups);
-  renderSubCats();
-  $('#tx-category').value = name;
-  closeModal();
 }
 
 $('#ledger-list').addEventListener('click', async e => {
@@ -1167,7 +1087,7 @@ $('#btn-save-bill').addEventListener('click', async () => {
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
   if (dup && !confirm('该客户这个账期已有账单，确定再添加一张吗？')) return;
-  await dbPut('bills', { id: uid(), customerId: cid, period: period, amount: amount, billDate: '', createdAt: Date.now() });
+  await dbPut('bills', { id: uid(), customerId: cid, feeType: $('#bill-fee-type').value, period: period, amount: amount, billDate: '', createdAt: Date.now() });
   await saveSetting('lastBillCustomer', cid);
   await loadState();
   $('#bill-amount').value = '';
@@ -1214,7 +1134,8 @@ function openBillModal(billId) {
         + '<input type="date" id="pay-date" value="' + todayStr() + '">'
         + '<input type="number" id="pay-amount" placeholder="金额" step="0.01" min="0.01" value="' + (st.remaining > 0 ? st.remaining : '') + '">'
         + '<input type="text" id="pay-note" placeholder="备注（选填）">'
-        + '<button class="primary small" id="btn-add-pay">记一笔收款</button></div>'
+        + '<button class="primary small" id="btn-add-pay">登记收款</button></div>'
+        + '<p class="muted" style="margin-top:8px">登记收款后自动在「记一笔」生成收入流水</p>'
       : '<p class="muted" style="margin-top:8px">账单已结清</p>')
     + '<div class="sub-title">开票记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>开票金额</th><th></th></tr></thead><tbody>'
@@ -1294,20 +1215,26 @@ $('#modal').addEventListener('click', async e => {
   }
 
   if (t.id === 'btn-add-pay') {
-    const date = $('#pay-date').value;
+    const date = $('#pay-date').value || todayStr();
     const amount = round2($('#pay-amount').value);
     const note = $('#pay-note').value.trim();
     if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-    await dbPut('payments', { id: uid(), billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
+    const bill = S.bills.find(x => x.id === currentBillId);
+    if (!bill) return;
+    const pid = uid();
+    await dbPut('payments', { id: pid, billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
+    // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）
+    await dbPut('incomes', { id: uid(), date: date, type: bill.feeType || '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pid, createdAt: Date.now() });
     await loadState();
     openBillModal(currentBillId);
     renderBills();
     renderCustomers();
-    toast('收款已登记');
+    toast('收款已登记，收入已计入记一笔');
     return;
   }
   if (t.dataset.delpay) {
-    if (!confirm('删除这笔收款？')) return;
+    if (!confirm('删除这笔收款？「记一笔」中对应的收入将一并删除。')) return;
+    for (const inc of S.incomes.filter(i => i.paymentId === t.dataset.delpay)) await dbDel('incomes', inc.id);
     await dbDel('payments', t.dataset.delpay);
     await loadState();
     openBillModal(currentBillId);
@@ -1337,8 +1264,9 @@ $('#modal').addEventListener('click', async e => {
     return;
   }
   if (t.id === 'btn-del-bill') {
-    if (!confirm('删除账单将同时删除它的收款与发票记录，确定吗？')) return;
+    if (!confirm('删除账单将同时删除它的收款、发票记录及记一笔中生成的收入，确定吗？')) return;
     const bid = currentBillId;
+    for (const inc of S.incomes.filter(i => i.billId === bid)) await dbDel('incomes', inc.id);
     for (const p of S.payments.filter(p => p.billId === bid)) await dbDel('payments', p.id);
     for (const iv of S.invoices.filter(i => i.billId === bid)) await dbDel('invoices', iv.id);
     await dbDel('bills', bid);
