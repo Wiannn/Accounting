@@ -262,24 +262,46 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
       </div>
       <div class="ledger-list" id="ledger-list"></div>
-      <button id="fab-add" title="记一笔支出">+</button>
+      <div class="panel" id="rb-quick-panel">
+        <div class="panel-title">员工报销记录 <span class="muted" id="rb-quick-sum"></span></div>
+        <div class="item-list" id="rb-quick-list"></div>
+        <p class="muted" style="margin-top:8px">点击任意一张，可标记已报销或撤销；新增报销点右下角 + 切到「员工报销」</p>
+      </div>
+      <button id="fab-add" title="记一笔">+</button>
     </section>
 
-    <!-- 支出表单弹窗 -->
+    <!-- 记一笔弹窗：支出 / 员工报销 两个标签 -->
     <template id="tx-form-modal">
-      <div class="modal-head"><h2>记一笔支出</h2><button class="modal-x" data-close>&times;</button></div>
-      <p class="muted" style="margin-bottom:12px">司机费用 →「员工工资」页员工报销；工资在发放时自动记录；客户收入 →「账单」页登记收款自动生成。</p>
-      <div class="form-grid">
-        <label>分类 <select id="tx-group">
-          <option value="仓库">仓库</option>
-          <option value="其他">其他</option>
-        </select></label>
-        <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
-        <label>日期 <input type="date" id="tx-date"></label>
-        <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填" autocomplete="off"></label>
+      <div class="modal-head"><h2>记一笔</h2><button class="modal-x" data-close>&times;</button></div>
+      <div class="seg" style="margin-bottom:14px">
+        <button class="seg-btn active" id="tab-expense">支出</button>
+        <button class="seg-btn" id="tab-reimb">员工报销</button>
       </div>
-      <button class="primary" id="btn-save-tx">保存</button>
+      <p class="muted" id="tx-hint" style="margin-bottom:12px"></p>
+      <div id="tx-expense-fields">
+        <div class="form-grid">
+          <label>分类 <select id="tx-group">
+            <option value="仓库">仓库</option>
+            <option value="其他">其他</option>
+          </select></label>
+          <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
+          <label>日期 <input type="date" id="tx-date"></label>
+          <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填" autocomplete="off"></label>
+        </div>
+        <button class="primary" id="btn-save-tx">保存</button>
+      </div>
+      <div id="tx-reimb-fields" class="hidden">
+        <div class="form-grid">
+          <label>员工 <select id="rb2-employee"></select></label>
+          <label>分类 <select id="rb2-type"><option>上车费</option><option>高速费</option><option>打印费</option><option>其他</option></select></label>
+          <label>发生日期 <input type="date" id="rb2-date"></label>
+          <label>金额（元） <input type="number" id="rb2-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label class="span2">事由 <input type="text" id="rb2-note" placeholder="补充说明（选填）" autocomplete="off"></label>
+        </div>
+        <button class="primary" id="btn-save-rb2">登记报销</button>
+        <p class="muted" style="margin-top:8px">标记已报销后会自动生成支出（员工 · 报销）</p>
+      </div>
     </template>
 
     <section id="page-bills" class="page">
@@ -368,28 +390,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
         <div class="item-list" id="wage-list"></div>
         <p class="muted" style="margin-top:8px">点击任意一张：待发可标记已发（自动生成工资支出），已发可撤销</p>
-      </div>
-      <div class="panel">
-        <div class="panel-title">员工报销 <span class="muted">员工垫付的费用（如司机过路费），标记已报销后自动计入「记一笔」支出</span></div>
-        <div class="form-grid">
-          <label>员工 <select id="rb-employee"></select></label>
-          <label>分类 <select id="rb-type"><option>上车费</option><option>高速费</option><option>打印费</option><option>其他</option></select></label>
-          <label>发生日期 <input type="date" id="rb-date"></label>
-          <label>金额（元） <input type="number" id="rb-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label>事由 <input type="text" id="rb-note" placeholder="补充说明（选填）" autocomplete="off"></label>
-        </div>
-        <button class="primary" id="btn-save-rb">添加报销</button>
-        <div class="panel-title" style="margin-top:16px">报销记录
-          <span class="filters">
-            <select id="rb-filter-status">
-              <option value="">全部</option>
-              <option value="pending">待报销</option>
-              <option value="paid">已报销</option>
-            </select>
-          </span>
-        </div>
-        <div class="item-list" id="rb-list"></div>
-        <p class="muted" style="margin-top:8px">点击任意一张，可标记已报销或撤销</p>
       </div>
     </section>
 
@@ -580,15 +580,12 @@ function invState(b) {
   return { invoiced, remaining, key, label };
 }
 const invBadge = k => k === 'done' ? 'ok' : k === 'partial' ? 'info' : 'gray';
-/* ---------- 员工报销 ---------- */
-function renderReimb() {
-  const prev = $('#rb-employee').value;
-  $('#rb-employee').innerHTML = S.employees.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
-  if (prev && S.employees.some(x => x.id === prev)) $('#rb-employee').value = prev;
-  const fs = $('#rb-filter-status').value;
-  let list = S.reimbursements.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (fs) list = list.filter(r => (r.paidDate ? 'paid' : 'pending') === fs);
-  $('#rb-list').innerHTML = list.map(r => '<div class="item-card" data-rb="' + r.id + '">'
+/* ---------- 员工报销（记一笔页） ---------- */
+function renderRbQuick() {
+  const pending = round2(S.reimbursements.filter(r => !r.paidDate).reduce((s, r) => s + Number(r.amount || 0), 0));
+  $('#rb-quick-sum').textContent = '待报销 ' + fmt(pending);
+  const list = S.reimbursements.slice().sort((a, b) => ((a.paidDate ? 1 : 0) - (b.paidDate ? 1 : 0)) || (b.date || '').localeCompare(a.date || ''));
+  $('#rb-quick-list').innerHTML = list.map(r => '<div class="item-card" data-rb="' + r.id + '">'
     + '<div class="ic-main">'
     + '<div class="ic-title">' + esc(empName(r.employeeId)) + ' ' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</div>'
     + '<div class="ic-sub">' + esc(r.type || '其他') + (r.date ? ' · ' + r.date : '') + (r.note ? ' · ' + esc(r.note) : '') + '</div>'
@@ -597,25 +594,9 @@ function renderReimb() {
     + '</div>').join('')
     || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无报销记录</div>';
 }
-$('#rb-filter-status').addEventListener('change', renderReimb);
-$('#btn-save-rb').addEventListener('click', async () => {
-  const employeeId = $('#rb-employee').value;
-  const date = $('#rb-date').value;
-  const amount = round2($('#rb-amount').value);
-  const note = $('#rb-note').value.trim();
-  if (!employeeId) { toast('请先添加员工'); return; }
-  if (!date) { toast('请选择发生日期'); return; }
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, type: $('#rb-type').value, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
-  await loadState();
-  $('#rb-amount').value = ''; $('#rb-note').value = '';
-  renderReimb();
-  toast('报销已登记');
-});
-$('#rb-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-rb').click(); } });
-$('#rb-list').addEventListener('click', e => {
-  const tr = e.target.closest('.item-card[data-rb]');
-  if (tr) openRbModal(tr.dataset.rb);
+$('#rb-quick-list').addEventListener('click', e => {
+  const card = e.target.closest('.item-card[data-rb]');
+  if (card) openRbModal(card.dataset.rb);
 });
 
 let currentRbId = null;
@@ -654,7 +635,7 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: () => { renderWages(); renderReimb(); }, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
 }
 
 /* ---------- 待收总额（账单页顶部） ---------- */
@@ -724,6 +705,7 @@ function renderLedger() {
       + '</div>';
   });
   $('#ledger-list').innerHTML = html;
+  renderRbQuick();
 }
 
 function renderTxSubs() {
@@ -744,9 +726,27 @@ function initTxForm() {
   $('#tx-note').value = '';
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
+  // 员工报销表单
+  $('#rb2-employee').innerHTML = S.employees.filter(e2 => e2.active).map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
+  $('#rb2-date').value = todayStr();
+  $('#rb2-amount').value = '';
+  $('#rb2-note').value = '';
+  setTxTab('expense');
   // 滚动到 modal 顶部
   const mask = $('#modal-mask');
   if (mask) mask.scrollTop = 0;
+}
+
+let txTab = 'expense';
+function setTxTab(t) {
+  txTab = t;
+  $('#tab-expense').classList.toggle('active', t === 'expense');
+  $('#tab-reimb').classList.toggle('active', t === 'reimb');
+  $('#tx-expense-fields').classList.toggle('hidden', t !== 'expense');
+  $('#tx-reimb-fields').classList.toggle('hidden', t !== 'reimb');
+  $('#tx-hint').textContent = t === 'expense'
+    ? '工资在发放时自动记录；客户收入 →「账单」页登记收款自动生成。'
+    : '员工垫付的费用（如司机过路费），标记已报销后自动计入支出（员工 · 报销）。';
 }
 
 function openTxForm() {
@@ -760,13 +760,35 @@ function openTxForm() {
 
 // 弹窗内容是动态注入的，事件必须在注入后再绑定
 function bindTxFormEvents() {
+  $('#tab-expense').addEventListener('click', () => setTxTab('expense'));
+  $('#tab-reimb').addEventListener('click', () => setTxTab('reimb'));
   $('#tx-group').addEventListener('change', renderTxSubs);
   $('#btn-save-tx').addEventListener('click', saveTx);
+  $('#btn-save-rb2').addEventListener('click', saveRb2);
   ['#tx-amount', '#tx-note'].forEach(sel => {
     $(sel).addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
     });
   });
+  $('#rb2-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveRb2(); } });
+}
+
+async function saveRb2() {
+  const employeeId = $('#rb2-employee').value;
+  const date = $('#rb2-date').value;
+  const amount = round2($('#rb2-amount').value);
+  const note = $('#rb2-note').value.trim();
+  if (!employeeId) { toast('请先在「员工工资」页添加员工'); return; }
+  if (!date) { toast('请选择发生日期'); return; }
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  if (S.reimbursements.some(r => !r.paidDate && r.employeeId === employeeId && r.date === date && round2(Number(r.amount)) === amount)) {
+    if (!confirm(date + ' 该员工已有一笔相同金额的待报销记录，是否重复录入？')) return;
+  }
+  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, type: $('#rb2-type').value, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
+  await loadState();
+  closeModal();
+  renderRbQuick();
+  toast('报销已登记');
 }
 
 async function saveTx() {
@@ -1183,7 +1205,7 @@ $('#modal').addEventListener('click', async e => {
     await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '报销', amount: round2(r.amount), note: empName(r.employeeId) + ' 报销' + (r.type ? '（' + r.type + (r.note ? '：' + r.note : '') + '）' : (r.note ? '（' + r.note + '）' : '')) + (note ? ' ' + note : ''), reimbursementId: r.id, createdAt: Date.now() });
     await loadState();
     openRbModal(currentRbId);
-    renderReimb();
+    renderRbQuick();
     toast('已报销，支出已计入记一笔');
     return;
   }
@@ -1197,7 +1219,7 @@ $('#modal').addEventListener('click', async e => {
     await dbPut('reimbursements', r);
     await loadState();
     openRbModal(currentRbId);
-    renderReimb();
+    renderRbQuick();
     return;
   }
   if (t.id === 'btn-del-rb') {
@@ -1208,7 +1230,7 @@ $('#modal').addEventListener('click', async e => {
     await dbDel('reimbursements', r.id);
     await loadState();
     closeModal();
-    renderReimb();
+    renderRbQuick();
     toast('报销记录已删除');
     return;
   }
@@ -1414,7 +1436,7 @@ $('#btn-add-emp').addEventListener('click', async () => {
   $('#emp-name').value = '';
   $('#emp-role').value = '';
   renderWages();
-  renderReimb();
+  renderRbQuick();
   toast('员工已添加');
 });
 
@@ -1667,7 +1689,6 @@ async function importBackup(file) {
   if ($('#tx-date')) $('#tx-date').value = todayStr();
   $('#bill-period').value = monthStr();
   $('#wage-period').value = monthStr();
-  $('#rb-date').value = todayStr();
   renderUnpaid();
 })();
 </script>
