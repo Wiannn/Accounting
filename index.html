@@ -213,16 +213,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <div class="page-head">
         <h1>首页</h1>
       </div>
-      <div class="cards">
-        <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">待发工资提醒 <span class="muted">在「员工工资」页标记已发</span></div>
-        <table id="unpaid-wage-table">
-          <thead><tr><th>月份</th><th>员工</th><th>金额</th><th>状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
       <div class="panel">
         <div class="panel-title">导出 Excel 报表</div>
         <p class="muted" style="margin-bottom:12px">一个文件内含 5 个工作表：收支明细、应收台账、收款记录、发票台账、工资表</p>
@@ -240,13 +230,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <button class="primary" id="btn-restore">导入备份</button>
         </div>
         <input type="file" id="restore-file" accept=".json,application/json" class="hidden">
-      </div>
-      <div class="panel">
-        <div class="panel-title">设置</div>
-        <div class="form-grid">
-          <label>待收超期提醒天数 <input type="number" id="set-threshold" min="1" step="1"></label>
-        </div>
-        <button class="ghost" id="btn-save-settings">保存设置</button>
       </div>
     </section>
 
@@ -288,12 +271,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 
     <section id="page-bills" class="page">
       <div class="page-head"><h1>应收账单</h1></div>
-      <div class="panel">
-        <div class="panel-title">待收提醒 <span class="muted">账期起超过 <span id="th-text">30</span> 天未结清将标红</span></div>
-        <table id="unpaid-table">
-          <thead><tr><th>客户</th><th>账期</th><th>应收</th><th>已收</th><th>待收</th><th>状态</th></tr></thead>
-          <tbody></tbody>
-        </table>
+      <div class="cards">
+        <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
       </div>
       <div class="panel">
         <div class="panel-title">添加账单 <span class="muted">每月算出应收后录到这里（如：祺盾 9月 73000）</span></div>
@@ -576,45 +555,17 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ dashboard: () => { renderDashboard(); renderUnpaid(); renderReports(); }, add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages }[p] || function () {})();
+  ({ dashboard: () => { renderDashboard(); renderReports(); }, add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages }[p] || function () {})();
 }
 
-/* ---------- 待收提醒（应收账单页顶部） ---------- */
+/* ---------- 待收总额（应收账单页顶部） ---------- */
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
-  $('#th-text').textContent = S.settings.overdueDays;
-
-  const today = todayStr();
-  const threshold = Number(S.settings.overdueDays) || 30;
-  $('#unpaid-table tbody').innerHTML = unsettled
-    .sort((a, b) => b.st.remaining - a.st.remaining)
-    .map(x => {
-      const days = daysBetween(x.b.billDate || (x.b.period + '-01'), today);
-      const overdue = days > threshold;
-      return '<tr class="' + (overdue ? 'row-overdue' : '') + '">'
-        + '<td>' + esc(custName(x.b.customerId)) + '</td>'
-        + '<td>' + esc(x.b.period) + '</td>'
-        + '<td>' + fmt(x.b.amount) + '</td>'
-        + '<td>' + fmt(x.st.paid) + '</td>'
-        + '<td class="strong">' + fmt(x.st.remaining) + '</td>'
-        + '<td>' + (overdue
-            ? '<span class="badge badge-danger">超期 ' + days + ' 天</span>'
-            : '<span class="badge badge-' + stBadge(x.st.key) + '">' + x.st.label + '</span>')
-        + '</td></tr>';
-    }).join('') || '<tr><td colspan="6" class="empty">没有待收账单，都结清了</td></tr>';
-
 }
 
 /* ---------- 首页 ---------- */
 function renderDashboard() {
-  const pendingWages = S.wages.filter(w => wageStatus(w) !== 'paid').sort((a, b) => a.period.localeCompare(b.period));
-  $('#unpaid-wage-table tbody').innerHTML = pendingWages.map(w => {
-    const st = wageStatus(w);
-    const stText = st === 'partial' ? '部分发放' : '待发';
-    const stBadge = st === 'partial' ? '<span class="badge badge-info">部分发放</span>' : '<span class="badge badge-gray">待发</span>';
-    return '<tr><td>' + esc(w.period) + '</td><td>' + esc(empName(w.employeeId)) + '</td><td>' + fmtWage(w.amount) + '</td><td>' + stBadge + '</td></tr>';
-  }).join('') || '<tr><td colspan="4" class="empty">没有待发工资</td></tr>';
 }
 
 /* ---------- 记一笔 ---------- */
@@ -1448,7 +1399,6 @@ function openWageModal(wid) {
 
 /* ---------- 报表中心 ---------- */
 function renderReports() {
-  $('#set-threshold').value = S.settings.overdueDays;
 }
 $('#report-all').addEventListener('change', e => { $('#report-month').disabled = e.target.checked; });
 
@@ -1559,14 +1509,6 @@ async function importBackup(file) {
   renderPage(currentPage);
   toast('备份已恢复');
 }
-
-$('#btn-save-settings').addEventListener('click', async () => {
-  const n = parseInt($('#set-threshold').value, 10);
-  if (!n || n < 1) { toast('天数需大于 0'); return; }
-  await saveSetting('overdueDays', n);
-  S.settings.overdueDays = n;
-  toast('设置已保存');
-});
 
 /* ---------- 初始化 ---------- */
 (async function init() {
