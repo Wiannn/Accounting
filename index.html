@@ -283,11 +283,14 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
           <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
           <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label class="check span2" style="flex-direction:row;align-items:center"><input type="checkbox" id="tx-pending" style="width:auto"> 待报销（员工垫付，先挂账）</label>
-          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名" autocomplete="off"></label>
+          <label>付款状态 <select id="tx-status">
+            <option value="paid">现结（已付款）</option>
+            <option value="pending">应付（先挂账）</option>
+          </select></label>
+          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
         </div>
         <button class="primary" id="btn-save-tx">保存</button>
-        <p class="muted" style="margin-top:8px">勾选「待报销」先挂账，不计入支出统计；确认报销后自动计入</p>
+        <p class="muted" style="margin-top:8px">选「应付」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
       </div>
       <div id="tx-income-fields" class="hidden">
         <div class="form-grid">
@@ -609,20 +612,23 @@ function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
   ledgerMonthCache = period;
   const [y, m] = period.split('-').map(Number);
-  // 当月收支（待报销的支出不计入统计）
-  let income = 0, expense = 0, pendingSum = 0;
+  // 当月收支（挂账支出不计入统计）
+  let income = 0, expense = 0, reimbSum = 0, payableSum = 0;
   S.incomes.forEach(i => { if ((i.date || '').startsWith(period)) income += Number(i.amount || 0); });
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
-    if (e.status === 'pending') pendingSum += Number(e.amount || 0);
-    else expense += Number(e.amount || 0);
+    if (e.status === 'pending') {
+      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
+      else reimbSum += Number(e.amount || 0);
+    } else expense += Number(e.amount || 0);
   });
+  const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '应付 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
   $('#ledger-income').textContent = '+' + fmt2(income);
-  $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendingSum > 0 ? '（另有待报销 ' + fmt2(pendingSum) + '）' : '');
+  $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendNote ? '（另有' + pendNote + '）' : '');
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
-    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending' })))
+    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .filter(r => (r.date || '').startsWith(period))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   if (!all.length) {
@@ -650,9 +656,10 @@ function renderLedger() {
     }
     const amtSign = r.type === 'income' ? '+' : '−';
     const amtStyle = r.pending ? ' style="color:var(--warn)"' : '';
+    const pendBadge = r.pending ? ' <span class="badge badge-warn">' + (r.kind === 'payable' ? '应付' : '待报销') + '</span>' : '';
     html += '<div class="ledger-item ' + r.type + '" data-ledger="' + r.store + ':' + r.id + '">'
       + '<div class="li-main">'
-      + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + (r.pending ? ' <span class="badge badge-warn">待报销</span>' : '') + '</div>'
+      + '<div class="li-cat">' + esc(r.cat) + (r.who ? ' · ' + esc(r.who) : '') + pendBadge + '</div>'
       + '<div class="li-note">' + esc(r.note || '') + '</div>'
       + '</div>'
       + '<div class="li-amt"' + amtStyle + '>' + amtSign + fmt2(r.amount) + '</div>'
@@ -678,7 +685,7 @@ function initTxForm() {
   $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
-  $('#tx-pending').checked = false;
+  $('#tx-status').value = 'paid';
   $('#wrap-tx-date').classList.remove('hidden');
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
@@ -721,8 +728,8 @@ function bindTxFormEvents() {
   $('#tab-expense').addEventListener('click', () => setTxTab('expense'));
   $('#tab-income').addEventListener('click', () => setTxTab('income'));
   $('#tx-group').addEventListener('change', renderTxSubs);
-  $('#tx-pending').addEventListener('change', () => {
-    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-pending').checked);
+  $('#tx-status').addEventListener('change', () => {
+    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value === 'pending');
   });
   $('#btn-save-tx').addEventListener('click', saveTx);
   $('#btn-save-bill2').addEventListener('click', saveBill2);
@@ -756,7 +763,7 @@ async function saveBill2() {
 async function saveTx() {
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
-  const isPending = $('#tx-pending').checked;
+  const isPending = $('#tx-status').value === 'pending';
   const date = isPending ? todayStr() : $('#tx-date').value;
   if (!isPending && !date) { toast('请选择日期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
@@ -765,11 +772,11 @@ async function saveTx() {
   }
   const group = $('#tx-group').value;
   const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
-  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, createdAt: Date.now() });
+  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (group === '仓库' ? 'payable' : 'reimb') : null, createdAt: Date.now() });
   await loadState();
   closeModal();
   if (currentPage === 'add') renderLedger();
-  toast(isPending ? '已挂账（待报销）' : '已保存');
+  toast(isPending ? '已挂账（应付）' : '已保存');
 }
 
 let currentLedgerId = null;
@@ -782,8 +789,11 @@ $('#ledger-list').addEventListener('click', e => {
   currentLedgerId = { store: store, id: id };
   const isInc = store === 'incomes';
   const pending = !isInc && rec.status === 'pending';
+  const kind = rec.pendingKind === 'payable' ? 'payable' : 'reimb';
+  const pendLabel = kind === 'payable' ? '应付' : '待报销';
+  const payLabel = kind === 'payable' ? '登记付款' : '确认报销';
   $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + (isInc ? '收入详情' : '支出详情') + (pending ? ' <span class="badge badge-warn">待报销</span>' : '') + '</h2><button class="modal-x" data-close>&times;</button></div>'
+    '<div class="modal-head"><h2>' + (isInc ? '收入详情' : '支出详情') + (pending ? ' <span class="badge badge-warn">' + pendLabel + '</span>' : '') + '</h2><button class="modal-x" data-close>&times;</button></div>'
     + (isInc
       ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId)) + '</b></div>'
         + '<div class="kv"><span>费用类型</span><b>' + esc(rec.type || '—') + '</b></div>'
@@ -792,7 +802,7 @@ $('#ledger-list').addEventListener('click', e => {
     + '<div class="kv"><span>金额</span><b>' + fmt(rec.amount) + '</b></div>'
     + (rec.note ? '<div class="kv"><span>备注</span><b>' + esc(rec.note) + '</b></div>' : '')
     + (pending
-      ? '<div class="inline-form" style="margin-top:12px"><input type="date" id="ledger-pay-date" value="' + todayStr() + '"><button class="primary small" id="btn-ledger-pay">确认报销</button></div>'
+      ? '<div class="inline-form" style="margin-top:12px"><input type="date" id="ledger-pay-date" value="' + todayStr() + '"><button class="primary small" id="btn-ledger-pay">' + payLabel + '</button></div>'
         + '<p class="muted" style="margin-top:8px">确认后计入所选日期的支出统计（原挂账日期为 ' + (rec.date || '—') + '）</p>'
       : '')
     + '<div class="modal-foot"><button class="ghost danger" id="btn-ledger-del">删除这条记录</button></div>';
@@ -1154,12 +1164,13 @@ $('#modal').addEventListener('click', async e => {
     if (!date) { toast('请选择报销日期'); return; }
     rec.date = date;
     rec.status = null;
+    rec.pendingKind = null;
     await dbPut('expenses', rec);
     await loadState();
     closeModal();
     currentLedgerId = null;
     renderLedger();
-    toast('已确认报销，计入 ' + date + ' 支出');
+    toast(kind === 'payable' ? '付款已登记，计入 ' + date + ' 支出' : '已确认报销，计入 ' + date + ' 支出');
     return;
   }
   if (t.id === 'btn-ledger-del') {
