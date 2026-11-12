@@ -501,6 +501,9 @@ function toast(msg) {
 }
 
 /* ---------- 数据层（IndexedDB） ---------- */
+// 全局错误兜底：任何静默失败都以提示浮出，便于定位
+window.addEventListener('error', e => { try { toast('出错了：' + (e.message || '未知错误')); } catch (_) {} });
+window.addEventListener('unhandledrejection', e => { try { const r = e.reason; toast('操作失败：' + ((r && r.message) || r || '未知错误')); } catch (_) {} });
 const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'purchases', 'reimbursements', 'assets', 'meta'];
 let _db = null;
 
