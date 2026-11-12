@@ -269,43 +269,38 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <button id="fab-add" title="记一笔">+</button>
     </section>
 
-    <!-- 记一笔弹窗：支出 / 收入 两个标签 -->
+    <!-- 记一笔弹窗：纯支出表单 -->
     <template id="tx-form-modal">
-      <div class="modal-head"><h2>记一笔</h2><button class="modal-x" data-close>&times;</button></div>
-      <div class="seg" style="margin-bottom:14px">
-        <button class="seg-btn active" id="tab-expense">支出</button>
-        <button class="seg-btn" id="tab-income">收入</button>
+      <div class="modal-head"><h2>记一笔支出</h2><button class="modal-x" data-close>&times;</button></div>
+      <div class="form-grid">
+        <label>主分类 <select id="tx-group">
+          <option value="仓库">仓库</option>
+          <option value="车队">车队</option>
+          <option value="其他">其他</option>
+        </select></label>
+        <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
+        <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
+        <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+        <label>付款状态 <select id="tx-status">
+          <option value="paid">现结（已付款）</option>
+          <option value="pending">应付（先挂账）</option>
+        </select></label>
+        <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
       </div>
-      <p class="muted" id="tx-hint" style="margin-bottom:12px"></p>
-      <div id="tx-expense-fields">
-        <div class="form-grid">
-          <label>主分类 <select id="tx-group">
-            <option value="仓库">仓库</option>
-            <option value="车队">车队</option>
-            <option value="其他">其他</option>
-          </select></label>
-          <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
-          <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
-          <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-          <label>付款状态 <select id="tx-status">
-            <option value="paid">现结（已付款）</option>
-            <option value="pending">应付（先挂账）</option>
-          </select></label>
-          <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
-        </div>
-        <button class="primary" id="btn-save-tx">保存</button>
-        <p class="muted" style="margin-top:8px">选「应付」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
+      <button class="primary" id="btn-save-tx">保存</button>
+      <p class="muted" style="margin-top:8px">选「应付」先挂账，不计入支出统计；点流水里的挂账条目可登记付款，付款后计入支出</p>
+    </template>
+
+    <!-- 客户页：添加月账单弹窗（应收台账，与收支无关） -->
+    <template id="bill-form-modal">
+      <div class="modal-head"><h2>添加月账单</h2><button class="modal-x" data-close>&times;</button></div>
+      <div class="form-grid">
+        <label>顾客 <select id="bill3-customer"></select></label>
+        <label>月份 <input type="month" id="bill3-period"></label>
+        <label class="span2">金额（元） <input type="number" id="bill3-amount" min="0.01" step="0.01" inputmode="decimal"></label>
       </div>
-      <div id="tx-income-fields" class="hidden">
-        <div class="form-grid">
-          <label>客户 <select id="bill2-customer"></select></label>
-          <label>费用类型 <select id="bill2-fee-type"><option>进仓费</option><option>修理费</option><option>放单费</option><option>其他</option></select></label>
-          <label>账期（月份） <input type="month" id="bill2-period"></label>
-          <label>金额（元） <input type="number" id="bill2-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        </div>
-        <button class="primary" id="btn-save-bill2">添加账单</button>
-        <p class="muted" style="margin-top:8px">客户付款后在「客户」页的账单卡片里登记收款，收款会自动生成收入流水</p>
-      </div>
+      <button class="primary" id="btn-save-bill3">添加</button>
+      <p class="muted" style="margin-top:8px">添加后进入账单列表（状态：待收）；顾客付款时点那张账单卡片登记收款，收款才会计入收入</p>
     </template>
 
     <section id="page-bills" class="page">
@@ -697,14 +692,6 @@ function initTxForm() {
   $('#wrap-tx-date').classList.remove('hidden');
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
-  // 收入（添加账单）表单
-  const prevC = $('#bill2-customer').value;
-  $('#bill2-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
-  const lastC = prevC || S.settings.lastBillCustomer;
-  if (lastC && S.customers.some(c => c.id === lastC)) $('#bill2-customer').value = lastC;
-  $('#bill2-period').value = monthStr();
-  $('#bill2-amount').value = '';
-  setTxTab('expense');
   // 滚动到 modal 顶部
   const mask = $('#modal-mask');
   if (mask) mask.scrollTop = 0;
@@ -713,13 +700,6 @@ function initTxForm() {
 let txTab = 'expense';
 function setTxTab(t) {
   txTab = t;
-  $('#tab-expense').classList.toggle('active', t === 'expense');
-  $('#tab-income').classList.toggle('active', t === 'income');
-  $('#tx-expense-fields').classList.toggle('hidden', t !== 'expense');
-  $('#tx-income-fields').classList.toggle('hidden', t !== 'income');
-  $('#tx-hint').textContent = t === 'expense'
-    ? '工资在发放时自动记录；员工垫付费用选「车队」分类，可勾选待报销先挂账。'
-    : '客户应收账单：客户付款后在「客户」页账单卡片里登记收款。';
 }
 
 function openTxForm() {
@@ -730,41 +710,50 @@ function openTxForm() {
   bindTxFormEvents();
 }
 
-// 弹窗内容是动态注入的，事件必须在注入后再绑定
-function bindTxFormEvents() {
-  $('#tab-expense').addEventListener('click', () => setTxTab('expense'));
-  $('#tab-income').addEventListener('click', () => setTxTab('income'));
-  $('#tx-group').addEventListener('change', renderTxSubs);
-  $('#tx-status').addEventListener('change', () => {
-    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value === 'pending');
-  });
-  $('#btn-save-tx').addEventListener('click', saveTx);
-  $('#btn-save-bill2').addEventListener('click', saveBill2);
-  ['#tx-amount', '#tx-note'].forEach(sel => {
-    $(sel).addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
-    });
-  });
-  $('#bill2-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill2(); } });
+// 客户页：添加月账单（应收台账，与收支无关）
+function openBillForm() {
+  $('#modal').innerHTML = $('#bill-form-modal').innerHTML;
+  $('#modal-mask').classList.remove('hidden');
+  const prev = $('#bill3-customer').value;
+  $('#bill3-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  const lastC = prev || S.settings.lastBillCustomer;
+  if (lastC && S.customers.some(c => c.id === lastC)) $('#bill3-customer').value = lastC;
+  $('#bill3-period').value = monthStr();
+  $('#bill3-amount').value = '';
+  $('#btn-save-bill3').addEventListener('click', saveBill3);
+  $('#bill3-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill3(); } });
 }
 
-async function saveBill2() {
-  const cid = $('#bill2-customer').value;
-  const period = $('#bill2-period').value;
-  const amount = round2($('#bill2-amount').value);
-  if (!cid) { toast('请先在「客户」页添加客户'); return; }
-  if (!period) { toast('请选择账期'); return; }
+async function saveBill3() {
+  const cid = $('#bill3-customer').value;
+  const period = $('#bill3-period').value;
+  const amount = round2($('#bill3-amount').value);
+  if (!cid) { toast('请先添加顾客'); return; }
+  if (!period) { toast('请选择月份'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
-  if (dup && !confirm('该客户这个账期已有账单，确定再添加一张吗？')) return;
-  await dbPut('bills', { id: uid(), customerId: cid, feeType: $('#bill2-fee-type').value, period: period, amount: amount, billDate: '', createdAt: Date.now() });
+  if (dup && !confirm('该顾客这个月份已有账单，确定再添加一张吗？')) return;
+  await dbPut('bills', { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, billDate: '', createdAt: Date.now() });
   await saveSetting('lastBillCustomer', cid);
   await loadState();
   closeModal();
   renderBills();
   renderCustomers();
-  renderLedger();
-  toast('账单已添加，收款请在「客户」页登记');
+  toast('月账单已添加（待收）');
+}
+
+// 弹窗内容是动态注入的，事件必须在注入后再绑定
+function bindTxFormEvents() {
+  $('#tx-group').addEventListener('change', renderTxSubs);
+  $('#tx-status').addEventListener('change', () => {
+    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value === 'pending');
+  });
+  $('#btn-save-tx').addEventListener('click', saveTx);
+  ['#tx-amount', '#tx-note'].forEach(sel => {
+    $(sel).addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); saveTx(); }
+    });
+  });
 }
 
 async function saveTx() {
@@ -819,8 +808,7 @@ $('#ledger-list').addEventListener('click', e => {
 // FAB 打开新增表单
 $('#fab-add').addEventListener('click', openTxForm);
 $('#card-add-bill').addEventListener('click', () => {
-  openTxForm();
-  setTxTab('income');
+  openBillForm();
 });
 
 // 月份切换
@@ -911,7 +899,7 @@ function renderBills() {
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
       + '</div>';
-  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，去「记一笔」+ 的「收入」标签添加</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，点上方「添加客户月账单」卡片</div>';
 }
 $('#bill-filter-status').addEventListener('change', renderBills);
 $('#bill-filter-customer').addEventListener('change', renderBills);
