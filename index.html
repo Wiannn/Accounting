@@ -83,6 +83,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .inline-flex{display:flex;gap:8px}
 .inline-flex select{flex:1}
 .seg{display:inline-flex;background:var(--gray-bg);border-radius:10px;padding:4px;margin-bottom:16px}
+.seg.seg-full{width:100%}
+.seg.seg-full .seg-btn{flex:1;padding:8px 0}
 .seg-btn{border:none;background:none;padding:8px 22px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted)}
 .seg-btn.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .filters{display:flex;gap:8px}
@@ -273,19 +275,25 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       <button id="fab-add" title="记一笔">+</button>
     </section>
 
-    <!-- 记一笔弹窗：纯支出表单 -->
+    <!-- 记一笔弹窗：支出 / 现结收入 -->
     <template id="tx-form-modal">
-      <div class="modal-head"><h2>记一笔支出</h2><button class="modal-x" data-close>&times;</button></div>
+      <div class="modal-head"><h2 id="tx-title">记一笔支出</h2><button class="modal-x" data-close>&times;</button></div>
+      <div class="seg seg-full">
+        <button class="seg-btn active" id="seg-expense" type="button">支出</button>
+        <button class="seg-btn" id="seg-income" type="button">收入</button>
+      </div>
       <div class="form-grid">
-        <label>主分类 <select id="tx-group">
+        <label id="wrap-tx-group">主分类 <select id="tx-group">
           <option value="仓库">仓库</option>
           <option value="车队">车队</option>
           <option value="其他">其他</option>
         </select></label>
         <label id="wrap-subcategory">子分类 <select id="tx-category"></select></label>
+        <label id="wrap-inc-customer" class="hidden">客户 <select id="inc-customer"></select></label>
+        <label id="wrap-inc-type" class="hidden">费用类型 <select id="inc-type"><option>进仓费</option><option>打印费</option></select></label>
         <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
         <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        <label>付款状态 <select id="tx-status">
+        <label id="wrap-tx-status">付款状态 <select id="tx-status">
           <option value="paid">现结</option>
           <option value="pending">挂账</option>
           <option value="reimb">待报销</option>
@@ -293,7 +301,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
-      <p class="muted" style="margin-top:8px">选「挂账」或「待报销」先挂账，不计入支出统计；点流水里的挂账条目可登记付款或确认报销，之后计入支出</p>
+      <p class="muted" id="tx-hint" style="margin-top:8px"></p>
     </template>
 
     <!-- 客户页：添加月账单弹窗（应收台账，与收支无关） -->
@@ -697,6 +705,9 @@ function initTxForm() {
   $('#wrap-tx-date').classList.remove('hidden');
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
+  const lastInc = S.settings.lastIncCustomer;
+  if (lastInc && S.customers.some(c => c.id === lastInc)) $('#inc-customer').value = lastInc;
+  setTxTab('expense');
   // 滚动到 modal 顶部
   const mask = $('#modal-mask');
   if (mask) mask.scrollTop = 0;
@@ -705,12 +716,27 @@ function initTxForm() {
 let txTab = 'expense';
 function setTxTab(t) {
   txTab = t;
+  const inc = t === 'income';
+  $('#tx-title').textContent = inc ? '记一笔收入' : '记一笔支出';
+  $('#seg-expense').classList.toggle('active', !inc);
+  $('#seg-income').classList.toggle('active', inc);
+  $('#wrap-tx-group').classList.toggle('hidden', inc);
+  $('#wrap-subcategory').classList.toggle('hidden', inc);
+  $('#wrap-tx-status').classList.toggle('hidden', inc);
+  $('#wrap-inc-customer').classList.toggle('hidden', !inc);
+  $('#wrap-inc-type').classList.toggle('hidden', !inc);
+  $('#wrap-tx-date').classList.toggle('hidden', !inc && $('#tx-status').value !== 'paid');
+  $('#tx-note').placeholder = inc ? '选填，可写车牌/事项' : '选填，可写司机名/供应商名';
+  $('#tx-hint').textContent = inc
+    ? '收入即时入账，自动计入该客户的「现结收入」'
+    : '选「挂账」或「待报销」先挂账，不计入支出统计；点流水里的挂账条目可登记付款或确认报销，之后计入支出';
 }
 
 function openTxForm() {
   const tpl = $('#tx-form-modal');
   $('#modal').innerHTML = tpl.innerHTML;
   $('#modal-mask').classList.remove('hidden');
+  $('#inc-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   initTxForm();
   bindTxFormEvents();
 }
@@ -749,6 +775,8 @@ async function saveBill3() {
 
 // 弹窗内容是动态注入的，事件必须在注入后再绑定
 function bindTxFormEvents() {
+  $('#seg-expense').addEventListener('click', () => setTxTab('expense'));
+  $('#seg-income').addEventListener('click', () => setTxTab('income'));
   $('#tx-group').addEventListener('change', renderTxSubs);
   $('#tx-status').addEventListener('change', () => {
     $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value !== 'paid');
@@ -764,11 +792,24 @@ function bindTxFormEvents() {
 async function saveTx() {
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  if (txTab === 'income') {
+    const cid = $('#inc-customer').value;
+    const date = $('#tx-date').value;
+    if (!cid) { toast('请先添加客户'); return; }
+    if (!date) { toast('请选择日期'); return; }
+    await dbPut('incomes', { id: uid(), date: date, type: $('#inc-type').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
+    await saveSetting('lastIncCustomer', cid);
+    await loadState();
+    closeModal();
+    if (currentPage === 'add') renderLedger();
+    toast('收入已保存，计入客户现结收入');
+    return;
+  }
   const statusVal = $('#tx-status').value;
   const isPending = statusVal !== 'paid';
   const date = isPending ? todayStr() : $('#tx-date').value;
   if (!isPending && !date) { toast('请选择日期'); return; }
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   if (S.expenses.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
     if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
