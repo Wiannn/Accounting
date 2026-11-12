@@ -202,7 +202,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <div class="logo-sub">仓储账务 · 单机版</div>
     <nav>
       <button class="nav-btn active" data-page="add">记一笔</button>
-      <button class="nav-btn" data-page="bills">应收账单</button>
+      <button class="nav-btn" data-page="bills">账单</button>
       <button class="nav-btn" data-page="wages">员工工资</button>
       <button class="nav-btn" data-page="settings">设置</button>
     </nav>
@@ -270,9 +270,10 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     </template>
 
     <section id="page-bills" class="page">
-      <div class="page-head"><h1>应收账单</h1></div>
+      <div class="page-head"><h1>账单</h1></div>
       <div class="cards">
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
+        <div class="card warn-card"><div class="card-label">待付总额（全部采购）</div><div class="card-num" style="color:var(--warn)" id="stat-payable">¥0.00</div></div>
       </div>
       <div class="panel">
         <div class="panel-title">添加账单 <span class="muted">每月算出应收后录到这里（如：祺盾 9月 73000）</span></div>
@@ -309,6 +310,37 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <thead><tr><th>客户</th><th>收入合计(现结)</th><th>应收总额</th><th>已收总额</th><th>当前欠款</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
+      </div>
+
+      <div class="sub-title" style="font-size:16px;margin-top:6px">应付采购 <span class="muted" style="font-weight:400">供应商欠款（周结/月结）登记在这里，登记付款时自动计入「记一笔」支出</span></div>
+      <div class="panel">
+        <div class="panel-title">添加采购</div>
+        <div class="form-grid">
+          <label>供应商 <input type="text" id="pur-vendor" placeholder="如：XX五金店" autocomplete="off"></label>
+          <label>采购日期 <input type="date" id="pur-date"></label>
+          <label>主分类 <select id="pur-group"></select></label>
+          <label>子分类 <select id="pur-sub"></select></label>
+          <label>金额（元） <input type="number" id="pur-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label>结算方式 <select id="pur-settle"><option>月结</option><option>周结</option><option>现结</option></select></label>
+        </div>
+        <button class="primary" id="btn-save-pur">添加采购</button>
+      </div>
+      <div class="panel">
+        <div class="panel-title">采购列表
+          <span class="filters">
+            <select id="pur-filter-status">
+              <option value="">全部状态</option>
+              <option value="unpaid">待付</option>
+              <option value="partial">部分付款</option>
+              <option value="settled">已付清</option>
+            </select>
+          </span>
+        </div>
+        <table id="pur-table">
+          <thead><tr><th>供应商</th><th>日期</th><th>金额</th><th>已付</th><th>待付</th><th>结算方式</th><th>状态</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="muted" style="margin-top:8px">点击任意一行，可登记付款、查看付款记录</p>
       </div>
     </section>
 
@@ -367,6 +399,30 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </table>
         <p class="muted" style="margin-top:8px">点击行：待发可标记已发（自动生成工资支出），已发可撤销</p>
       </div>
+      <div class="panel">
+        <div class="panel-title">员工报销 <span class="muted">员工垫付的费用（如司机过路费），标记已报销后自动计入「记一笔」支出</span></div>
+        <div class="form-grid">
+          <label>员工 <select id="rb-employee"></select></label>
+          <label>发生日期 <input type="date" id="rb-date"></label>
+          <label>金额（元） <input type="number" id="rb-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label>事由 <input type="text" id="rb-note" placeholder="如：高速过路费" autocomplete="off"></label>
+        </div>
+        <button class="primary" id="btn-save-rb">添加报销</button>
+        <div class="panel-title" style="margin-top:16px">报销记录
+          <span class="filters">
+            <select id="rb-filter-status">
+              <option value="">全部</option>
+              <option value="pending">待报销</option>
+              <option value="paid">已报销</option>
+            </select>
+          </span>
+        </div>
+        <table id="rb-table">
+          <thead><tr><th>员工</th><th>日期</th><th>金额</th><th>事由</th><th>状态</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="muted" style="margin-top:8px">点击任意一行，可标记已报销或撤销</p>
+      </div>
     </section>
 
   </main>
@@ -418,12 +474,12 @@ function toast(msg) {
 }
 
 /* ---------- 数据层（IndexedDB） ---------- */
-const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'meta'];
+const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'purchases', 'reimbursements', 'meta'];
 let _db = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('company-ledger', 2);
+    const req = indexedDB.open('company-ledger', 3);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       STORES.forEach(s => { if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' }); });
@@ -469,18 +525,19 @@ const DEFAULTS = {
   catGroups: {
     '仓库': ['办公用品', '工具材料', '油费'],
     '车队': ['油费', '拖车费', '换轮胎', '其他'],
-    '员工': ['员工工资']
+    '员工': ['员工工资', '报销']
   }
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
-let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
+let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], purchases: [], reimbursements: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
-  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, meta] = await Promise.all(STORES.map(dbGetAll));
+  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, purchases, reimbursements, meta] = await Promise.all(STORES.map(dbGetAll));
   S.customers = customers.sort((a, b) => a.createdAt - b.createdAt);
   S.incomes = incomes; S.expenses = expenses; S.bills = bills; S.payments = payments; S.invoices = invoices;
   S.employees = employees.sort((a, b) => a.createdAt - b.createdAt); S.wages = wages;
+  S.purchases = purchases; S.reimbursements = reimbursements;
   // 迁移：旧工资单若有 paidDate 但无 payments → 用已生成的支出记录反推一条 payment
   let needSave = false;
   for (const w of S.wages) {
@@ -508,6 +565,11 @@ async function loadState() {
 const saveSetting = (key, value) => dbPut('meta', { id: key, value: value });
 
 async function migrateCategories() {
+  // 老数据补上「报销」子分类
+  if (!(S.settings.catGroups['员工'] || []).includes('报销')) {
+    S.settings.catGroups['员工'] = (S.settings.catGroups['员工'] || []).concat(['报销']);
+    await saveSetting('catGroups', S.settings.catGroups);
+  }
   if (S.settings.catMigrated) return;
   let changed = false;
   for (const e2 of S.expenses) {
@@ -544,6 +606,152 @@ function invState(b) {
   return { invoiced, remaining, key, label };
 }
 const invBadge = k => k === 'done' ? 'ok' : k === 'partial' ? 'info' : 'gray';
+const paidOfPurchase = p => round2((p.payments || []).reduce((s, x) => s + Number(x.amount || 0), 0));
+function purchaseState(p) {
+  const paid = paidOfPurchase(p);
+  let remaining = round2(Number(p.amount) - paid);
+  let key = 'unpaid', label = '待付';
+  if (remaining <= 0) { key = 'settled'; label = '已付清'; remaining = 0; }
+  else if (paid > 0) { key = 'partial'; label = '部分付款'; }
+  return { paid, remaining, key, label };
+}
+
+/* ---------- 应付采购 ---------- */
+function renderPurchases() {
+  const prevG = $('#pur-group').value;
+  $('#pur-group').innerHTML = Object.keys(S.settings.catGroups).filter(g => g !== '员工').map(g => '<option>' + esc(g) + '</option>').join('');
+  if (prevG && S.settings.catGroups[prevG]) $('#pur-group').value = prevG;
+  $('#pur-sub').innerHTML = (S.settings.catGroups[$('#pur-group').value] || []).map(s => '<option>' + esc(s) + '</option>').join('');
+
+  $('#stat-payable').textContent = fmt(round2(S.purchases.reduce((s, p) => s + purchaseState(p).remaining, 0)));
+  const fs = $('#pur-filter-status').value;
+  let list = S.purchases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (fs) list = list.filter(p => purchaseState(p).key === fs);
+  $('#pur-table tbody').innerHTML = list.map(p => {
+    const st = purchaseState(p);
+    return '<tr class="clickable" data-pur="' + p.id + '">'
+      + '<td>' + esc(p.vendor) + '</td>'
+      + '<td>' + (p.date || '') + '</td>'
+      + '<td>' + fmt(p.amount) + '</td>'
+      + '<td>' + fmt(st.paid) + '</td>'
+      + '<td class="strong">' + fmt(st.remaining) + '</td>'
+      + '<td>' + esc(p.settleType || '') + '</td>'
+      + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td></tr>';
+  }).join('') || '<tr><td colspan="7" class="empty">暂无采购记录</td></tr>';
+}
+$('#pur-group').addEventListener('change', () => {
+  $('#pur-sub').innerHTML = (S.settings.catGroups[$('#pur-group').value] || []).map(s => '<option>' + esc(s) + '</option>').join('');
+});
+$('#pur-filter-status').addEventListener('change', renderPurchases);
+$('#btn-save-pur').addEventListener('click', async () => {
+  const vendor = $('#pur-vendor').value.trim();
+  const date = $('#pur-date').value;
+  const amount = round2($('#pur-amount').value);
+  if (!vendor) { toast('请输入供应商名称'); return; }
+  if (!date) { toast('请选择采购日期'); return; }
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  await dbPut('purchases', { id: uid(), vendor: vendor, date: date, category: $('#pur-group').value, sub: $('#pur-sub').value, amount: amount, settleType: $('#pur-settle').value, payments: [], createdAt: Date.now() });
+  await loadState();
+  $('#pur-vendor').value = ''; $('#pur-amount').value = '';
+  renderPurchases();
+  toast('采购已登记');
+});
+$('#pur-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-pur').click(); } });
+$('#pur-table tbody').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-pur]');
+  if (tr) openPurModal(tr.dataset.pur);
+});
+
+let currentPurId = null;
+function openPurModal(pid) {
+  const p = S.purchases.find(x => x.id === pid);
+  if (!p) return;
+  currentPurId = pid;
+  const st = purchaseState(p);
+  const pays = (p.payments || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + esc(p.vendor) + ' · 采购付款</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>采购金额</span><b>' + fmt(p.amount) + '</b></div>'
+    + '<div class="kv"><span>已付 / 待付</span><b>' + fmt(st.paid) + ' / <span class="strong">' + fmt(st.remaining) + '</span></b></div>'
+    + '<div class="kv"><span>分类</span><b>' + esc(catLabel(p)) + '</b></div>'
+    + '<div class="kv"><span>结算方式 / 日期</span><b>' + esc(p.settleType || '—') + ' · ' + (p.date || '—') + '</b></div>'
+    + '<div class="sub-title">付款记录</div>'
+    + '<table class="mini-table"><thead><tr><th>日期</th><th>金额</th><th>备注</th><th></th></tr></thead><tbody>'
+    + (pays.map(x => '<tr><td>' + (x.date || '—') + '</td><td>' + fmt(x.amount) + '</td><td>' + esc(x.note || '') + '</td>'
+        + '<td><button class="link-btn danger" data-delpurpay="' + x.id + '">删除</button></td></tr>').join('')
+      || '<tr><td colspan="4" class="empty">还没有付款</td></tr>')
+    + '</tbody></table>'
+    + (st.key !== 'settled'
+      ? '<div class="inline-form">'
+        + '<input type="date" id="purpay-date" value="' + todayStr() + '">'
+        + '<input type="number" id="purpay-amount" placeholder="金额" step="0.01" min="0.01" value="' + (st.remaining > 0 ? st.remaining : '') + '">'
+        + '<input type="text" id="purpay-note" placeholder="备注（选填）">'
+        + '<button class="primary small" id="btn-add-purpay">登记付款</button></div>'
+        + '<p class="muted" style="margin-top:8px">登记付款后会自动在「记一笔」生成对应支出（' + esc(catLabel(p)) + '）</p>'
+      : '<p class="muted" style="margin-top:8px">已付清</p>')
+    + '<div class="modal-foot"><button class="ghost danger" id="btn-del-pur">删除整张采购</button></div>';
+  $('#modal-mask').classList.remove('hidden');
+}
+
+/* ---------- 员工报销 ---------- */
+function renderReimb() {
+  const prev = $('#rb-employee').value;
+  $('#rb-employee').innerHTML = S.employees.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
+  if (prev && S.employees.some(x => x.id === prev)) $('#rb-employee').value = prev;
+  const fs = $('#rb-filter-status').value;
+  let list = S.reimbursements.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (fs) list = list.filter(r => (r.paidDate ? 'paid' : 'pending') === fs);
+  $('#rb-table tbody').innerHTML = list.map(r => '<tr class="clickable" data-rb="' + r.id + '">'
+    + '<td>' + esc(empName(r.employeeId)) + '</td>'
+    + '<td>' + (r.date || '') + '</td>'
+    + '<td>' + fmt(r.amount) + '</td>'
+    + '<td>' + esc(r.note || '') + '</td>'
+    + '<td>' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</td></tr>').join('')
+    || '<tr><td colspan="5" class="empty">暂无报销记录</td></tr>';
+}
+$('#rb-filter-status').addEventListener('change', renderReimb);
+$('#btn-save-rb').addEventListener('click', async () => {
+  const employeeId = $('#rb-employee').value;
+  const date = $('#rb-date').value;
+  const amount = round2($('#rb-amount').value);
+  const note = $('#rb-note').value.trim();
+  if (!employeeId) { toast('请先添加员工'); return; }
+  if (!date) { toast('请选择发生日期'); return; }
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  await dbPut('reimbursements', { id: uid(), employeeId: employeeId, date: date, amount: amount, note: note, paidDate: null, createdAt: Date.now() });
+  await loadState();
+  $('#rb-amount').value = ''; $('#rb-note').value = '';
+  renderReimb();
+  toast('报销已登记');
+});
+$('#rb-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-save-rb').click(); } });
+$('#rb-table tbody').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-rb]');
+  if (tr) openRbModal(tr.dataset.rb);
+});
+
+let currentRbId = null;
+function openRbModal(rid) {
+  const r = S.reimbursements.find(x => x.id === rid);
+  if (!r) return;
+  currentRbId = rid;
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + esc(empName(r.employeeId)) + ' · 报销</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>发生日期</span><b>' + (r.date || '—') + '</b></div>'
+    + '<div class="kv"><span>金额</span><b>' + fmt(r.amount) + '</b></div>'
+    + '<div class="kv"><span>事由</span><b>' + esc(r.note || '—') + '</b></div>'
+    + '<div class="kv"><span>状态</span><b>' + (r.paidDate ? '<span class="badge badge-ok">已报销 ' + r.paidDate + '</span>' : '<span class="badge badge-warn">待报销</span>') + '</b></div>'
+    + (r.paidDate
+      ? '<p class="muted" style="margin-top:8px">该笔已计入「记一笔」支出（员工 · 报销）。</p>'
+        + '<button class="ghost" id="btn-rb-cancel" style="margin-top:10px">撤销报销</button>'
+      : '<div class="inline-form" style="margin-top:10px">'
+        + '<input type="date" id="rb-pay-date" value="' + todayStr() + '">'
+        + '<input type="text" id="rb-pay-note" placeholder="备注（选填）">'
+        + '<button class="primary small" id="btn-rb-pay">标记已报销</button></div>'
+        + '<p class="muted" style="margin-top:8px">标记后自动在「记一笔」生成支出（员工 · 报销）</p>')
+    + '<div class="modal-foot"><button class="ghost danger" id="btn-del-rb">删除报销记录</button></div>';
+  $('#modal-mask').classList.remove('hidden');
+}
 
 /* ---------- 页面切换 ---------- */
 let currentPage = 'add';
@@ -555,10 +763,10 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); renderCustomers(); renderPurchases(); }, wages: () => { renderWages(); renderReimb(); }, settings: () => {} }[p] || function () {})();
 }
 
-/* ---------- 待收总额（应收账单页顶部） ---------- */
+/* ---------- 待收总额（账单页顶部） ---------- */
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
@@ -655,7 +863,7 @@ function initTxForm() {
   renderSubCats();
   $('#tx-customer').innerHTML = S.customers.length
     ? S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
-    : '<option value="">（请先到「应收账单」页添加）</option>';
+    : '<option value="">（请先到「账单」页添加）</option>';
   setTxType('expense');
   $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
@@ -859,7 +1067,7 @@ $('#btn-save-bill').addEventListener('click', async () => {
   const cid = $('#bill-customer').value;
   const period = $('#bill-period').value;
   const amount = round2($('#bill-amount').value);
-  if (!cid) { toast('请先在「应收账单」页添加客户'); return; }
+  if (!cid) { toast('请先在「账单」页添加客户'); return; }
   if (!period) { toast('请选择账期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
@@ -929,7 +1137,7 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
+function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; currentPurId = null; currentRbId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 $('#modal').addEventListener('click', async e => {
@@ -1046,6 +1254,54 @@ $('#modal').addEventListener('click', async e => {
     toast('账单已删除');
   }
 
+  if (t.id === 'btn-add-purpay') {
+    const p = S.purchases.find(x => x.id === currentPurId);
+    if (!p) return;
+    const amount = round2($('#purpay-amount').value);
+    const date = $('#purpay-date').value;
+    const note = $('#purpay-note').value.trim();
+    if (!date) { toast('请选择付款日期'); return; }
+    if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+    const pid = uid();
+    p.payments = p.payments || [];
+    p.payments.push({ id: pid, amount: amount, date: date, note: note });
+    await dbPut('purchases', p);
+    await dbPut('expenses', { id: uid(), date: date, category: p.category, sub: p.sub, amount: amount, note: '采购付款 ' + p.vendor + (note ? '（' + note + '）' : ''), purchaseId: p.id, paymentId: pid, createdAt: Date.now() });
+    await loadState();
+    openPurModal(currentPurId);
+    renderPurchases();
+    toast('付款已登记，支出已计入记一笔');
+    return;
+  }
+  if (t.dataset.delpurpay) {
+    const p = S.purchases.find(x => x.id === currentPurId);
+    if (!p) return;
+    const pid = t.dataset.delpurpay;
+    const pay = (p.payments || []).find(x => x.id === pid);
+    if (!pay) return;
+    if (!confirm('删除这笔付款？对应的支出记录将一并删除。')) return;
+    for (const ex of S.expenses.filter(x => x.purchaseId === p.id && x.paymentId === pid)) await dbDel('expenses', ex.id);
+    p.payments = p.payments.filter(x => x.id !== pid);
+    await dbPut('purchases', p);
+    await loadState();
+    openPurModal(currentPurId);
+    renderPurchases();
+    return;
+  }
+  if (t.id === 'btn-del-pur') {
+    const p = S.purchases.find(x => x.id === currentPurId);
+    if (!p) return;
+    const hasPay = (p.payments || []).length > 0;
+    if (!confirm('删除这张采购记录？' + (hasPay ? '所有付款记录及对应支出将一并删除。' : ''))) return;
+    for (const ex of S.expenses.filter(x => x.purchaseId === p.id)) await dbDel('expenses', ex.id);
+    await dbDel('purchases', p.id);
+    await loadState();
+    closeModal();
+    renderPurchases();
+    toast('采购记录已删除');
+    return;
+  }
+
   if (t.id === 'btn-wage-amount-save') {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
@@ -1119,6 +1375,48 @@ $('#modal').addEventListener('click', async e => {
     closeModal();
     renderWages();
     toast('工资单已删除');
+  }
+
+  if (t.id === 'btn-rb-pay') {
+    const r = S.reimbursements.find(x => x.id === currentRbId);
+    if (!r) return;
+    const date = $('#rb-pay-date').value;
+    const note = $('#rb-pay-note').value.trim();
+    if (!date) { toast('请选择报销日期'); return; }
+    r.paidDate = date;
+    r.paidNote = note;
+    await dbPut('reimbursements', r);
+    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '报销', amount: round2(r.amount), note: empName(r.employeeId) + ' 报销' + (r.note ? '（' + r.note + '）' : '') + (note ? ' ' + note : ''), reimbursementId: r.id, createdAt: Date.now() });
+    await loadState();
+    openRbModal(currentRbId);
+    renderReimb();
+    toast('已报销，支出已计入记一笔');
+    return;
+  }
+  if (t.id === 'btn-rb-cancel') {
+    const r = S.reimbursements.find(x => x.id === currentRbId);
+    if (!r) return;
+    if (!confirm('撤销报销？对应的支出记录将一并删除。')) return;
+    for (const ex of S.expenses.filter(x => x.reimbursementId === r.id)) await dbDel('expenses', ex.id);
+    r.paidDate = null;
+    r.paidNote = null;
+    await dbPut('reimbursements', r);
+    await loadState();
+    openRbModal(currentRbId);
+    renderReimb();
+    return;
+  }
+  if (t.id === 'btn-del-rb') {
+    const r = S.reimbursements.find(x => x.id === currentRbId);
+    if (!r) return;
+    if (!confirm('删除这条报销记录？' + (r.paidDate ? '对应的支出记录将一并删除。' : ''))) return;
+    for (const ex of S.expenses.filter(x => x.reimbursementId === r.id)) await dbDel('expenses', ex.id);
+    await dbDel('reimbursements', r.id);
+    await loadState();
+    closeModal();
+    renderReimb();
+    toast('报销记录已删除');
+    return;
   }
 
   if (t.classList.contains('cal-day') && t.dataset.absDay) {
@@ -1315,6 +1613,7 @@ $('#btn-add-emp').addEventListener('click', async () => {
   $('#emp-name').value = '';
   $('#emp-role').value = '';
   renderWages();
+  renderReimb();
   toast('员工已添加');
 });
 
@@ -1505,7 +1804,9 @@ $('#btn-backup').addEventListener('click', () => {
     app: 'company-ledger', version: 1, exportedAt: new Date().toISOString(),
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
     bills: S.bills, payments: S.payments, invoices: S.invoices,
-    employees: S.employees, wages: S.wages, settings: S.settings
+    employees: S.employees, wages: S.wages,
+    purchases: S.purchases, reimbursements: S.reimbursements,
+    settings: S.settings
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1536,6 +1837,8 @@ async function importBackup(file) {
   for (const iv of data.invoices || []) await dbPut('invoices', iv);
   for (const em of data.employees || []) await dbPut('employees', em);
   for (const wg of data.wages || []) await dbPut('wages', wg);
+  for (const p of data.purchases || []) await dbPut('purchases', p);
+  for (const r of data.reimbursements || []) await dbPut('reimbursements', r);
   const st = data.settings || {};
   for (const k of Object.keys(st)) await dbPut('meta', { id: k, value: st[k] });
   await loadState();
@@ -1563,6 +1866,8 @@ async function importBackup(file) {
   if ($('#tx-date')) $('#tx-date').value = todayStr();
   $('#bill-period').value = monthStr();
   $('#wage-period').value = monthStr();
+  $('#pur-date').value = todayStr();
+  $('#rb-date').value = todayStr();
   renderUnpaid();
 })();
 </script>
