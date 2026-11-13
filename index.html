@@ -1751,6 +1751,18 @@ function parseIncomeAOA(aoa, fallbackName) {
   return { rows };
 }
 
+// 遍历所有工作表收集收入行；识别不了表头的工作表跳过并记录
+function collectIncomeRows(wb, fileCust) {
+  const allRows = [], skippedSheets = [];
+  wb.SheetNames.forEach(sn => {
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+    const r = parseIncomeAOA(aoa, fileCust);
+    if (r.error) { skippedSheets.push(sn); return; }
+    r.rows.forEach(row => { row.sheet = sn; allRows.push(row); });
+  });
+  return { rows: allRows, skippedSheets };
+}
+
 // 导入预览弹窗：核对后确认写入
 function openImportPreview(result) {
   if (result.error) { alert(result.error); return; }
@@ -1769,7 +1781,8 @@ function openImportPreview(result) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>导入预览</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<p class="muted" style="margin-bottom:10px">将导入 <b>' + valid.length + '</b> 条现结收入（进仓费），合计 <b>' + fmt(total) + '</b>；'
-    + '新建客户 ' + newCusts.length + ' 个；重复跳过 ' + dupCount + ' 条；无效跳过 ' + badRows.length + ' 条。</p>'
+    + '新建客户 ' + newCusts.length + ' 个；重复跳过 ' + dupCount + ' 条；无效跳过 ' + badRows.length + ' 条。'
+    + (result.skippedSheets && result.skippedSheets.length ? '<br>未识别、已跳过的工作表：' + result.skippedSheets.map(esc).join('、') : '') + '</p>'
     + '<div style="max-height:45vh;overflow:auto;margin-bottom:12px">' + rows.map(rowHtml).join('') + '</div>'
     + '<button class="primary" id="btn-do-import"' + (valid.length ? '' : ' disabled') + '>确认导入 ' + valid.length + ' 条</button>';
   $('#modal-mask').classList.remove('hidden');
@@ -1809,10 +1822,10 @@ $('#import-xlsx-file').addEventListener('change', e => {
     reader.onload = () => {
       try {
         const wb = XLSX.read(reader.result, { type: 'array', cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
         const fileCust = file.name.replace(/\.(xlsx|xls)$/i, '').trim();
-        openImportPreview(parseIncomeAOA(aoa, fileCust));
+        const result = collectIncomeRows(wb, fileCust);
+        if (!result.rows.length) { alert('未识别到有效数据：工作表需要「日期、进仓费（或金额）」列；客户列可选，无客户列时用文件名作为客户名'); return; }
+        openImportPreview(result);
       } catch (err) { alert('Excel 解析失败：' + err.message); }
     };
     reader.onerror = () => alert('文件读取失败，请重试');
