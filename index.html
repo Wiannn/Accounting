@@ -150,6 +150,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat.expense-stat{border:1px solid #F0C98A;cursor:pointer;user-select:none}
+.item-card.flash-new{animation:flashNew 1.8s ease}
+@keyframes flashNew{0%,60%{background:#FFF3D6;border-color:#F0C98A}100%{background:var(--panel)}}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
 .ledger-stats .lb-stat-num{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
 .ledger-stats .lb-stat-num.pos{color:var(--ok)}
@@ -846,6 +848,21 @@ function bindTxFormEvents() {
   });
 }
 
+// 保存后跳到记录所在月份，滚动定位并高亮新增条目
+function revealLedgerRecord(store, id, date) {
+  if (currentPage !== 'add') { renderUnpaid(); return; }
+  const period = (date || '').slice(0, 7);
+  if (period) $('#ledger-month').value = period;
+  renderLedger();
+  setTimeout(() => {
+    const el = document.querySelector('[data-ledger="' + store + ':' + id + '"]');
+    if (!el) return;
+    el.classList.add('flash-new');
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(() => el.classList.remove('flash-new'), 1800);
+  }, 30);
+}
+
 async function saveTx() {
   const amount = round2($('#tx-amount').value);
   const note = $('#tx-note').value.trim();
@@ -855,11 +872,12 @@ async function saveTx() {
     const date = $('#tx-date').value;
     if (!cid) { toast('请先添加客户'); return; }
     if (!date) { toast('请选择日期'); return; }
-    await dbPut('incomes', { id: uid(), date: date, type: $('#inc-type').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
+    const newId = uid();
+    await dbPut('incomes', { id: newId, date: date, type: $('#inc-type').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
     await saveSetting('lastIncCustomer', cid);
     await loadState();
     closeModal();
-    if (currentPage === 'add') renderLedger();
+    revealLedgerRecord('incomes', newId, date);
     toast('收入已保存，计入客户现结收入');
     return;
   }
@@ -872,10 +890,11 @@ async function saveTx() {
   }
   const group = $('#tx-group').value;
   const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
-  await dbPut('expenses', { id: uid(), date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
+  const newId = uid();
+  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
   await loadState();
   closeModal();
-  if (currentPage === 'add') renderLedger();
+  revealLedgerRecord('expenses', newId, date);
   toast(isPending ? (statusVal === 'reimb' ? '已挂账（待报销）' : '已挂账') : '已保存');
 }
 
