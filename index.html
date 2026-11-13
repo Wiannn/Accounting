@@ -576,28 +576,39 @@ function renderPage(p) {
 }
 
 /* ---------- 客户页顶部统计 ---------- */
+// 本年收入（按客户汇总，降序）：收入流水为主；历史收款（未生成收入流水的 payments）按收款台账兜底补计，不重复
+function yearIncomeRows() {
+  const year = String(new Date().getFullYear());
+  const inYear = d => (d || '').startsWith(year);
+  const sums = {};
+  S.incomes.forEach(i => {
+    if (!inYear(i.date)) return;
+    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+  });
+  const covered = new Set(S.incomes.map(i => i.paymentId).filter(Boolean));
+  S.payments.forEach(p => {
+    if (!inYear(p.date) || covered.has(p.id)) return;
+    const b = S.bills.find(x => x.id === p.billId);
+    if (!b) return;
+    sums[b.customerId] = (sums[b.customerId] || 0) + Number(p.amount || 0);
+  });
+  return Object.keys(sums)
+    .map(cid => ({ cid, amount: round2(sums[cid]) }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
-  // 本年收入：本年度全部收入（含记一笔现结收入和账单收款）
-  const year = String(new Date().getFullYear());
-  const yearIncome = S.incomes
-    .filter(i => (i.date || '').startsWith(year))
-    .reduce((s, i) => s + Number(i.amount || 0), 0);
-  $('#stat-year-income').textContent = fmt(round2(yearIncome));
+  // 本年收入：本年度全部收入（含记一笔现结收入、账单收款及历史收款）
+  const rows = yearIncomeRows();
+  $('#stat-year-income').textContent = fmt(round2(rows.reduce((s, r) => s + r.amount, 0)));
 }
 
 // 点击本年收入卡片：各客户本年收入排名弹窗
 function openYearIncomeModal() {
   const year = String(new Date().getFullYear());
-  const sums = {};
-  S.incomes.forEach(i => {
-    if (!(i.date || '').startsWith(year)) return;
-    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
-  });
-  const rows = Object.keys(sums)
-    .map(cid => ({ cid, amount: round2(sums[cid]) }))
-    .sort((a, b) => b.amount - a.amount);
+  const rows = yearIncomeRows();
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   const listHtml = rows.length ? rows.map((r, idx) =>
     '<div class="item-card" style="cursor:default">'
