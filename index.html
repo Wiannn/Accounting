@@ -319,7 +319,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-bills" class="page">
       <div class="page-head"><h1>客户</h1></div>
       <div class="cards">
-        <div class="card"><div class="card-label">本年收入</div><div class="card-num" style="color:var(--ok)" id="stat-year-income">¥0.00</div></div>
+        <div class="card" id="card-year-income" style="cursor:pointer"><div class="card-label">本年收入（点击查看明细）</div><div class="card-num" style="color:var(--ok)" id="stat-year-income">¥0.00</div></div>
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
         <div class="card add-card" id="card-add-bill">
           <div class="card-label">添加客户月账单</div>
@@ -586,6 +586,35 @@ function renderUnpaid() {
     .reduce((s, i) => s + Number(i.amount || 0), 0);
   $('#stat-year-income').textContent = fmt(round2(yearIncome));
 }
+
+// 点击本年收入卡片：各客户本年收入排名弹窗
+function openYearIncomeModal() {
+  const year = String(new Date().getFullYear());
+  const sums = {};
+  S.incomes.forEach(i => {
+    if (!(i.date || '').startsWith(year)) return;
+    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+  });
+  const rows = Object.keys(sums)
+    .map(cid => ({ cid, amount: round2(sums[cid]) }))
+    .sort((a, b) => b.amount - a.amount);
+  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
+  const listHtml = rows.length ? rows.map((r, idx) =>
+    '<div class="item-card" style="cursor:default">'
+    + '<div class="ic-main">'
+    + '<div class="ic-title"><span class="badge badge-gray">' + (idx + 1) + '</span>' + esc(custName(r.cid)) + '</div>'
+    + '<div class="ic-sub">占总收入 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</div>'
+    + '</div>'
+    + '<div class="ic-right"><div class="ic-amt">' + fmt(r.amount) + '</div></div>'
+    + '</div>'
+  ).join('') : '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">本年还没有收入记录</div>';
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>本年收入（' + year + '）</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="item-list">' + listHtml + '</div>'
+    + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b>' + fmt(total) + '</b></div>' : '');
+  $('#modal-mask').classList.remove('hidden');
+}
+$('#card-year-income').addEventListener('click', openYearIncomeModal);
 
 /* ---------- 记一笔 ---------- */
 const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');
