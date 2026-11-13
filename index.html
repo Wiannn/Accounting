@@ -1812,7 +1812,8 @@ function openImportPreview(result) {
     '<div class="modal-head"><h2>导入预览</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<p class="muted" style="margin-bottom:10px">将导入 <b>' + valid.length + '</b> 条现结收入（进仓费），合计 <b>' + fmt(total) + '</b>；'
     + '新建客户 ' + newCusts.length + ' 个；重复跳过 ' + dupCount + ' 条；无效跳过 ' + badRows.length + ' 条。'
-    + (result.skippedSheets && result.skippedSheets.length ? '<br>未识别、已跳过的工作表：' + result.skippedSheets.map(esc).join('、') : '') + '</p>'
+    + (result.skippedSheets && result.skippedSheets.length ? '<br>未识别、已跳过的工作表：' + result.skippedSheets.map(esc).join('、') : '')
+    + '<br>已识别工作表：' + [...new Set(rows.map(r => r.sheet).filter(Boolean))].map(esc).join('、') + '</p>'
     + '<div style="max-height:45vh;overflow:auto;margin-bottom:12px">' + rows.map(rowHtml).join('') + '</div>'
     + '<button class="primary" id="btn-do-import"' + (valid.length ? '' : ' disabled') + '>确认导入 ' + valid.length + ' 条</button>';
   $('#modal-mask').classList.remove('hidden');
