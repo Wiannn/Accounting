@@ -1727,6 +1727,7 @@ async function importBackup(file) {
   }
   $('#report-month').value = monthStr();
   if ($('#tx-date')) $('#tx-date').value = todayStr();
+  renderPage(currentPage); // 打开网页即渲染当前页（默认记一笔），避免首屏空白需切页才出数据
   renderUnpaid();
 })();
 </script>
