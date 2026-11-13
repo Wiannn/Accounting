@@ -251,6 +251,12 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         <button class="primary" id="btn-export-xlsx">导出 Excel</button>
       </div>
       <div class="panel">
+        <div class="panel-title">导入 Excel 现结收入</div>
+        <p class="muted" style="margin-bottom:12px">上传包含「客户、日期、进仓费（或金额）」三列的 Excel，自动识别表头并批量记入现结收入。没有的客户自动新建，相同客户+日期+金额的已有记录自动跳过，导入前可先预览核对。</p>
+        <button class="primary" id="btn-import-xlsx">上传 Excel 导入</button>
+        <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" class="hidden">
+      </div>
+      <div class="panel">
         <div class="panel-title">备份与恢复</div>
         <p class="muted" style="margin-bottom:12px">账本数据保存在本浏览器中。清理浏览器数据前请先导出备份；建议每周备份一次，备份文件可存U盘或发送到微信文件助手。</p>
         <div class="backup-btns">
@@ -1686,6 +1692,129 @@ $('#btn-backup').addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(a.href);
   toast('备份文件已下载');
+});
+
+/* ---------- Excel 导入现结收入 ---------- */
+// 解析各种日期格式为 YYYY-MM-DD，失败返回 null
+function parseExcelDate(v) {
+  if (v == null || v === '') return null;
+  const pad = n => String(n).padStart(2, '0');
+  if (v instanceof Date && !isNaN(v)) return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
+  if (typeof v === 'number' && isFinite(v) && v > 0) {
+    // Excel 序列号（1900 日期系统）
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+  }
+  const m = String(v).trim().match(/(\d{4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/);
+  if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+  return null;
+}
+
+// 从二维数组识别表头并解析为收入行（纯函数，便于测试）
+function parseIncomeAOA(aoa) {
+  if (!aoa || !aoa.length) return { error: 'Excel 里没有内容' };
+  let headIdx = -1, cCust = -1, cDate = -1, cAmt = -1;
+  for (let r = 0; r < Math.min(aoa.length, 10); r++) {
+    const row = (aoa[r] || []).map(x => String(x == null ? '' : x).trim());
+    const cust = row.findIndex(t => /客户|顾客|公司|单位/.test(t));
+    const date = row.findIndex(t => /日期|时间/.test(t));
+    let amt = row.findIndex(t => /进仓费/.test(t));
+    if (amt < 0) amt = row.findIndex(t => /金额|费用|收款|应收/.test(t));
+    if (cust >= 0 && date >= 0 && amt >= 0) { headIdx = r; cCust = cust; cDate = date; cAmt = amt; break; }
+  }
+  if (headIdx < 0) return { error: '未识别到表头：需要包含「客户、日期、进仓费（或金额）」三列，请检查第一个工作表' };
+
+  const existNames = new Set(S.customers.map(c => c.name.trim()));
+  const rows = [];
+  for (let r = headIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    const name = String(row[cCust] == null ? '' : row[cCust]).trim();
+    const rawDate = row[cDate], rawAmt = row[cAmt];
+    // 整行空白跳过
+    if (!name && (rawDate == null || rawDate === '') && (rawAmt == null || rawAmt === '')) continue;
+    const date = parseExcelDate(rawDate);
+    const amount = Number(String(rawAmt == null ? '' : rawAmt).replace(/[¥￥,\s元]/g, ''));
+    const rec = { name, date, amount, ok: false, reason: '', dup: false, newCust: false };
+    if (!name) rec.reason = '缺客户名';
+    else if (!date) rec.reason = '日期无法识别';
+    else if (!isFinite(amount) || amount <= 0) rec.reason = '金额无效';
+    else {
+      rec.ok = true;
+      rec.newCust = !existNames.has(name);
+      rec.dup = S.incomes.some(i => i.type === '进仓费' && i.date === date && Number(i.amount) === amount && custName(i.customerId) === name);
+    }
+    rows.push(rec);
+  }
+  if (!rows.length) return { error: '表头以下没有数据行' };
+  return { rows };
+}
+
+// 导入预览弹窗：核对后确认写入
+function openImportPreview(result) {
+  if (result.error) { alert(result.error); return; }
+  const rows = result.rows;
+  const valid = rows.filter(r => r.ok && !r.dup);
+  const dupCount = rows.filter(r => r.ok && r.dup).length;
+  const badRows = rows.filter(r => !r.ok);
+  const newCusts = [...new Set(valid.filter(r => r.newCust).map(r => r.name))];
+  const total = round2(valid.reduce((s, r) => s + r.amount, 0));
+
+  const rowHtml = r => {
+    if (!r.ok) return '<div class="kv"><span>' + esc(r.name || '(空行)') + ' · ' + esc(r.reason) + '</span><span class="badge badge-danger">跳过</span></div>';
+    if (r.dup) return '<div class="kv" style="opacity:.55"><span>' + esc(r.name) + ' · ' + r.date + '</span><span>' + fmt(r.amount) + ' <span class="badge badge-gray">重复跳过</span></span></div>';
+    return '<div class="kv"><span>' + esc(r.name) + (r.newCust ? ' <span class="badge badge-info">新客户</span>' : '') + '<br>' + r.date + '</span><span class="pos strong">' + fmt(r.amount) + '</span></div>';
+  };
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>导入预览</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<p class="muted" style="margin-bottom:10px">将导入 <b>' + valid.length + '</b> 条现结收入（进仓费），合计 <b>' + fmt(total) + '</b>；'
+    + '新建客户 ' + newCusts.length + ' 个；重复跳过 ' + dupCount + ' 条；无效跳过 ' + badRows.length + ' 条。</p>'
+    + '<div style="max-height:45vh;overflow:auto;margin-bottom:12px">' + rows.map(rowHtml).join('') + '</div>'
+    + '<button class="primary" id="btn-do-import"' + (valid.length ? '' : ' disabled') + '>确认导入 ' + valid.length + ' 条</button>';
+  $('#modal-mask').classList.remove('hidden');
+  $('#btn-do-import').addEventListener('click', async () => {
+    const btn = $('#btn-do-import');
+    btn.disabled = true; btn.textContent = '导入中…';
+    try {
+      const nameToId = {};
+      S.customers.forEach(c => { nameToId[c.name.trim()] = c.id; });
+      for (const r of valid) {
+        if (!nameToId[r.name]) {
+          const id = uid();
+          await dbPut('customers', { id, name: r.name, createdAt: Date.now() });
+          nameToId[r.name] = id;
+        }
+        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, note: 'Excel导入', createdAt: Date.now() });
+      }
+      await loadState();
+      closeModal();
+      renderAdd(); renderBills(); renderUnpaid();
+      toast('已导入 ' + valid.length + ' 条收入');
+    } catch (err) {
+      btn.disabled = false; btn.textContent = '重试导入';
+      alert('导入失败：' + err.message);
+    }
+  });
+}
+
+$('#btn-import-xlsx').addEventListener('click', () => $('#import-xlsx-file').click());
+$('#import-xlsx-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  (async () => {
+    try { await ensureXLSX(); } catch (err) { alert(err.message); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const wb = XLSX.read(reader.result, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+        openImportPreview(parseIncomeAOA(aoa));
+      } catch (err) { alert('Excel 解析失败：' + err.message); }
+    };
+    reader.onerror = () => alert('文件读取失败，请重试');
+    reader.readAsArrayBuffer(file);
+  })();
 });
 
 $('#btn-restore').addEventListener('click', () => $('#restore-file').click());
