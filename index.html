@@ -330,19 +330,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
       </div>
       <div class="panel">
-        <div class="panel-title">账单列表
-          <span class="filters">
-            <select id="bill-filter-customer"></select>
-            <select id="bill-filter-status">
-              <option value="">全部状态</option>
-              <option value="unpaid" selected>待收</option>
-              <option value="partial">部分收款</option>
-              <option value="settled">已结清</option>
-            </select>
-          </span>
-        </div>
+        <div class="panel-title">账单列表 <span class="muted">仅显示待收</span></div>
         <div class="item-list" id="bills-list"></div>
-        <p class="muted" style="margin-top:8px">点客户名展开账单和「客户详情」，点任意一张账单可记收款、登记发票</p>
+        <p class="muted" style="margin-top:8px">点客户名展开账单和「客户详情」，点任意一张账单可记收款、登记发票；已结清等全部记录在客户详情里看</p>
       </div>
     </section>
 
@@ -901,16 +891,10 @@ function shiftMonth(delta) {
 
 /* ---------- 应收账单 ---------- */
 function renderBills() {
-  const fc = $('#bill-filter-customer').value;
-  $('#bill-filter-customer').innerHTML = '<option value="">全部客户</option>' + S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
-  $('#bill-filter-customer').value = fc;
-
-  const fs = $('#bill-filter-status').value;
-  const fc2 = $('#bill-filter-customer').value;
-  let list = S.bills.slice().sort((a, b) => b.period.localeCompare(a.period) || b.billDate.localeCompare(a.billDate));
-  if (fs === 'unpaid') list = list.filter(b => ['unpaid', 'partial'].includes(billState(b).key));
-  else if (fs) list = list.filter(b => billState(b).key === fs);
-  if (fc2) list = list.filter(b => b.customerId === fc2);
+  // 固定只展示待收（含部分收款）的账单
+  const list = S.bills.slice()
+    .sort((a, b) => b.period.localeCompare(a.period) || (b.billDate || '').localeCompare(a.billDate || ''))
+    .filter(b => ['unpaid', 'partial'].includes(billState(b).key));
 
   // 按顾客折叠分组（组头含客户信息），默认收起
   const billCardHtml = b => {
@@ -924,23 +908,19 @@ function renderBills() {
       + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
       + '</div>';
   };
-  const filtered = !!fs || !!fc2;
+  // 默认展示所有客户，无待收账单的客户显示「全部已结清」
   const order = [];
+  S.customers.forEach(c => order.push(c.id));
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
-  // 无筛选时，把没有账单的客户也补进来（保证客户都可管理）
-  if (!filtered) S.customers.forEach(c => { if (!order.includes(c.id)) order.push(c.id); });
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
-    const sum = bills.reduce((acc, b) => {
-      const s = billState(b);
-      acc.remaining += s.remaining;
-      if (s.key !== 'settled') acc.open++;
-      return acc;
-    }, { remaining: 0, open: 0 });
+    const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
     const inc = round2(S.incomes.filter(i => i.customerId === cid).reduce((s, i) => s + Number(i.amount), 0));
     const isOpen = expandedBillGroups.has(cid);
-    const sub = (bills.length ? (sum.open > 0 ? '待收 ' + sum.open + ' 张' : '全部已结清') : '暂无账单')
-      + ' · 现结收入 ' + fmt(inc);
+    const stateText = bills.length
+      ? '待收 ' + bills.length + ' 张'
+      : (S.bills.some(b => b.customerId === cid) ? '全部已结清' : '暂无账单');
+    const sub = stateText + ' · 现结收入 ' + fmt(inc);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
@@ -951,12 +931,10 @@ function renderBills() {
       + '</div>'
       + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">客户详情</button></div></div>' : '')
       + '</div>';
-  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无账单，点上方「添加客户月账单」卡片</div>';
+  }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点上方「客户管理」添加</div>';
   $('#bills-list').innerHTML = html;
 }
 const expandedBillGroups = new Set();
-$('#bill-filter-status').addEventListener('change', renderBills);
-$('#bill-filter-customer').addEventListener('change', renderBills);
 
 $('#bills-list').addEventListener('click', e => {
   const head = e.target.closest('.bill-group-head');
