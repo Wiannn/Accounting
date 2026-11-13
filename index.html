@@ -1744,14 +1744,15 @@ function parseExcelDate(v) {
 // fallbackName：无客户列时用文件名作为客户名（一个文件一个客户）
 function parseIncomeAOA(aoa, fallbackName) {
   if (!aoa || !aoa.length) return { error: 'Excel 里没有内容' };
-  let headIdx = -1, cCust = -1, cDate = -1, cAmt = -1;
+  let headIdx = -1, cCust = -1, cDate = -1, cAmt = -1, cNo = -1;
   for (let r = 0; r < Math.min(aoa.length, 10); r++) {
     const row = (aoa[r] || []).map(x => String(x == null ? '' : x).trim());
     const cust = row.findIndex(t => /客户|顾客|公司|单位/.test(t));
     const date = row.findIndex(t => /日期|时间/.test(t));
     let amt = row.findIndex(t => /进仓费/.test(t));
     if (amt < 0) amt = row.findIndex(t => /金额|费用|收款|应收/.test(t));
-    if (date >= 0 && amt >= 0 && (cust >= 0 || fallbackName)) { headIdx = r; cCust = cust; cDate = date; cAmt = amt; break; }
+    const no = row.findIndex(t => /委托编号|委托号/.test(t));
+    if (date >= 0 && amt >= 0 && (cust >= 0 || fallbackName)) { headIdx = r; cCust = cust; cDate = date; cAmt = amt; cNo = no; break; }
   }
   if (headIdx < 0) return { error: '未识别到表头：需要包含「日期、进仓费（或金额）」列；客户列可选，没有客户列时用文件名作为客户名' };
 
@@ -1766,7 +1767,7 @@ function parseIncomeAOA(aoa, fallbackName) {
     const name = cCust >= 0 ? rawName : fallbackName;
     const date = parseExcelDate(rawDate);
     const amount = Number(String(rawAmt == null ? '' : rawAmt).replace(/[¥￥,\s元]/g, ''));
-    const rec = { name, date, amount, ok: false, reason: '', dup: false, newCust: false };
+    const rec = { name, date, amount, ok: false, reason: '', dup: false, newCust: false, no: cNo >= 0 ? String(row[cNo] == null ? '' : row[cNo]).trim() : '' };
     if (!name) rec.reason = '缺客户名';
     else if (!date) rec.reason = '日期无法识别';
     else if (!isFinite(amount) || amount <= 0) rec.reason = '金额无效';
@@ -1806,7 +1807,7 @@ function openImportPreview(result) {
   const rowHtml = r => {
     if (!r.ok) return '<div class="kv"><span>' + esc(r.name || '(空行)') + ' · ' + esc(r.reason) + '</span><span class="badge badge-danger">跳过</span></div>';
     if (r.dup) return '<div class="kv" style="opacity:.55"><span>' + esc(r.name) + ' · ' + r.date + '</span><span>' + fmt(r.amount) + ' <span class="badge badge-gray">重复跳过</span></span></div>';
-    return '<div class="kv"><span>' + esc(r.name) + (r.newCust ? ' <span class="badge badge-info">新客户</span>' : '') + '<br>' + r.date + '</span><span class="pos strong">' + fmt(r.amount) + '</span></div>';
+    return '<div class="kv"><span>' + esc(r.name) + (r.newCust ? ' <span class="badge badge-info">新客户</span>' : '') + '<br>' + r.date + (r.no ? ' · ' + esc(r.no) : '') + '</span><span class="pos strong">' + fmt(r.amount) + '</span></div>';
   };
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>导入预览</h2><button class="modal-x" data-close>&times;</button></div>'
@@ -1829,7 +1830,7 @@ function openImportPreview(result) {
           await dbPut('customers', { id, name: r.name, createdAt: Date.now() });
           nameToId[r.name] = id;
         }
-        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, note: 'Excel导入', createdAt: Date.now() });
+        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, note: r.no || 'Excel导入', createdAt: Date.now() });
       }
       await loadState();
       closeModal();
