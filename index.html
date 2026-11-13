@@ -149,6 +149,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-topbar .lb-month input[type=month]{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
+.ledger-stats .lb-stat.expense-stat{border:1px solid #F0C98A;cursor:pointer;user-select:none}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
 .ledger-stats .lb-stat-num{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
 .ledger-stats .lb-stat-num.pos{color:var(--ok)}
@@ -274,7 +275,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <label class="lb-month">统计月份 <input type="month" id="ledger-month"></label>
         </div>
         <div class="ledger-stats">
-          <div class="lb-stat"><div class="lb-stat-label">当月支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
+          <div class="lb-stat expense-stat" id="stat-month-expense" title="点击查看主分类支出"><div class="lb-stat-label">当月支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
           <div class="lb-stat"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
         </div>
       </div>
@@ -652,6 +653,35 @@ function renderAdd() {
 }
 
 let ledgerMonthCache = null;
+// 点击当月支出：按主分类汇总弹窗（仓库/车队/其他，不含挂账与待报销）
+function openExpenseBreakdown() {
+  const period = $('#ledger-month').value || todayStr().slice(0, 7);
+  const sums = {};
+  let reimbSum = 0, payableSum = 0;
+  S.expenses.forEach(e => {
+    if (!(e.date || '').startsWith(period)) return;
+    if (e.status === 'pending') {
+      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
+      else reimbSum += Number(e.amount || 0);
+      return;
+    }
+    const g = e.category || '其他';
+    sums[g] = (sums[g] || 0) + Number(e.amount || 0);
+  });
+  const rows = Object.keys(sums).map(k => ({ k, amt: round2(sums[k]) })).sort((a, b) => b.amt - a.amt);
+  const total = round2(rows.reduce((s, r) => s + r.amt, 0));
+  const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + period + ' 支出 · 按主分类</h2><button class="modal-x" data-close>&times;</button></div>'
+    + (rows.length
+      ? rows.map(r => '<div class="kv"><span>' + esc(r.k) + '</span><span class="strong">' + fmt(r.amt) + '</span></div>').join('')
+        + '<div class="kv" style="border-bottom:none"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
+      : '<div class="empty">本月暂无支出</div>')
+    + (pendNote ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + pendNote + '</p>' : '');
+  $('#modal-mask').classList.remove('hidden');
+}
+$('#stat-month-expense').addEventListener('click', openExpenseBreakdown);
+
 function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
   ledgerMonthCache = period;
