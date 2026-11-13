@@ -373,7 +373,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 <div id="modal-mask" class="hidden"><div id="modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="xlsx.min.js"></script>
 <script>
 'use strict';
 
@@ -1569,8 +1568,26 @@ function openWageModal(wid) {
 /* ---------- 设置页（报表/备份） ---------- */
 $('#report-all').addEventListener('change', e => { $('#report-month').disabled = e.target.checked; });
 
-$('#btn-export-xlsx').addEventListener('click', () => {
-  if (typeof XLSX === 'undefined') { alert('Excel 组件未加载，请检查本文件是否完整'); return; }
+// Excel 导出库按需加载：首屏只下载页面本身，点导出时才下载 xlsx.min.js
+let xlsxLoading = null;
+function ensureXLSX() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve();
+  if (xlsxLoading) return xlsxLoading;
+  xlsxLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'xlsx.min.js';
+    s.onload = resolve;
+    s.onerror = () => { xlsxLoading = null; reject(new Error('导出组件加载失败，请检查网络后重试')); };
+    document.head.appendChild(s);
+  });
+  return xlsxLoading;
+}
+
+$('#btn-export-xlsx').addEventListener('click', async () => {
+  if (typeof XLSX === 'undefined') {
+    toast('首次导出需加载组件，请稍候…');
+    try { await ensureXLSX(); } catch (err) { alert(err.message); return; }
+  }
   const all = $('#report-all').checked;
   const m = $('#report-month').value;
   const inMonth = d => all || !m || (d || '').indexOf(m) === 0;
