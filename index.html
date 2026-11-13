@@ -319,6 +319,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     <section id="page-bills" class="page">
       <div class="page-head"><h1>客户</h1></div>
       <div class="cards">
+        <div class="card"><div class="card-label">本年收入</div><div class="card-num" style="color:var(--ok)" id="stat-year-income">¥0.00</div></div>
         <div class="card warn-card"><div class="card-label">待收总额（全部账单）</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
         <div class="card add-card" id="card-add-bill">
           <div class="card-label">添加客户月账单</div>
@@ -571,13 +572,19 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
-  ({ add: renderAdd, bills: () => { renderUnpaid(); renderBills(); }, wages: renderWages, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: () => {} }[p] || function () {})();
 }
 
-/* ---------- 待收总额（账单页顶部） ---------- */
+/* ---------- 客户页顶部统计 ---------- */
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
+  // 本年收入：本年度全部收入（含记一笔现结收入和账单收款）
+  const year = String(new Date().getFullYear());
+  const yearIncome = S.incomes
+    .filter(i => (i.date || '').startsWith(year))
+    .reduce((s, i) => s + Number(i.amount || 0), 0);
+  $('#stat-year-income').textContent = fmt(round2(yearIncome));
 }
 
 /* ---------- 记一笔 ---------- */
@@ -933,6 +940,7 @@ function renderBills() {
       + '</div>';
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点上方「客户管理」添加</div>';
   $('#bills-list').innerHTML = html;
+  renderUnpaid();
 }
 const expandedBillGroups = new Set();
 
