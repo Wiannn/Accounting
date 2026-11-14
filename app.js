@@ -1100,7 +1100,7 @@ $('#modal').addEventListener('click', handleModalClick);
 $('#cust-admin').addEventListener('click', e => {
   const d = e.target.closest('[data-cust-detail]');
   if (d && !e.target.closest('[data-rencust-modal]') && !e.target.closest('[data-delcust-modal]')) {
-    openCustModal(d.dataset.custDetail);
+    openCustInfoModal(d.dataset.custDetail);
     return;
   }
   handleModalClick(e);
@@ -1160,6 +1160,19 @@ $('#btn-cust-back').addEventListener('click', () => {
   renderBills();
 });
 
+// 客户管理页点客户：只显示业务与收费情况
+function openCustInfoModal(cid) {
+  const c = S.customers.find(x => x.id === cid);
+  if (!c) return;
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>业务</span><b>' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</b></div>'
+    + '<div style="padding:8px 0"><div class="muted" style="margin-bottom:4px">收费情况</div>'
+    + (c.pricing ? '<div style="white-space:pre-line">' + esc(c.pricing) + '</div>' : '<div class="muted">未填写</div>') + '</div>'
+    + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改业务与收费</p>';
+  $('#modal-mask').classList.remove('hidden');
+}
+
 function openCustModal(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
@@ -1172,8 +1185,6 @@ function openCustModal(cid) {
 
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
-    + (c.business ? '<div class="kv"><span>业务</span><b>' + esc(c.business) + '</b></div>' : '')
-    + (c.pricing ? '<div style="padding:8px 0;border-bottom:1px dashed var(--border)"><div class="muted" style="margin-bottom:4px">收费情况</div><div style="white-space:pre-line">' + esc(c.pricing) + '</div></div>' : '')
     + '<div class="kv"><span>收入合计（现结）</span><b>' + fmt(incTotal) + '</b></div>'
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　打印费 ' + fmt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</b></div>'
