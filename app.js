@@ -1093,7 +1093,14 @@ $('#modal').addEventListener('click', handleModalClick);
 $('#cust-admin').addEventListener('click', e => {
   const d = e.target.closest('[data-cust-detail]');
   if (d && !e.target.closest('[data-rencust-modal]') && !e.target.closest('[data-delcust-modal]')) {
-    openCustInfoModal(d.dataset.custDetail);
+    const cid = d.dataset.custDetail;
+    const detail = $('#cust-info-' + cid);
+    if (!detail) return;
+    const willOpen = detail.classList.contains('hidden');
+    detail.classList[willOpen ? 'remove' : 'add']('hidden');
+    d.classList[willOpen ? 'add' : 'remove']('expanded');
+    const toggle = $('#cust-toggle-' + cid);
+    if (toggle) toggle.textContent = willOpen ? '收起 ▲' : '展开 ▼';
     return;
   }
   handleModalClick(e);
@@ -1130,15 +1137,19 @@ $('#card-emp-manage').addEventListener('click', openEmpManage);
 $('#card-wage-gen').addEventListener('click', openWageGen);
 
 /* ---------- 客户 ---------- */
-// 客户管理：完整页面（非弹窗），列表只显示名称；业务、收费在点具体客户后展示
+// 客户管理：每个客户独立展开资料，可同时展开多个，不写入数据
 function renderCustAdmin() {
   const el = $('#cust-admin-list');
   if (!el) return;
   $('#cust-admin-count').textContent = S.customers.length + ' 个';
   el.innerHTML = S.customers.map(c =>
-    '<div class="item-card" data-cust-detail="' + c.id + '">'
+    '<div class="cust-admin-group">'
+    + '<div class="item-card cust-admin-head" data-cust-detail="' + c.id + '">'
     + '<div class="ic-main"><div class="ic-title">' + esc(c.name) + '</div></div>'
-    + '<div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
+    + '<div class="ic-right"><div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
+    + '<div class="ic-sub2" id="cust-toggle-' + c.id + '">展开 ▼</div></div>'
+    + '</div>'
+    + '<div class="cust-inline-detail hidden" id="cust-info-' + c.id + '">' + customerInfoHtml(c) + '</div>'
     + '</div>').join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点右上角「添加客户」</div>';
 }
 function openCustAdmin() {
@@ -1191,19 +1202,13 @@ $('#btn-cust-back').addEventListener('click', () => {
   renderBills();
 });
 
-// 客户管理页点客户：只显示业务与收费情况
-function openCustInfoModal(cid) {
-  const c = S.customers.find(x => x.id === cid);
-  if (!c) return;
+// 客户资料只用于列表内展开展示
+function customerInfoHtml(c) {
   const pricing = pricingParts(c);
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv pricing-detail"><span>业务</span><div class="pricing-text">' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</div></div>'
+  return '<div class="kv pricing-detail"><span>业务</span><div class="pricing-text">' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</div></div>'
     + '<div class="kv pricing-detail"><span>联系方式</span><div class="pricing-text">' + (c.contact ? esc(c.contact) : '<span class="muted">未填写</span>') + '</div></div>'
     + '<div class="kv pricing-detail"><span>现结</span><div class="pricing-text">' + (pricing.cash ? esc(pricing.cash) : '<span class="muted">未填写</span>') + '</div></div>'
-    + '<div class="kv pricing-detail" style="border-bottom:none"><span>月结</span><div class="pricing-text">' + (pricing.monthly ? esc(pricing.monthly) : '<span class="muted">未填写</span>') + '</div></div>'
-    + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改客户资料</p>';
-  $('#modal-mask').classList.remove('hidden');
+    + '<div class="kv pricing-detail" style="border-bottom:none"><span>月结</span><div class="pricing-text">' + (pricing.monthly ? esc(pricing.monthly) : '<span class="muted">未填写</span>') + '</div></div>';
 }
 
 function openCustModal(cid) {
