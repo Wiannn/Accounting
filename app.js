@@ -334,6 +334,7 @@ function renderLedger() {
   ledgerMonthCache = period;
   const [y, m] = period.split('-').map(Number);
   $('#ledger-month-text').textContent = m + '月';
+  $('#ledger-year').textContent = y + '年';
   // 当月收支（挂账支出不计入统计）
   // 当月收入：收入流水 + 无对应流水的账单收款（已结清/部分收款都算，不重复）
   const income = round2(incomeRowsByPrefix(period).reduce((s, r) => s + r.amount, 0));
