@@ -156,7 +156,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-topbar .lb-month{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .ledger-topbar .lb-month input[type=month]{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
+.ledger-stats .lb-stat{background:#fff;border-radius:10px;padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat.expense-stat{border:1px solid #F0C98A;cursor:pointer;user-select:none}
 .ledger-stats .lb-stat.income-stat{border:1px solid #9CD3B4;cursor:pointer;user-select:none}
 .item-card.flash-new{animation:flashNew 1.8s ease}
