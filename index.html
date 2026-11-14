@@ -77,6 +77,8 @@ button{font-family:inherit}
 .cal-day.empty{background:transparent;border:none;cursor:default}
 .mini-btn{background:var(--gray-bg);border:none;border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
 input,select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
+textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);width:100%;min-height:64px;resize:vertical}
+textarea:focus{outline:2px solid #EAEEFC;border-color:var(--primary)}
 input:focus,select:focus{outline:2px solid #EAEEFC;border-color:var(--primary)}
 label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
@@ -1231,7 +1233,7 @@ $('#modal').addEventListener('click', async e => {
     const name = $('#cust-name').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
     if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
-    await dbPut('customers', { id: uid(), name: name, createdAt: Date.now() });
+    await dbPut('customers', { id: uid(), name: name, business: $('#cust-business').value.trim(), pricing: $('#cust-pricing').value.trim(), createdAt: Date.now() });
     await loadState();
     renderBills();
     toast('客户已添加');
@@ -1243,10 +1245,13 @@ $('#modal').addEventListener('click', async e => {
     const c = S.customers.find(x => x.id === cid);
     if (!c) return;
     $('#modal').innerHTML =
-      '<div class="modal-head"><h2>重命名客户</h2><button class="modal-x" data-close>&times;</button></div>'
-      + '<div class="form-grid"><label class="span2">客户名称 <input type="text" id="cust-rename" autocomplete="off" value="' + esc(c.name) + '"></label></div>'
+      '<div class="modal-head"><h2>编辑客户</h2><button class="modal-x" data-close>&times;</button></div>'
+      + '<div class="form-grid">'
+      + '<label class="span2">客户名称 <input type="text" id="cust-rename" autocomplete="off" value="' + esc(c.name) + '"></label>'
+      + '<label class="span2">业务 <input type="text" id="cust-business-edit" placeholder="如：电梯件、垃圾袋、铁路件" value="' + esc(c.business || '') + '"></label>'
+      + '<label class="span2">收费情况 <textarea id="cust-pricing-edit" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项）">' + esc(c.pricing || '') + '</textarea></label>'
+      + '</div>'
       + '<button class="primary" id="btn-cust-rename-save" data-cust-id="' + cid + '">保存</button>';
-    setTimeout(() => { const el = $('#cust-rename'); if (el) { el.focus(); el.select(); } }, 30);
     return;
   }
   if (t.id === 'btn-cust-rename-save') {
@@ -1256,10 +1261,10 @@ $('#modal').addEventListener('click', async e => {
     const name = $('#cust-rename').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
     if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
-    await dbPut('customers', Object.assign({}, c, { name: name }));
+    await dbPut('customers', Object.assign({}, c, { name: name, business: $('#cust-business-edit').value.trim(), pricing: $('#cust-pricing-edit').value.trim() }));
     await loadState();
     renderBills();
-    toast('已重命名');
+    toast('已保存');
     $('#card-cust-manage').click(); // 刷新弹窗
     return;
   }
@@ -1515,11 +1520,20 @@ $('#card-wage-gen').addEventListener('click', openWageGen);
 /* ---------- 客户 ---------- */
 $('#card-cust-manage').addEventListener('click', () => {
   const listHtml = S.customers.length
-    ? S.customers.map(c => '<li style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><span>' + esc(c.name) + '</span><span style="display:flex;gap:12px"><button class="link-btn" data-rencust-modal="' + c.id + '">重命名</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></span></li>').join('')
+    ? S.customers.map(c => '<li style="padding:8px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>' + esc(c.name) + '</span>'
+      + '<span style="display:flex;gap:12px;flex-shrink:0"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></span></div>'
+      + (c.business ? '<div class="muted" style="margin-top:3px">业务：' + esc(c.business) + '</div>' : '')
+      + (c.pricing ? '<div class="muted" style="margin-top:2px;white-space:pre-line">收费：' + esc(c.pricing) + '</div>' : '')
+      + '</li>').join('')
     : '<li class="empty">暂无客户</li>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>客户管理</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="form-grid"><label class="span2">新增客户 <input type="text" id="cust-name" placeholder="输入名称后按回车或点添加"></label></div>'
+    + '<div class="form-grid">'
+    + '<label class="span2">新增客户 <input type="text" id="cust-name" placeholder="输入客户名称"></label>'
+    + '<label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件"></label>'
+    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项）"></textarea></label>'
+    + '</div>'
     + '<button class="primary" id="btn-add-cust" style="margin-bottom:14px">添加客户</button>'
     + '<div class="sub-title">客户列表（' + S.customers.length + '）</div>'
     + '<ul style="list-style:none;padding:0;margin:0;max-height:240px;overflow:auto">' + listHtml + '</ul>';
@@ -1538,6 +1552,8 @@ function openCustModal(cid) {
 
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
+    + (c.business ? '<div class="kv"><span>业务</span><b>' + esc(c.business) + '</b></div>' : '')
+    + (c.pricing ? '<div style="padding:8px 0;border-bottom:1px dashed var(--border)"><div class="muted" style="margin-bottom:4px">收费情况</div><div style="white-space:pre-line">' + esc(c.pricing) + '</div></div>' : '')
     + '<div class="kv"><span>收入合计（现结）</span><b>' + fmt(incTotal) + '</b></div>'
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　打印费 ' + fmt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</b></div>'
