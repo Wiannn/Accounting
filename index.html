@@ -158,6 +158,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-stats .lb-stat-num.pos{color:var(--ok)}
 .ledger-stats .lb-stat-num.neg{color:var(--warn)}
 .ledger-list{padding-bottom:90px}
+.ledger-search{padding:10px 14px 0}
+.ledger-search input{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:999px;background:var(--panel);font-size:14px}
+.ledger-search input:focus{outline:2px solid #EAEEFC;border-color:var(--primary)}
 .ledger-day-group{margin-top:16px}
 .ledger-day-head{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:13px;color:var(--muted);font-weight:500}
 .ledger-day-head .dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
@@ -282,6 +285,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
           <div class="lb-stat income-stat" id="stat-month-income" title="点击查看收入来源客户"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
         </div>
       </div>
+      <div class="ledger-search"><input type="search" id="ledger-search" placeholder="搜索客户、分类、备注、金额" autocomplete="off"></div>
       <div class="ledger-list" id="ledger-list"></div>
       <button id="fab-add" title="记一笔">+</button>
     </section>
@@ -733,11 +737,18 @@ function renderLedger() {
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .filter(r => (r.date || '').startsWith(period))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+  // 搜索过滤：匹配分类、客户、备注、金额、日期
+  const kw = (($('#ledger-search') && $('#ledger-search').value) || '').trim().toLowerCase();
+  const filtered = kw ? all.filter(r => (r.cat + ' ' + (r.who || '') + ' ' + (r.note || '') + ' ' + r.amount + ' ' + r.date).toLowerCase().includes(kw)) : all;
   if (!all.length) {
     const hasAny = S.incomes.length + S.expenses.length > 0;
     $('#ledger-list').innerHTML = '<div class="ledger-list-empty">本月暂无收支<br><span style="font-size:12px">'
       + (hasAny ? '用上方 ‹ › 切换月份查看其他月份记录' : '点右下角 + 添加第一条')
       + '</span></div>';
+    return;
+  }
+  if (!filtered.length) {
+    $('#ledger-list').innerHTML = '<div class="ledger-list-empty">没有匹配「' + esc(kw) + '」的收支<br><span style="font-size:12px">换个关键词试试（搜索范围：当前月份）</span></div>';
     return;
   }
   const weekday = d => {
@@ -746,11 +757,11 @@ function renderLedger() {
   };
   let html = '';
   let lastDate = '';
-  all.forEach(r => {
+  filtered.forEach(r => {
     if (r.date !== lastDate) {
       html += '<div class="ledger-day-group"><div class="ledger-day-head"><span class="dot"></span><span>' + r.date + '</span><span class="muted" style="margin-left:4px">' + weekday(r.date) + '</span><span style="flex:1"></span>';
-      const dayInc = all.filter(x => x.date === r.date && x.type === 'income').reduce((s, x) => s + x.amount, 0);
-      const dayExp = all.filter(x => x.date === r.date && x.type === 'expense').reduce((s, x) => s + x.amount, 0);
+      const dayInc = filtered.filter(x => x.date === r.date && x.type === 'income').reduce((s, x) => s + x.amount, 0);
+      const dayExp = filtered.filter(x => x.date === r.date && x.type === 'expense').reduce((s, x) => s + x.amount, 0);
       if (dayInc) html += '<span class="pos" style="font-size:12px;margin-left:8px">收 +' + fmt2(dayInc) + '</span>';
       if (dayExp) html += '<span style="font-size:12px;margin-left:6px;color:#D84848">支 −' + fmt2(dayExp) + '</span>';
       html += '</div>';
@@ -925,6 +936,7 @@ async function saveTx() {
 }
 
 let currentLedgerId = null;
+$('#ledger-search').addEventListener('input', renderLedger);
 $('#ledger-list').addEventListener('click', e => {
   const item = e.target.closest('[data-ledger]');
   if (!item) return;
