@@ -695,15 +695,18 @@ function renderBills() {
   const order = [];
   S.customers.forEach(c => order.push(c.id));
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
+  const currentPeriod = monthStr();
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
     const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
-    const inc = round2(S.incomes.filter(i => i.customerId === cid).reduce((s, i) => s + Number(i.amount), 0));
+    const monthlyReceived = round2(S.bills
+      .filter(b => b.customerId === cid && b.period === currentPeriod)
+      .reduce((s, b) => s + billState(b).paid, 0));
     const isOpen = expandedBillGroups.has(cid);
     const stateText = bills.length
       ? '待收 ' + bills.length + ' 张'
       : (S.bills.some(b => b.customerId === cid) ? '全部已结清' : '暂无账单');
-    const sub = stateText + ' · 现结收入 ' + fmt(inc);
+    const sub = stateText + ' · 当月应收已收 ' + fmt(monthlyReceived);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
