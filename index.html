@@ -247,7 +247,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
       </div>
       <div class="panel">
         <div class="panel-title">导出 Excel 报表</div>
-        <p class="muted" style="margin-bottom:12px">一个文件内含 5 个工作表：收支明细、应收台账、收款记录、发票台账、工资表</p>
+        <p class="muted" style="margin-bottom:12px">按工作表分类导出：收入、支出（仓库/车队/其他）、应收台账、收款记录、发票台账、工资表</p>
         <div class="form-grid">
           <label>报表月份 <input type="month" id="report-month"></label>
           <label class="check" style="justify-content:flex-end"><input type="checkbox" id="report-all"> 导出全部数据（不按月份过滤）</label>
@@ -1708,7 +1708,7 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
 
   // 工作表2：应收台账
   const r2 = [['客户', '账期', '账单金额(元)', '已收(元)', '未收(元)', '收款状态', '开票状态']];
-  S.bills.filter(billInMonth).sort((a, b) => a.period.localeCompare(b.period)).forEach(b => {
+  S.bills.filter(billInMonth).sort((a, b) => custName(a.customerId).localeCompare(custName(b.customerId), 'zh') || (a.period || '').localeCompare(b.period || '')).forEach(b => {
     const st = billState(b);
     r2.push([custName(b.customerId), b.period, Number(b.amount), st.paid, st.remaining, st.label, invState(b).label]);
   });
