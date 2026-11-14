@@ -1,0 +1,154 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #f4f6fb;
+  color: #1f2329;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.semi-preview-page {
+  min-height: 100vh;
+  padding: 40px 18px;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(100, 108, 255, 0.12), transparent 36%),
+    #f4f6fb;
+}
+
+.semi-preview-shell {
+  width: min(100%, 680px);
+  margin: 0 auto;
+}
+
+.semi-preview-header {
+  margin-bottom: 24px;
+}
+
+.semi-preview-eyebrow {
+  color: #646cff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.semi-preview-header h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(26px, 6vw, 36px);
+  line-height: 1.2;
+}
+
+.semi-preview-header p {
+  margin: 0;
+  color: #646a73;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.semi-preview-card {
+  border-radius: 20px !important;
+  box-shadow: 0 18px 50px rgba(31, 35, 41, 0.08);
+}
+
+.semi-preview-card .semi-card-body {
+  padding: 24px;
+}
+
+.semi-preview-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8f959e;
+  font-size: 12px;
+}
+
+.semi-preview-status .semi-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.semi-preview-counter {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 26px 0;
+  padding: 20px;
+  border-radius: 14px;
+  background: #f5f6f7;
+  color: #646a73;
+}
+
+.semi-preview-counter strong {
+  color: #414dff;
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+}
+
+.semi-preview-field {
+  display: grid;
+  gap: 8px;
+  color: #41464c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.semi-preview-value {
+  min-height: 22px;
+  margin: 10px 0 0;
+  color: #8f959e;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.semi-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.semi-preview-actions .semi-btn {
+  margin: 0;
+}
+
+.semi-preview-notice {
+  margin: 18px auto 0;
+  color: #8f959e;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .semi-preview-page {
+    padding: 26px 14px;
+  }
+
+  .semi-preview-card .semi-card-body {
+    padding: 18px;
+  }
+
+  .semi-preview-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .semi-preview-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .semi-preview-actions .semi-btn:first-child {
+    grid-column: 1 / -1;
+  }
+}
