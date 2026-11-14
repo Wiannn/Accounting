@@ -193,6 +193,17 @@ function switchPage(p) {
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === p));
   $$('.page').forEach(pg => pg.classList.toggle('active', pg.id === 'page-' + p));
   renderPage(p);
+  syncMobileNav();
+}
+// 手机端底部导航：仅在四个主页面显示，进入次级页面（客户管理、编辑客户、账单明细）时隐藏
+function syncMobileNav() {
+  const nav = $('#mobile-nav');
+  if (!nav) return;
+  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail'].some(id => {
+    const el = $('#' + id);
+    return el && !el.classList.contains('hidden');
+  });
+  nav.classList.toggle('hidden', inSubPage);
 }
 function renderPage(p) {
   if (p === 'bills') {
@@ -1153,6 +1164,7 @@ function openCustAdmin() {
   $('#cust-detail').classList.add('hidden');
   $('#cust-admin').classList.remove('hidden');
   renderCustAdmin();
+  syncMobileNav();
 }
 // 兼容旧的单文本收费记录：原内容放到现结，保存后转为现结/月结两部分
 function pricingParts(c) {
@@ -1175,6 +1187,7 @@ function openCustEdit(cid) {
   $('#bills-main').classList.add('hidden');
   $('#cust-detail').classList.add('hidden');
   $('#cust-edit').classList.remove('hidden');
+  syncMobileNav();
 }
 $('#cust-edit').addEventListener('click', handleModalClick);
 $('#btn-cust-edit-back').addEventListener('click', openCustAdmin);
@@ -1197,6 +1210,7 @@ $('#btn-cust-back').addEventListener('click', () => {
   $('#cust-admin').classList.add('hidden');
   $('#bills-main').classList.remove('hidden');
   renderBills();
+  syncMobileNav();
 });
 
 // 收费标准弹窗：展示业务、联系方式、现结、月结
@@ -1252,11 +1266,13 @@ function openCustDetail(cid) {
   $('#cust-admin').classList.add('hidden');
   $('#cust-edit').classList.add('hidden');
   $('#cust-detail').classList.remove('hidden');
+  syncMobileNav();
 }
 $('#btn-cust-detail-back').addEventListener('click', () => {
   $('#cust-detail').classList.add('hidden');
   $('#bills-main').classList.remove('hidden');
   renderBills();
+  syncMobileNav();
 });
 
 /* ---------- 员工工资 ---------- */
