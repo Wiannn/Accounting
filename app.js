@@ -782,7 +782,7 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { const mask = $('#modal-mask'); mask.classList.add('hidden'); mask.classList.remove('modal-center'); currentBillId = null; currentWageId = null; }
+function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 const handleModalClick = async e => {
@@ -1191,7 +1191,6 @@ function openCustInfoModal(cid) {
     + '<div style="padding:8px 0"><div class="muted" style="margin-bottom:4px">收费情况</div>'
     + (c.pricing ? '<div style="white-space:pre-line">' + esc(c.pricing) + '</div>' : '<div class="muted">未填写</div>') + '</div>'
     + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改业务与收费</p>';
-  $('#modal-mask').classList.add('modal-center');
   $('#modal-mask').classList.remove('hidden');
 }
 
