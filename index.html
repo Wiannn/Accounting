@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=2">
+<link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
 <div id="app">
@@ -152,14 +152,8 @@
     <section id="page-wages" class="page">
       <div class="page-head"><h1>员工</h1></div>
       <div class="cards">
-        <div class="card add-card" id="card-emp-manage">
-          <div class="card-label">员工管理</div>
-          <div class="card-num add-plus">＋</div>
-        </div>
-        <div class="card add-card" id="card-wage-gen">
-          <div class="card-label">生成月工资单</div>
-          <div class="card-num add-plus">＋</div>
-        </div>
+        <div class="card add-card slim" id="card-emp-manage"><span class="card-label">员工管理</span><span class="slim-plus">＋</span></div>
+        <div class="card add-card slim" id="card-wage-gen"><span class="card-label">生成月工资单</span><span class="slim-plus">＋</span></div>
       </div>
       <div class="panel">
         <div class="panel-title">工资单
@@ -185,6 +179,6 @@
 <div id="modal-mask" class="hidden"><div id="modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
