@@ -590,14 +590,15 @@ function renderPage(p) {
 // 收入按客户汇总：收入流水为主；历史收款（未生成收入流水的 payments）按收款台账兜底补计，不重复
 // prefix 为 'YYYY'（按年）或 'YYYY-MM'（按月）
 function incomeRowsByPrefix(prefix) {
-  // 归属时间：优先业务日期；无日期用创建时间；再没有用账期（兼容早期无日期的收款记录）
+  // 归属时间：优先业务日期；无日期按应收账期归属；再没有用创建时间（兼容早期无日期的收款记录）
   const keyOf = (d, createdAt, period) => {
     if (d) return d;
+    if (period) return period;
     if (createdAt) {
       const dt = new Date(createdAt);
       return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
     }
-    return period || '';
+    return '';
   };
   const sums = {};
   const covered = new Set(); // 已计入的收入对应的收款，避免漏计
