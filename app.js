@@ -197,6 +197,7 @@ function switchPage(p) {
 function renderPage(p) {
   if (p === 'bills') {
     $('#cust-admin').classList.add('hidden');
+    $('#cust-edit').classList.add('hidden');
     $('#bills-main').classList.remove('hidden');
   }
   ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: () => {} }[p] || function () {})();
@@ -851,18 +852,7 @@ const handleModalClick = async e => {
     return;
   }
   if (t.closest('[data-rencust-modal]')) {
-    const cid = t.closest('[data-rencust-modal]').dataset.rencustModal;
-    const c = S.customers.find(x => x.id === cid);
-    if (!c) return;
-    $('#modal').innerHTML =
-      '<div class="modal-head"><h2>编辑客户</h2><button class="modal-x" data-close>&times;</button></div>'
-      + '<div class="form-grid">'
-      + '<label class="span2">客户名称 <input type="text" id="cust-rename" autocomplete="off" value="' + esc(c.name) + '"></label>'
-      + '<label class="span2">业务 <input type="text" id="cust-business-edit" placeholder="如：电梯件、垃圾袋、铁路件" value="' + esc(c.business || '') + '"></label>'
-      + '<label class="span2">收费情况 <textarea id="cust-pricing-edit" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项）">' + esc(c.pricing || '') + '</textarea></label>'
-      + '</div>'
-      + '<button class="primary" id="btn-cust-rename-save" data-cust-id="' + cid + '">保存</button>';
-    $('#modal-mask').classList.remove('hidden');
+    openCustEdit(t.closest('[data-rencust-modal]').dataset.rencustModal);
     return;
   }
   if (t.id === 'btn-cust-rename-save') {
@@ -1152,9 +1142,24 @@ function renderCustAdmin() {
 }
 function openCustAdmin() {
   $('#bills-main').classList.add('hidden');
+  $('#cust-edit').classList.add('hidden');
   $('#cust-admin').classList.remove('hidden');
   renderCustAdmin();
 }
+// 编辑客户：完整页面（非弹窗），收费情况大输入框
+function openCustEdit(cid) {
+  const c = S.customers.find(x => x.id === cid);
+  if (!c) return;
+  $('#cust-rename').value = c.name || '';
+  $('#cust-business-edit').value = c.business || '';
+  $('#cust-pricing-edit').value = c.pricing || '';
+  $('#btn-cust-rename-save').dataset.custId = cid;
+  $('#cust-admin').classList.add('hidden');
+  $('#bills-main').classList.add('hidden');
+  $('#cust-edit').classList.remove('hidden');
+}
+$('#cust-edit').addEventListener('click', handleModalClick);
+$('#btn-cust-edit-back').addEventListener('click', openCustAdmin);
 $('#card-cust-manage').addEventListener('click', openCustAdmin);
 $('#btn-cust-back').addEventListener('click', () => {
   $('#cust-admin').classList.add('hidden');

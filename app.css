@@ -133,6 +133,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .card.add-card.slim{flex-direction:row;justify-content:space-between;min-height:0;padding:12px 16px;gap:8px}
 .card.add-card.slim .card-label{margin:0;color:inherit}
 .slim-plus{font-size:18px;line-height:1}
+#cust-pricing-edit{min-height:200px;resize:vertical;line-height:1.7}
 .bill-group{margin-bottom:10px}
 .bill-group-head{cursor:pointer;background:var(--gray-bg)}
 .bill-group-head .ic-title{font-weight:600}
