@@ -712,7 +712,7 @@ function renderBills() {
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '</div>'
-      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button></div></div>' : '')
+      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button><button class="ghost small" data-custinfo="' + cid + '">收费标准</button></div></div>' : '')
       + '</div>';
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点上方「客户管理」添加</div>';
   $('#bills-list').innerHTML = html;
@@ -732,7 +732,9 @@ $('#bills-list').addEventListener('click', e => {
   const tr = e.target.closest('.item-card[data-bill]');
   if (tr) { openBillModal(tr.dataset.bill); return; }
   const cd = e.target.closest('[data-custdetail]');
-  if (cd) openCustDetail(cd.dataset.custdetail);
+  if (cd) { openCustDetail(cd.dataset.custdetail); return; }
+  const ci = e.target.closest('[data-custinfo]');
+  if (ci) openCustInfoModal(ci.dataset.custinfo);
 });
 
 /* ---------- 账单详情弹窗 ---------- */
@@ -1092,18 +1094,6 @@ const handleModalClick = async e => {
 };
 $('#modal').addEventListener('click', handleModalClick);
 $('#cust-admin').addEventListener('click', e => {
-  const d = e.target.closest('[data-cust-detail]');
-  if (d && !e.target.closest('[data-rencust-modal]') && !e.target.closest('[data-delcust-modal]')) {
-    const cid = d.dataset.custDetail;
-    const detail = $('#cust-info-' + cid);
-    if (!detail) return;
-    const willOpen = detail.classList.contains('hidden');
-    detail.classList[willOpen ? 'remove' : 'add']('hidden');
-    d.classList[willOpen ? 'add' : 'remove']('expanded');
-    const toggle = $('#cust-toggle-' + cid);
-    if (toggle) toggle.textContent = willOpen ? '收起 ▲' : '展开 ▼';
-    return;
-  }
   handleModalClick(e);
 });
 
@@ -1138,19 +1128,15 @@ $('#card-emp-manage').addEventListener('click', openEmpManage);
 $('#card-wage-gen').addEventListener('click', openWageGen);
 
 /* ---------- 客户 ---------- */
-// 客户管理：每个客户独立展开资料，可同时展开多个，不写入数据
+// 客户管理：只显示名称与编辑、删除
 function renderCustAdmin() {
   const el = $('#cust-admin-list');
   if (!el) return;
   $('#cust-admin-count').textContent = S.customers.length + ' 个';
   el.innerHTML = S.customers.map(c =>
-    '<div class="cust-admin-group">'
-    + '<div class="item-card cust-admin-head" data-cust-detail="' + c.id + '">'
+    '<div class="item-card">'
     + '<div class="ic-main"><div class="ic-title">' + esc(c.name) + '</div></div>'
-    + '<div class="ic-right"><div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
-    + '<div class="ic-sub2" id="cust-toggle-' + c.id + '">展开 ▼</div></div>'
-    + '</div>'
-    + '<div class="cust-inline-detail hidden" id="cust-info-' + c.id + '">' + customerInfoHtml(c) + '</div>'
+    + '<div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
     + '</div>').join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点右上角「添加客户」</div>';
 }
 function openCustAdmin() {
@@ -1205,7 +1191,16 @@ $('#btn-cust-back').addEventListener('click', () => {
   renderBills();
 });
 
-// 客户资料只用于列表内展开展示
+// 收费标准弹窗：展示业务、联系方式、现结、月结
+function openCustInfoModal(cid) {
+  const c = S.customers.find(x => x.id === cid);
+  if (!c) return;
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + esc(c.name) + ' · 收费标准</h2><button class="modal-x" data-close>&times;</button></div>'
+    + customerInfoHtml(c);
+  $('#modal-mask').classList.remove('hidden');
+}
+// 客户资料（业务、联系方式、现结、月结）
 function customerInfoHtml(c) {
   const pricing = pricingParts(c);
   return '<div class="kv pricing-detail"><span>业务</span><div class="pricing-text">' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</div></div>'

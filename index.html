@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=12">
+<link rel="stylesheet" href="app.css?v=13">
 </head>
 <body>
 <div id="app">
@@ -127,7 +127,7 @@
       <div class="panel">
         <div class="panel-title">账单列表 <span class="muted">仅显示待收</span></div>
         <div class="item-list" id="bills-list"></div>
-        <p class="muted" style="margin-top:8px">点客户名展开账单和「账单明细」，点任意一张账单可记收款、登记发票；已结清等全部记录在账单明细里看</p>
+        <p class="muted" style="margin-top:8px">点客户名展开账单，可看「账单明细」和「收费标准」；点任意一张账单可记收款、登记发票</p>
       </div>
       </div>
       <div id="cust-admin" class="hidden">
@@ -137,7 +137,7 @@
             <button class="primary small" id="btn-open-add-cust">＋ 添加客户</button>
           </div>
           <div class="item-list" id="cust-admin-list"></div>
-          <p class="muted" style="margin-top:8px">点客户名展开或收起资料，可同时展开多个；点「编辑」修改客户资料</p>
+          <p class="muted" style="margin-top:8px">点「编辑」修改名称、联系方式、业务和收费标准；收费标准可在账单列表点客户后查看</p>
         </div>
       </div>
       <div id="cust-edit" class="hidden">
@@ -189,6 +189,6 @@
 <div id="modal-mask" class="hidden"><div id="modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
