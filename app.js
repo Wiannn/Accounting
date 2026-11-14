@@ -685,10 +685,11 @@ function renderBills() {
   const billCardHtml = b => {
     const st = billState(b);
     const ist = invState(b);
+    const periodText = b.period ? b.period.replace('-', '年') + '月' : '未设账期';
     return '<div class="item-card" data-bill="' + b.id + '">'
       + '<div class="ic-main">'
       + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
-      + '<div class="ic-sub">' + esc(b.period) + (b.feeType ? ' · ' + esc(b.feeType) : '') + ' · 已收 ' + fmt(st.paid) + '</div>'
+      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmt(st.paid) + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
       + '</div>';
@@ -697,22 +698,21 @@ function renderBills() {
   const order = [];
   S.customers.forEach(c => order.push(c.id));
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
-  const currentPeriod = monthStr();
+  const yearReceived = {};
+  yearIncomeRows().forEach(r => { yearReceived[r.cid] = r.amount; });
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
     const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
-    const monthlyReceived = round2(S.bills
-      .filter(b => b.customerId === cid && b.period === currentPeriod)
-      .reduce((s, b) => s + billState(b).paid, 0));
+    const pendingMonths = new Set(bills.map(b => b.period)).size;
     const isOpen = expandedBillGroups.has(cid);
     const stateText = bills.length
-      ? '待收 ' + bills.length + ' 张'
+      ? '待收 ' + pendingMonths + ' 个月'
       : (S.bills.some(b => b.customerId === cid) ? '全部已结清' : '暂无账单');
-    const sub = stateText + ' · 当月应收已收 ' + fmt(monthlyReceived);
+    const sub = stateText + ' · 本年已收 ' + fmt(yearReceived[cid] || 0);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(custName(cid)) + (bills.length ? '<span class="badge badge-gray">' + bills.length + ' 张</span>' : '') + '</div>'
+      + '<div class="ic-title">' + esc(custName(cid)) + (bills.length ? '<span class="badge badge-gray">' + pendingMonths + ' 个月</span>' : '') + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '<div class="ic-sub">' + sub + '</div>'
