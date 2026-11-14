@@ -782,7 +782,7 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
+function closeModal() { const mask = $('#modal-mask'); mask.classList.add('hidden'); mask.classList.remove('modal-center'); currentBillId = null; currentWageId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 const handleModalClick = async e => {
@@ -1168,7 +1168,7 @@ function openAddCustModal() {
     + '<div class="form-grid">'
     + '<label class="span2">客户名称 <input type="text" id="cust-name" placeholder="输入客户名称"></label>'
     + '<label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件（可选）"></label>'
-    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项，可选）"></textarea></label>'
+    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="现结：&#10;月结："></textarea></label>'
     + '</div>'
     + '<button class="primary" id="btn-add-cust">添加客户</button>';
   $('#modal-mask').classList.remove('hidden');
@@ -1191,6 +1191,7 @@ function openCustInfoModal(cid) {
     + '<div style="padding:8px 0"><div class="muted" style="margin-bottom:4px">收费情况</div>'
     + (c.pricing ? '<div style="white-space:pre-line">' + esc(c.pricing) + '</div>' : '<div class="muted">未填写</div>') + '</div>'
     + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改业务与收费</p>';
+  $('#modal-mask').classList.add('modal-center');
   $('#modal-mask').classList.remove('hidden');
 }
 
