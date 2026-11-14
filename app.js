@@ -333,6 +333,7 @@ function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
   ledgerMonthCache = period;
   const [y, m] = period.split('-').map(Number);
+  $('#ledger-month-text').textContent = m + '月';
   // 当月收支（挂账支出不计入统计）
   // 当月收入：收入流水 + 无对应流水的账单收款（已结清/部分收款都算，不重复）
   const income = round2(incomeRowsByPrefix(period).reduce((s, r) => s + r.amount, 0));
@@ -612,6 +613,11 @@ $('#card-add-bill').addEventListener('click', () => {
 
 // 月份切换
 $('#ledger-month').addEventListener('change', renderLedger);
+$('#ledger-month').addEventListener('click', function () {
+  if (this.showPicker) {
+    try { this.showPicker(); } catch (_) {}
+  }
+});
 function shiftMonth(delta) {
   const [y, m] = ($('#ledger-month').value || todayStr().slice(0, 7)).split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
