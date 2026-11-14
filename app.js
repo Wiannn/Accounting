@@ -844,7 +844,7 @@ const handleModalClick = async e => {
     const name = $('#cust-name').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
     if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
-    await dbPut('customers', { id: uid(), name: name, business: $('#cust-business').value.trim(), pricing: $('#cust-pricing').value.trim(), createdAt: Date.now() });
+    await dbPut('customers', { id: uid(), name: name, business: $('#cust-business').value.trim(), pricing: { cash: $('#cust-pricing-cash').value.trim(), monthly: $('#cust-pricing-monthly').value.trim() }, createdAt: Date.now() });
     await loadState();
     closeModal();
     renderBills();
@@ -863,7 +863,7 @@ const handleModalClick = async e => {
     const name = $('#cust-rename').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
     if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
-    await dbPut('customers', Object.assign({}, c, { name: name, business: $('#cust-business-edit').value.trim(), pricing: $('#cust-pricing-edit').value.trim() }));
+    await dbPut('customers', Object.assign({}, c, { name: name, business: $('#cust-business-edit').value.trim(), pricing: { cash: $('#cust-pricing-cash-edit').value.trim(), monthly: $('#cust-pricing-monthly-edit').value.trim() } }));
     await loadState();
     closeModal();
     renderBills();
@@ -1147,13 +1147,21 @@ function openCustAdmin() {
   $('#cust-admin').classList.remove('hidden');
   renderCustAdmin();
 }
-// 编辑客户：完整页面（非弹窗），收费情况大输入框
+// 兼容旧的单文本收费记录：原内容放到现结，保存后转为现结/月结两部分
+function pricingParts(c) {
+  const p = c && c.pricing;
+  if (p && typeof p === 'object') return { cash: String(p.cash || ''), monthly: String(p.monthly || '') };
+  return { cash: String(p || ''), monthly: '' };
+}
+// 编辑客户：完整页面（非弹窗），现结/月结分开填写
 function openCustEdit(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   $('#cust-rename').value = c.name || '';
   $('#cust-business-edit').value = c.business || '';
-  $('#cust-pricing-edit').value = c.pricing || '';
+  const pricing = pricingParts(c);
+  $('#cust-pricing-cash-edit').value = pricing.cash;
+  $('#cust-pricing-monthly-edit').value = pricing.monthly;
   $('#btn-cust-rename-save').dataset.custId = cid;
   $('#cust-admin').classList.add('hidden');
   $('#bills-main').classList.add('hidden');
@@ -1168,7 +1176,8 @@ function openAddCustModal() {
     + '<div class="form-grid">'
     + '<label class="span2">客户名称 <input type="text" id="cust-name" placeholder="输入客户名称"></label>'
     + '<label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件（可选）"></label>'
-    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="现结：&#10;月结："></textarea></label>'
+    + '<label class="span2">现结 <textarea id="cust-pricing-cash" placeholder="填写现结收费情况"></textarea></label>'
+    + '<label class="span2">月结 <textarea id="cust-pricing-monthly" placeholder="填写月结收费情况"></textarea></label>'
     + '</div>'
     + '<button class="primary" id="btn-add-cust">添加客户</button>';
   $('#modal-mask').classList.remove('hidden');
@@ -1185,11 +1194,12 @@ $('#btn-cust-back').addEventListener('click', () => {
 function openCustInfoModal(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
+  const pricing = pricingParts(c);
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>业务</span><b>' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</b></div>'
-    + '<div style="padding:8px 0"><div class="muted" style="margin-bottom:4px">收费情况</div>'
-    + (c.pricing ? '<div style="white-space:pre-line">' + esc(c.pricing) + '</div>' : '<div class="muted">未填写</div>') + '</div>'
+    + '<div class="kv pricing-detail"><span>现结</span><div class="pricing-text">' + (pricing.cash ? esc(pricing.cash) : '<span class="muted">未填写</span>') + '</div></div>'
+    + '<div class="kv pricing-detail" style="border-bottom:none"><span>月结</span><div class="pricing-text">' + (pricing.monthly ? esc(pricing.monthly) : '<span class="muted">未填写</span>') + '</div></div>'
     + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改业务与收费</p>';
   $('#modal-mask').classList.remove('hidden');
 }
