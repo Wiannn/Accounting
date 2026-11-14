@@ -703,16 +703,12 @@ function renderBills() {
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
     const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
-    const pendingMonths = new Set(bills.map(b => b.period)).size;
     const isOpen = expandedBillGroups.has(cid);
-    const stateText = bills.length
-      ? '待收 ' + pendingMonths + ' 个月'
-      : (S.bills.some(b => b.customerId === cid) ? '全部已结清' : '暂无账单');
-    const sub = stateText + ' · 本年已收 ' + fmt(yearReceived[cid] || 0);
+    const sub = '本年已收 ' + fmt(yearReceived[cid] || 0);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(custName(cid)) + (bills.length ? '<span class="badge badge-gray">' + pendingMonths + ' 个月</span>' : '') + '</div>'
+      + '<div class="ic-title">' + esc(custName(cid)) + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '<div class="ic-sub">' + sub + '</div>'
