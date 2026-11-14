@@ -247,6 +247,7 @@ function renderUnpaid() {
   $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
   // 本年收入：本年度全部收入（含记一笔现结收入、账单收款及历史收款）
   const rows = yearIncomeRows();
+  $('#year-income-label').textContent = new Date().getFullYear() + '年收入';
   $('#stat-year-income').textContent = fmt(round2(rows.reduce((s, r) => s + r.amount, 0)));
 }
 
@@ -265,7 +266,7 @@ function openYearIncomeModal() {
     + '</div>'
   ).join('') : '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">本年还没有收入记录</div>';
   $('#modal').innerHTML =
-    '<div class="modal-head"><h2>本年收入（' + year + '）</h2><button class="modal-x" data-close>&times;</button></div>'
+    '<div class="modal-head"><h2>' + year + '年收入</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="item-list">' + listHtml + '</div>'
     + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b>' + fmt(total) + '</b></div>' : '');
   $('#modal-mask').classList.remove('hidden');
