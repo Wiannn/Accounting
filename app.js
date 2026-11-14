@@ -862,6 +862,7 @@ const handleModalClick = async e => {
       + '<label class="span2">收费情况 <textarea id="cust-pricing-edit" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项）">' + esc(c.pricing || '') + '</textarea></label>'
       + '</div>'
       + '<button class="primary" id="btn-cust-rename-save" data-cust-id="' + cid + '">保存</button>';
+    $('#modal-mask').classList.remove('hidden');
     return;
   }
   if (t.id === 'btn-cust-rename-save') {
@@ -873,9 +874,10 @@ const handleModalClick = async e => {
     if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
     await dbPut('customers', Object.assign({}, c, { name: name, business: $('#cust-business-edit').value.trim(), pricing: $('#cust-pricing-edit').value.trim() }));
     await loadState();
+    closeModal();
     renderBills();
     toast('已保存');
-    $('#card-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新客户管理页
     return;
   }
   if (t.closest('[data-delcust-modal]')) {
@@ -889,7 +891,7 @@ const handleModalClick = async e => {
     await dbDel('customers', cid);
     await loadState();
     renderBills();
-    $('#card-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新客户管理页
     return;
   }
 
