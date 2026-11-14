@@ -846,9 +846,10 @@ const handleModalClick = async e => {
     if (S.customers.some(c => c.name === name)) { toast('客户已存在'); return; }
     await dbPut('customers', { id: uid(), name: name, business: $('#cust-business').value.trim(), pricing: $('#cust-pricing').value.trim(), createdAt: Date.now() });
     await loadState();
+    closeModal();
     renderBills();
     toast('客户已添加');
-    $('#card-cust-manage').click(); // 刷新弹窗
+    $('#card-cust-manage').click(); // 刷新客户管理页
     return;
   }
   if (t.closest('[data-rencust-modal]')) {
@@ -1138,7 +1139,7 @@ function renderCustAdmin() {
     '<div class="item-card" data-cust-detail="' + c.id + '">'
     + '<div class="ic-main"><div class="ic-title">' + esc(c.name) + '</div></div>'
     + '<div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
-    + '</div>').join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，先在上方添加</div>';
+    + '</div>').join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点右上角「添加客户」</div>';
 }
 function openCustAdmin() {
   $('#bills-main').classList.add('hidden');
@@ -1160,6 +1161,19 @@ function openCustEdit(cid) {
 }
 $('#cust-edit').addEventListener('click', handleModalClick);
 $('#btn-cust-edit-back').addEventListener('click', openCustAdmin);
+// 新增客户：点按钮才弹窗，不自动聚焦
+function openAddCustModal() {
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>添加客户</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="form-grid">'
+    + '<label class="span2">客户名称 <input type="text" id="cust-name" placeholder="输入客户名称"></label>'
+    + '<label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件（可选）"></label>'
+    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项，可选）"></textarea></label>'
+    + '</div>'
+    + '<button class="primary" id="btn-add-cust">添加客户</button>';
+  $('#modal-mask').classList.remove('hidden');
+}
+$('#btn-open-add-cust').addEventListener('click', openAddCustModal);
 $('#card-cust-manage').addEventListener('click', openCustAdmin);
 $('#btn-cust-back').addEventListener('click', () => {
   $('#cust-admin').classList.add('hidden');

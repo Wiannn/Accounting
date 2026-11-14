@@ -133,16 +133,9 @@
       <div id="cust-admin" class="hidden">
         <div class="page-head"><h1>客户管理</h1><button class="ghost" id="btn-cust-back">‹ 返回</button></div>
         <div class="panel">
-          <div class="panel-title">新增客户</div>
-          <div class="form-grid">
-            <label class="span2">客户名称 <input type="text" id="cust-name" placeholder="输入客户名称"></label>
-            <label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件（可选）"></label>
-            <label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项，可选）"></textarea></label>
+          <div class="panel-title">客户列表 <span class="muted" id="cust-admin-count"></span>
+            <button class="primary small" id="btn-open-add-cust">＋ 添加客户</button>
           </div>
-          <button class="primary" id="btn-add-cust">添加客户</button>
-        </div>
-        <div class="panel">
-          <div class="panel-title">客户列表 <span class="muted" id="cust-admin-count"></span></div>
           <div class="item-list" id="cust-admin-list"></div>
           <p class="muted" style="margin-top:8px">点客户名查看业务与收费；点「编辑」修改名称、业务、收费</p>
         </div>
@@ -190,6 +183,6 @@
 <div id="modal-mask" class="hidden"><div id="modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
