@@ -863,7 +863,7 @@ const handleModalClick = async e => {
     const name = $('#cust-rename').value.trim();
     if (!name) { toast('请输入客户名称'); return; }
     if (S.customers.some(x => x.name === name && x.id !== cid)) { toast('客户已存在'); return; }
-    await dbPut('customers', Object.assign({}, c, { name: name, business: $('#cust-business-edit').value.trim(), pricing: { cash: $('#cust-pricing-cash-edit').value.trim(), monthly: $('#cust-pricing-monthly-edit').value.trim() } }));
+    await dbPut('customers', Object.assign({}, c, { name: name, contact: $('#cust-contact-edit').value.trim(), business: $('#cust-business-edit').value.trim(), pricing: { cash: $('#cust-pricing-cash-edit').value.trim(), monthly: $('#cust-pricing-monthly-edit').value.trim() } }));
     await loadState();
     closeModal();
     renderBills();
@@ -1158,6 +1158,7 @@ function openCustEdit(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   $('#cust-rename').value = c.name || '';
+  $('#cust-contact-edit').value = c.contact || '';
   $('#cust-business-edit').value = c.business || '';
   const pricing = pricingParts(c);
   $('#cust-pricing-cash-edit').value = pricing.cash;
