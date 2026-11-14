@@ -144,6 +144,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .pricing-text{flex:1;white-space:pre-line;text-align:center;min-width:0;overflow-wrap:anywhere}
 .bill-group{margin-bottom:10px}
 .bill-group-head{cursor:pointer;background:var(--gray-bg)}
+.bill-group-head{flex-wrap:wrap}
+.bill-group-head .ic-sub{flex:0 0 100%;width:100%;margin-top:-4px}
 .bill-group-head .ic-title{font-weight:600}
 .bill-group-inner{margin:8px 0 0 10px;display:flex;flex-direction:column;gap:8px}
 .group-foot{display:flex;gap:8px}

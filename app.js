@@ -708,9 +708,9 @@ function renderBills() {
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="ic-main">'
       + '<div class="ic-title">' + esc(custName(cid)) + (bills.length ? '<span class="badge badge-gray">' + bills.length + ' 张</span>' : '') + '</div>'
-      + '<div class="ic-sub">' + sub + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
+      + '<div class="ic-sub">' + sub + '</div>'
       + '</div>'
       + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button><button class="ghost small" data-custinfo="' + cid + '">收费标准</button></div></div>' : '')
       + '</div>';
