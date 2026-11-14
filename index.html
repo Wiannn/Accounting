@@ -955,9 +955,18 @@ $('#ledger-list').addEventListener('click', e => {
       ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId)) + '</b></div>'
         + '<div class="kv"><span>费用类型</span><b>' + esc(rec.type || '—') + '</b></div>'
       : '<div class="kv"><span>分类</span><b>' + esc(catLabel(rec)) + '</b></div>')
-    + '<div class="kv"><span>日期</span><b>' + (rec.date || '—') + '</b></div>'
-    + '<div class="kv"><span>金额</span><b>' + fmt(rec.amount) + '</b></div>'
-    + (rec.note ? '<div class="kv"><span>备注</span><b>' + esc(rec.note) + '</b></div>' : '')
+    + (pending
+      ? '<div class="kv"><span>日期</span><b>' + (rec.date || '—') + '</b></div>'
+        + '<div class="form-grid" style="margin-top:10px;margin-bottom:0">'
+        + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
+        + '<label>备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
+        + '</div>'
+      : '<div class="form-grid" style="margin-top:12px;margin-bottom:0">'
+        + '<label>日期 <input type="date" id="le-date" value="' + (rec.date || '') + '"></label>'
+        + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
+        + '<label class="span2">备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
+        + '</div>')
+    + '<button class="primary" id="btn-ledger-save" style="margin-top:12px">保存修改</button>'
     + (pending
       ? '<div class="inline-form" style="margin-top:12px"><input type="date" id="ledger-pay-date" value="' + todayStr() + '"><button class="primary small" id="btn-ledger-pay">' + payLabel + '</button></div>'
         + '<p class="muted" style="margin-top:8px">确认后计入所选日期的支出统计（原挂账日期为 ' + (rec.date || '—') + '）</p>'
@@ -1388,6 +1397,29 @@ $('#modal').addEventListener('click', async e => {
     closeModal();
     renderWages();
     toast('工资单已删除');
+  }
+
+  if (t.id === 'btn-ledger-save') {
+    if (!currentLedgerId) return;
+    const store = currentLedgerId.store;
+    const rec = (store === 'incomes' ? S.incomes : S.expenses).find(x => x.id === currentLedgerId.id);
+    if (!rec) return;
+    const amt = Number($('#le-amount').value);
+    if (!isFinite(amt) || amt <= 0) { toast('金额需大于 0'); return; }
+    const dateEl = $('#le-date');
+    if (dateEl) {
+      if (!dateEl.value) { toast('请选择日期'); return; }
+      rec.date = dateEl.value;
+    }
+    rec.amount = amt;
+    rec.note = $('#le-note').value.trim();
+    await dbPut(store, rec);
+    await loadState();
+    closeModal();
+    currentLedgerId = null;
+    renderLedger(); renderBills(); renderUnpaid();
+    toast('已保存修改');
+    return;
   }
 
   if (t.id === 'btn-ledger-pay') {
