@@ -380,7 +380,8 @@ function renderLedger() {
   }
   filtered.forEach(r => {
     if (r.date !== lastDate) {
-      html += '<div class="ledger-day-group"><div class="ledger-day-head"><span class="dot"></span><span>' + r.date + '</span><span class="muted" style="margin-left:4px">' + weekday(r.date) + '</span><span style="flex:1"></span>';
+      if (lastDate) html += '</div>';
+      html += '<div class="ledger-day-group"><div class="ledger-day-head"><span class="ledger-day-date">' + r.date.slice(5) + '</span><span class="muted">' + weekday(r.date) + '</span><span style="flex:1"></span>';
       const dayInc = filtered.filter(x => x.date === r.date && x.type === 'income').reduce((s, x) => s + x.amount, 0);
       const dayExp = filtered.filter(x => x.date === r.date && x.type === 'expense').reduce((s, x) => s + x.amount, 0);
       if (dayInc) html += '<span class="pos" style="font-size:12px;margin-left:8px">收 +' + fmt2(dayInc) + '</span>';
@@ -400,6 +401,7 @@ function renderLedger() {
       + '<div class="li-date"></div>'
       + '</div>';
   });
+  if (lastDate) html += '</div>';
   $('#ledger-list').innerHTML = html;
 }
 
