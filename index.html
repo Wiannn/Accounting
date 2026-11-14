@@ -732,14 +732,15 @@ function renderLedger() {
   $('#ledger-income').textContent = '+' + fmt2(income);
   $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendNote ? '（另有' + pendNote + '）' : '');
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
-  // 月流水列表（按日期分组）
+  // 月流水列表（按日期分组）；有搜索词时搜索全部月份
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
-    .filter(r => (r.date || '').startsWith(period))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
-  // 搜索过滤：匹配分类、客户、备注、金额、日期
+  // 搜索过滤：匹配分类、客户、备注、金额、日期（全部月份）
   const kw = (($('#ledger-search') && $('#ledger-search').value) || '').trim().toLowerCase();
-  const filtered = kw ? all.filter(r => (r.cat + ' ' + (r.who || '') + ' ' + (r.note || '') + ' ' + r.amount + ' ' + r.date).toLowerCase().includes(kw)) : all;
+  const filtered = kw
+    ? all.filter(r => (r.cat + ' ' + (r.who || '') + ' ' + (r.note || '') + ' ' + r.amount + ' ' + r.date).toLowerCase().includes(kw))
+    : all.filter(r => (r.date || '').startsWith(period));
   if (!all.length) {
     const hasAny = S.incomes.length + S.expenses.length > 0;
     $('#ledger-list').innerHTML = '<div class="ledger-list-empty">本月暂无收支<br><span style="font-size:12px">'
@@ -748,7 +749,9 @@ function renderLedger() {
     return;
   }
   if (!filtered.length) {
-    $('#ledger-list').innerHTML = '<div class="ledger-list-empty">没有匹配「' + esc(kw) + '」的收支<br><span style="font-size:12px">换个关键词试试（搜索范围：当前月份）</span></div>';
+    $('#ledger-list').innerHTML = kw
+      ? '<div class="ledger-list-empty">没有匹配「' + esc(kw) + '」的收支<br><span style="font-size:12px">换个关键词试试（搜索范围：全部月份）</span></div>'
+      : '<div class="ledger-list-empty">本月暂无收支<br><span style="font-size:12px">用上方 ‹ › 切换月份查看其他月份记录</span></div>';
     return;
   }
   const weekday = d => {
