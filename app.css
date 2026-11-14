@@ -152,8 +152,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 
 /* 月账本样式 */
 .ledger-topbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
-.ledger-topbar .lb-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.ledger-topbar .lb-title{font-size:19px;font-weight:600}
+.ledger-topbar .lb-row{display:flex;align-items:center;justify-content:flex-end;gap:12px}
 .ledger-topbar .lb-month{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .ledger-topbar .lb-month input[type=month]{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:#fff;color:var(--text);-webkit-appearance:none}
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
