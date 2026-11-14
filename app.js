@@ -198,6 +198,7 @@ function renderPage(p) {
   if (p === 'bills') {
     $('#cust-admin').classList.add('hidden');
     $('#cust-edit').classList.add('hidden');
+    $('#cust-detail').classList.add('hidden');
     $('#bills-main').classList.remove('hidden');
   }
   ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: () => {} }[p] || function () {})();
@@ -711,7 +712,7 @@ function renderBills() {
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '</div>'
-      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">客户详情</button></div></div>' : '')
+      + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button></div></div>' : '')
       + '</div>';
   }).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，点上方「客户管理」添加</div>';
   $('#bills-list').innerHTML = html;
@@ -731,7 +732,7 @@ $('#bills-list').addEventListener('click', e => {
   const tr = e.target.closest('.item-card[data-bill]');
   if (tr) { openBillModal(tr.dataset.bill); return; }
   const cd = e.target.closest('[data-custdetail]');
-  if (cd) openCustModal(cd.dataset.custdetail);
+  if (cd) openCustDetail(cd.dataset.custdetail);
 });
 
 /* ---------- 账单详情弹窗 ---------- */
@@ -1155,6 +1156,7 @@ function renderCustAdmin() {
 function openCustAdmin() {
   $('#bills-main').classList.add('hidden');
   $('#cust-edit').classList.add('hidden');
+  $('#cust-detail').classList.add('hidden');
   $('#cust-admin').classList.remove('hidden');
   renderCustAdmin();
 }
@@ -1177,6 +1179,7 @@ function openCustEdit(cid) {
   $('#btn-cust-rename-save').dataset.custId = cid;
   $('#cust-admin').classList.add('hidden');
   $('#bills-main').classList.add('hidden');
+  $('#cust-detail').classList.add('hidden');
   $('#cust-edit').classList.remove('hidden');
 }
 $('#cust-edit').addEventListener('click', handleModalClick);
@@ -1211,7 +1214,8 @@ function customerInfoHtml(c) {
     + '<div class="kv pricing-detail" style="border-bottom:none"><span>月结</span><div class="pricing-text">' + (pricing.monthly ? esc(pricing.monthly) : '<span class="muted">未填写</span>') + '</div></div>';
 }
 
-function openCustModal(cid) {
+// 账单明细：完整页面（非弹窗）
+function openCustDetail(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   const incs = S.incomes.filter(i => i.customerId === cid).sort((a, b) => b.date.localeCompare(a.date));
@@ -1221,8 +1225,9 @@ function openCustModal(cid) {
 
   const typeSum = t => round2(incs.filter(i => (i.type || '进仓费') === t).reduce((s, i) => s + Number(i.amount), 0));
 
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
+  $('#cust-detail-name').textContent = c.name;
+  $('#cust-detail-body').innerHTML =
+    '<div class="panel">'
     + '<div class="kv"><span>收入合计（现结）</span><b>' + fmt(incTotal) + '</b></div>'
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　打印费 ' + fmt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</b></div>'
@@ -1238,9 +1243,18 @@ function openCustModal(cid) {
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
     + (incs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
       || '<tr><td colspan="4" class="empty">暂无收入记录</td></tr>')
-    + '</tbody></table>';
-  $('#modal-mask').classList.remove('hidden');
+    + '</tbody></table>'
+    + '</div>';
+  $('#bills-main').classList.add('hidden');
+  $('#cust-admin').classList.add('hidden');
+  $('#cust-edit').classList.add('hidden');
+  $('#cust-detail').classList.remove('hidden');
 }
+$('#btn-cust-detail-back').addEventListener('click', () => {
+  $('#cust-detail').classList.add('hidden');
+  $('#bills-main').classList.remove('hidden');
+  renderBills();
+});
 
 /* ---------- 员工工资 ---------- */
 function renderWages() {
