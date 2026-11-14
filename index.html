@@ -1775,7 +1775,10 @@ $('#btn-backup').addEventListener('click', () => {
 function parseExcelDate(v) {
   if (v == null || v === '') return null;
   const pad = n => String(n).padStart(2, '0');
-  if (v instanceof Date && !isNaN(v)) return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
+  // Date 对象（含跨上下文）：用 Object.prototype.toString 判定，避免 instanceof 失效
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+    return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
+  }
   if (typeof v === 'number' && isFinite(v) && v > 0) {
     // Excel 序列号（1900 日期系统）
     const d = new Date(Math.round((v - 25569) * 86400 * 1000));
@@ -1797,7 +1800,7 @@ function parseIncomeAOA(aoa, fallbackName) {
     const date = row.findIndex(t => /日期|时间/.test(t));
     let amt = row.findIndex(t => /进仓费/.test(t));
     if (amt < 0) amt = row.findIndex(t => /金额|费用|收款|应收/.test(t));
-    const no = row.findIndex(t => /委托编号|委托号/.test(t));
+    const no = row.findIndex(t => /委托编号|委托号|进仓编号|进仓号|编号/.test(t));
     if (date >= 0 && amt >= 0 && (cust >= 0 || fallbackName)) { headIdx = r; cCust = cust; cDate = date; cAmt = amt; cNo = no; break; }
   }
   if (headIdx < 0) return { error: '未识别到表头：需要包含「日期、进仓费（或金额）」列；客户列可选，没有客户列时用文件名作为客户名' };
