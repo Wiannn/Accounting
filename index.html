@@ -692,15 +692,10 @@ function openExpenseBreakdown() {
 }
 $('#stat-month-expense').addEventListener('click', openExpenseBreakdown);
 
-// 点击当月收入：按来源客户汇总弹窗（与当月收入卡片口径一致）
+// 点击当月收入：按来源客户汇总弹窗（含账单收款，与当月收入卡片同口径）
 function openIncomeBreakdown() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
-  const sums = {};
-  S.incomes.forEach(i => {
-    if (!(i.date || '').startsWith(period)) return;
-    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
-  });
-  const rows = Object.keys(sums).map(cid => ({ cid: cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
+  const rows = incomeRowsByPrefix(period);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   const listHtml = rows.length ? rows.map(r =>
     '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmt(r.amount) + '</span></div>'
@@ -718,8 +713,9 @@ function renderLedger() {
   ledgerMonthCache = period;
   const [y, m] = period.split('-').map(Number);
   // 当月收支（挂账支出不计入统计）
-  let income = 0, expense = 0, reimbSum = 0, payableSum = 0;
-  S.incomes.forEach(i => { if ((i.date || '').startsWith(period)) income += Number(i.amount || 0); });
+  // 当月收入：收入流水 + 无对应流水的账单收款（已结清/部分收款都算，不重复）
+  const income = round2(incomeRowsByPrefix(period).reduce((s, r) => s + r.amount, 0));
+  let expense = 0, reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
     if (e.status === 'pending') {
