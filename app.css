@@ -19,6 +19,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe 
 .nav-btn{display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;border:none;background:none;border-radius:8px;font-size:14px;color:var(--text);cursor:pointer}
 .nav-btn:hover{background:var(--bg)}
 .nav-btn.active{background:#EAEEFC;color:var(--primary);font-weight:600}
+#mobile-nav{display:none}
 #main{flex:1;padding:24px 28px;min-width:0}
 .page{display:none;max-width:980px}
 .page.active{display:block}
@@ -200,7 +201,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   #sidebar{width:100%;height:auto;position:static;padding:0;border:none;background:transparent}
   .logo{display:none}
   .logo-sub{display:none}
-  #sidebar nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--panel);border-top:1px solid var(--border);padding:4px 4px calc(4px + env(safe-area-inset-bottom));z-index:40}
+  #sidebar nav{display:none}
+  #mobile-nav{position:fixed;left:0;right:0;bottom:0;width:100%;display:flex;background:var(--panel);border-top:1px solid var(--border);padding:4px 4px calc(4px + env(safe-area-inset-bottom));z-index:40;transform:translateZ(0);-webkit-transform:translateZ(0)}
   .nav-btn{flex:1;width:auto;margin:0;padding:10px 2px;text-align:center;font-size:12px;border-radius:8px}
   #main{padding:14px 12px calc(78px + env(safe-area-inset-bottom))}
   .page-head{flex-direction:column;align-items:flex-start;gap:10px}
