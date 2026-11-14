@@ -138,6 +138,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .card.add-card{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--border);cursor:pointer;min-height:76px;color:var(--muted);transition:.15s;user-select:none}
 .card.add-card:hover{border-color:var(--primary);color:var(--primary)}
 .card.add-card .add-plus{font-size:26px;line-height:1;color:inherit;font-weight:500}
+.card.add-card.slim{flex-direction:row;justify-content:space-between;min-height:0;padding:12px 16px;gap:8px}
+.card.add-card.slim .card-label{margin:0;color:inherit}
+.slim-plus{font-size:18px;line-height:1}
 .bill-group{margin-bottom:10px}
 .bill-group-head{cursor:pointer;background:var(--gray-bg)}
 .bill-group-head .ic-title{font-weight:600}
@@ -335,23 +338,36 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
     </template>
 
     <section id="page-bills" class="page">
+      <div id="bills-main">
       <div class="page-head"><h1>客户</h1></div>
       <div class="cards">
         <div class="card ok-card" id="card-year-income" style="cursor:pointer"><div class="card-label">本年收入</div><div class="card-num" style="color:var(--ok)" id="stat-year-income">¥0.00</div></div>
         <div class="card warn-card"><div class="card-label">待收总额</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
-        <div class="card add-card" id="card-add-bill">
-          <div class="card-label">添加客户月账单</div>
-          <div class="card-num add-plus">＋</div>
-        </div>
-        <div class="card add-card" id="card-cust-manage">
-          <div class="card-label">客户管理</div>
-          <div class="card-num add-plus">＋</div>
-        </div>
+        <div class="card add-card slim" id="card-add-bill"><span class="card-label">添加客户月账单</span><span class="slim-plus">＋</span></div>
+        <div class="card add-card slim" id="card-cust-manage"><span class="card-label">客户管理</span></div>
       </div>
       <div class="panel">
         <div class="panel-title">账单列表 <span class="muted">仅显示待收</span></div>
         <div class="item-list" id="bills-list"></div>
         <p class="muted" style="margin-top:8px">点客户名展开账单和「客户详情」，点任意一张账单可记收款、登记发票；已结清等全部记录在客户详情里看</p>
+      </div>
+      </div>
+      <div id="cust-admin" class="hidden">
+        <div class="page-head"><h1>客户管理</h1><button class="ghost" id="btn-cust-back">‹ 返回</button></div>
+        <div class="panel">
+          <div class="panel-title">新增客户</div>
+          <div class="form-grid">
+            <label class="span2">客户名称 <input type="text" id="cust-name" placeholder="输入客户名称"></label>
+            <label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件（可选）"></label>
+            <label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项，可选）"></textarea></label>
+          </div>
+          <button class="primary" id="btn-add-cust">添加客户</button>
+        </div>
+        <div class="panel">
+          <div class="panel-title">客户列表 <span class="muted" id="cust-admin-count"></span></div>
+          <div class="item-list" id="cust-admin-list"></div>
+          <p class="muted" style="margin-top:8px">点客户名查看业务、收费与账务详情；点「编辑」修改名称、业务、收费</p>
+        </div>
       </div>
     </section>
 
@@ -589,6 +605,10 @@ function switchPage(p) {
   renderPage(p);
 }
 function renderPage(p) {
+  if (p === 'bills') {
+    $('#cust-admin').classList.add('hidden');
+    $('#bills-main').classList.remove('hidden');
+  }
   ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: () => {} }[p] || function () {})();
 }
 
@@ -1174,7 +1194,7 @@ function openBillModal(billId) {
 function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
-$('#modal').addEventListener('click', async e => {
+const handleModalClick = async e => {
   const t = e.target;
   if (t.closest('[data-close]')) { closeModal(); return; }
 
@@ -1485,6 +1505,15 @@ $('#modal').addEventListener('click', async e => {
     renderWages();
     return;
   }
+};
+$('#modal').addEventListener('click', handleModalClick);
+$('#cust-admin').addEventListener('click', e => {
+  const d = e.target.closest('[data-cust-detail]');
+  if (d && !e.target.closest('[data-rencust-modal]') && !e.target.closest('[data-delcust-modal]')) {
+    openCustModal(d.dataset.custDetail);
+    return;
+  }
+  handleModalClick(e);
 });
 
 $('#modal').addEventListener('keydown', e => {
@@ -1518,26 +1547,27 @@ $('#card-emp-manage').addEventListener('click', openEmpManage);
 $('#card-wage-gen').addEventListener('click', openWageGen);
 
 /* ---------- 客户 ---------- */
-$('#card-cust-manage').addEventListener('click', () => {
-  const listHtml = S.customers.length
-    ? S.customers.map(c => '<li style="padding:8px 0;border-bottom:1px solid var(--border)">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>' + esc(c.name) + '</span>'
-      + '<span style="display:flex;gap:12px;flex-shrink:0"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></span></div>'
-      + (c.business ? '<div class="muted" style="margin-top:3px">业务：' + esc(c.business) + '</div>' : '')
-      + (c.pricing ? '<div class="muted" style="margin-top:2px;white-space:pre-line">收费：' + esc(c.pricing) + '</div>' : '')
-      + '</li>').join('')
-    : '<li class="empty">暂无客户</li>';
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>客户管理</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="form-grid">'
-    + '<label class="span2">新增客户 <input type="text" id="cust-name" placeholder="输入客户名称"></label>'
-    + '<label class="span2">业务 <input type="text" id="cust-business" placeholder="如：电梯件、垃圾袋、铁路件"></label>'
-    + '<label class="span2">收费情况 <textarea id="cust-pricing" placeholder="如：做箱费 xx元/柜；加固费 xx元；洋山提 xx元（可换行，一行一项）"></textarea></label>'
-    + '</div>'
-    + '<button class="primary" id="btn-add-cust" style="margin-bottom:14px">添加客户</button>'
-    + '<div class="sub-title">客户列表（' + S.customers.length + '）</div>'
-    + '<ul style="list-style:none;padding:0;margin:0;max-height:240px;overflow:auto">' + listHtml + '</ul>';
-  $('#modal-mask').classList.remove('hidden');
+// 客户管理：完整页面（非弹窗），列表只显示名称；业务、收费在点具体客户后展示
+function renderCustAdmin() {
+  const el = $('#cust-admin-list');
+  if (!el) return;
+  $('#cust-admin-count').textContent = S.customers.length + ' 个';
+  el.innerHTML = S.customers.map(c =>
+    '<div class="item-card" data-cust-detail="' + c.id + '">'
+    + '<div class="ic-main"><div class="ic-title">' + esc(c.name) + '</div></div>'
+    + '<div class="ic-act"><button class="link-btn" data-rencust-modal="' + c.id + '">编辑</button><button class="link-btn danger" data-delcust-modal="' + c.id + '">删除</button></div>'
+    + '</div>').join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无客户，先在上方添加</div>';
+}
+function openCustAdmin() {
+  $('#bills-main').classList.add('hidden');
+  $('#cust-admin').classList.remove('hidden');
+  renderCustAdmin();
+}
+$('#card-cust-manage').addEventListener('click', openCustAdmin);
+$('#btn-cust-back').addEventListener('click', () => {
+  $('#cust-admin').classList.add('hidden');
+  $('#bills-main').classList.remove('hidden');
+  renderBills();
 });
 
 function openCustModal(cid) {
