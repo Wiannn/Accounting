@@ -150,6 +150,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ledger-stats .lb-stat{background:var(--gray-bg);border-radius:10px;padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat.expense-stat{border:1px solid #F0C98A;cursor:pointer;user-select:none}
+.ledger-stats .lb-stat.income-stat{border:1px solid #9CD3B4;cursor:pointer;user-select:none}
 .item-card.flash-new{animation:flashNew 1.8s ease}
 @keyframes flashNew{0%,60%{background:#FFF3D6;border-color:#F0C98A}100%{background:var(--panel)}}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}
@@ -278,7 +279,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
         </div>
         <div class="ledger-stats">
           <div class="lb-stat expense-stat" id="stat-month-expense" title="点击查看主分类支出"><div class="lb-stat-label">当月支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
-          <div class="lb-stat"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
+          <div class="lb-stat income-stat" id="stat-month-income" title="点击查看收入来源客户"><div class="lb-stat-label">当月收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
         </div>
       </div>
       <div class="ledger-list" id="ledger-list"></div>
@@ -586,19 +587,22 @@ function renderPage(p) {
 
 /* ---------- 客户页顶部统计 ---------- */
 // 本年收入（按客户汇总，降序）：收入流水为主；历史收款（未生成收入流水的 payments）按收款台账兜底补计，不重复
-function yearIncomeRows() {
-  const year = String(new Date().getFullYear());
-  // 年份归属：优先业务日期；无日期用创建时间；再没有用账期（兼容早期无日期的收款记录）
-  const inYear = (d, createdAt, period) => {
-    const y = (d || '').slice(0, 4)
-      || (createdAt ? String(new Date(createdAt).getFullYear()) : '')
-      || (period || '').slice(0, 4);
-    return y === year;
+// 收入按客户汇总：收入流水为主；历史收款（未生成收入流水的 payments）按收款台账兜底补计，不重复
+// prefix 为 'YYYY'（按年）或 'YYYY-MM'（按月）
+function incomeRowsByPrefix(prefix) {
+  // 归属时间：优先业务日期；无日期用创建时间；再没有用账期（兼容早期无日期的收款记录）
+  const keyOf = (d, createdAt, period) => {
+    if (d) return d;
+    if (createdAt) {
+      const dt = new Date(createdAt);
+      return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+    }
+    return period || '';
   };
   const sums = {};
-  const covered = new Set(); // 只记录已计入的收入对应的收款，避免漏计
+  const covered = new Set(); // 已计入的收入对应的收款，避免漏计
   S.incomes.forEach(i => {
-    if (!inYear(i.date, i.createdAt)) return;
+    if (!keyOf(i.date, i.createdAt).startsWith(prefix)) return;
     sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
     if (i.paymentId) covered.add(i.paymentId);
   });
@@ -606,12 +610,16 @@ function yearIncomeRows() {
     if (covered.has(p.id)) return;
     const b = S.bills.find(x => x.id === p.billId);
     if (!b) return;
-    if (!inYear(p.date, p.createdAt, b.period)) return;
+    if (!keyOf(p.date, p.createdAt, b.period).startsWith(prefix)) return;
     sums[b.customerId] = (sums[b.customerId] || 0) + Number(p.amount || 0);
   });
   return Object.keys(sums)
     .map(cid => ({ cid, amount: round2(sums[cid]) }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+function yearIncomeRows() {
+  return incomeRowsByPrefix(String(new Date().getFullYear()));
 }
 
 function renderUnpaid() {
@@ -683,6 +691,27 @@ function openExpenseBreakdown() {
   $('#modal-mask').classList.remove('hidden');
 }
 $('#stat-month-expense').addEventListener('click', openExpenseBreakdown);
+
+// 点击当月收入：按来源客户汇总弹窗（与当月收入卡片口径一致）
+function openIncomeBreakdown() {
+  const period = $('#ledger-month').value || todayStr().slice(0, 7);
+  const sums = {};
+  S.incomes.forEach(i => {
+    if (!(i.date || '').startsWith(period)) return;
+    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+  });
+  const rows = Object.keys(sums).map(cid => ({ cid: cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
+  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
+  const listHtml = rows.length ? rows.map(r =>
+    '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmt(r.amount) + '</span></div>'
+  ).join('') : '<div class="empty">本月暂无收入</div>';
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + period + ' 收入 · 按客户</h2><button class="modal-x" data-close>&times;</button></div>'
+    + listHtml
+    + (rows.length ? '<div class="kv" style="border-bottom:none;margin-top:4px"><span class="strong">合计</span><span class="strong pos">' + fmt(total) + '</span></div>' : '');
+  $('#modal-mask').classList.remove('hidden');
+}
+$('#stat-month-income').addEventListener('click', openIncomeBreakdown);
 
 function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
