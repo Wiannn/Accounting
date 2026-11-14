@@ -1358,6 +1358,7 @@ $('#modal').addEventListener('click', async e => {
     if (!rec) return;
     const date = $('#ledger-pay-date').value;
     if (!date) { toast('请选择报销日期'); return; }
+    const wasPayable = rec.pendingKind === 'payable';
     rec.date = date;
     rec.status = null;
     rec.pendingKind = null;
@@ -1366,7 +1367,7 @@ $('#modal').addEventListener('click', async e => {
     closeModal();
     currentLedgerId = null;
     renderLedger();
-    toast(kind === 'payable' ? '付款已登记，计入 ' + date + ' 支出' : '已确认报销，计入 ' + date + ' 支出');
+    toast(wasPayable ? '付款已登记，计入 ' + date + ' 支出' : '已确认报销，计入 ' + date + ' 支出');
     return;
   }
   if (t.id === 'btn-ledger-del') {
