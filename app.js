@@ -711,14 +711,13 @@ function renderBills() {
     const bills = list.filter(b => b.customerId === cid);
     const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
     const isOpen = expandedBillGroups.has(cid);
-    const sub = '本年已收 ' + fmt(yearReceived[cid] || 0);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
-      + '<div class="ic-main">'
-      + '<div class="ic-title">' + esc(custName(cid)) + '</div>'
+      + '<div class="bill-group-top"><div class="ic-title bill-group-name">' + esc(custName(cid)) + '</div><div class="ic-sub2 bill-group-toggle">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
+      + '<div class="bill-group-summary">'
+      + '<div class="bill-group-stat"><span>本年已收</span><strong>' + fmt(yearReceived[cid] || 0) + '</strong></div>'
+      + '<div class="bill-group-stat"><span>待收金额</span><strong class="' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</strong></div>'
       + '</div>'
-      + '<div class="ic-right"><div class="ic-amt ' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</div><div class="ic-sub2">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
-      + '<div class="ic-sub">' + sub + '</div>'
       + '</div>'
       + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button><button class="ghost small" data-custinfo="' + cid + '">收费标准</button></div></div>' : '')
       + '</div>';
