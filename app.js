@@ -1198,10 +1198,11 @@ function openCustInfoModal(cid) {
   const pricing = pricingParts(c);
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(c.name) + '</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>业务</span><b>' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</b></div>'
+    + '<div class="kv pricing-detail"><span>业务</span><div class="pricing-text">' + (c.business ? esc(c.business) : '<span class="muted">未填写</span>') + '</div></div>'
+    + '<div class="kv pricing-detail"><span>联系方式</span><div class="pricing-text">' + (c.contact ? esc(c.contact) : '<span class="muted">未填写</span>') + '</div></div>'
     + '<div class="kv pricing-detail"><span>现结</span><div class="pricing-text">' + (pricing.cash ? esc(pricing.cash) : '<span class="muted">未填写</span>') + '</div></div>'
     + '<div class="kv pricing-detail" style="border-bottom:none"><span>月结</span><div class="pricing-text">' + (pricing.monthly ? esc(pricing.monthly) : '<span class="muted">未填写</span>') + '</div></div>'
-    + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改业务与收费</p>';
+    + '<p class="muted" style="margin-top:8px">点列表中的「编辑」可修改客户资料</p>';
   $('#modal-mask').classList.remove('hidden');
 }
 
