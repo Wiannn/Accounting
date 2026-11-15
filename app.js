@@ -1295,15 +1295,27 @@ function openBillEditModal(billId) {
   const b = S.bills.find(x => x.id === billId);
   if (!b) return;
   editingBillId = billId;
+  const st = billState(b);
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
+    + '<div class="kv"><span>已收（收款记录合计）</span><b>' + fmtInt(st.paid) + '</b></div>'
     + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
-    + '<label style="display:block;margin-bottom:10px">金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
   $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
-  $('#edit-bill-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
+  const amtEl = $('#edit-bill-amount');
+  const remEl = $('#edit-bill-remaining');
+  // 账单金额与待收金额双向联动：待收 = 账单金额 − 已收，已收记录保持不变
+  amtEl.addEventListener('input', () => {
+    remEl.value = Math.max(0, round2(amtEl.value) - st.paid);
+  });
+  remEl.addEventListener('input', () => {
+    amtEl.value = round2(remEl.value) + st.paid;
+  });
+  [amtEl, remEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } }));
 }
 async function saveBillEdit() {
   const b = S.bills.find(x => x.id === editingBillId);
