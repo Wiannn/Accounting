@@ -1257,12 +1257,14 @@ function openCustDetail(cid) {
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmtInt(typeSum('进仓费')) + '　·　打印费 ' + fmtInt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>状态</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
+        const ist = invState(b);
         return '<tr><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
-          + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td></tr>';
-      }).join('') || '<tr><td colspan="4" class="empty">暂无账单</td></tr>')
+          + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
+          + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td></tr>';
+      }).join('') || '<tr><td colspan="5" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
