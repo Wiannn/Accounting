@@ -175,7 +175,8 @@ const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2
 const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
 function billState(b) {
   const paid = paidOf(b.id);
-  let remaining = round2(Number(b.amount) - paid);
+  const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
+  let remaining = hasOverride ? Math.max(0, round2(Number(b.remainingOverride))) : round2(Number(b.amount) - paid);
   let key = 'unpaid', label = '待收';
   if (remaining <= 0) { key = 'settled'; label = '已结清'; remaining = 0; }
   else if (paid > 0)  { key = 'partial'; label = '部分收款'; }
@@ -924,6 +925,11 @@ const handleModalClick = async e => {
     if (!bill) return;
     const pid = uid();
     await dbPut('payments', { id: pid, billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
+    // 若账单被手动设置过待收金额，登记收款后同步扣减该待收金额
+    if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
+      bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amount));
+      await dbPut('bills', bill);
+    }
     // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）；月账单收款固定记为「账单收款」，不混入现结收入
     await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pid, createdAt: Date.now() });
     await loadState();
@@ -934,8 +940,15 @@ const handleModalClick = async e => {
   }
   if (t.dataset.delpay) {
     if (!confirm('删除这笔收款？「记一笔」中对应的收入将一并删除。')) return;
+    const delPay = S.payments.find(p => p.id === t.dataset.delpay);
+    const delBill = S.bills.find(x => x.id === currentBillId);
     for (const inc of S.incomes.filter(i => i.paymentId === t.dataset.delpay)) await dbDel('incomes', inc.id);
     await dbDel('payments', t.dataset.delpay);
+    // 若账单被手动设置过待收金额，删除收款后同步回补该待收金额
+    if (delPay && delBill && delBill.remainingOverride !== undefined && delBill.remainingOverride !== null && isFinite(Number(delBill.remainingOverride))) {
+      delBill.remainingOverride = round2(Number(delBill.remainingOverride) + Number(delPay.amount));
+      await dbPut('bills', delBill);
+    }
     await loadState();
     openBillModal(currentBillId);
     renderBills();
@@ -1303,18 +1316,12 @@ function openBillEditModal(billId) {
     + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
+    + '<div class="muted" style="font-size:12px;margin-bottom:10px">账单金额与待收金额分别保存，互不影响。</div>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
   $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
   const amtEl = $('#edit-bill-amount');
   const remEl = $('#edit-bill-remaining');
-  // 账单金额与待收金额双向联动：待收 = 账单金额 − 已收，已收记录保持不变
-  amtEl.addEventListener('input', () => {
-    remEl.value = Math.max(0, round2(amtEl.value) - st.paid);
-  });
-  remEl.addEventListener('input', () => {
-    amtEl.value = round2(remEl.value) + st.paid;
-  });
   [amtEl, remEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } }));
 }
 async function saveBillEdit() {
@@ -1322,11 +1329,17 @@ async function saveBillEdit() {
   if (!b) return;
   const period = $('#edit-bill-period').value;
   const amount = round2($('#edit-bill-amount').value);
+  const remainingInput = Math.max(0, round2($('#edit-bill-remaining').value));
   if (!period) { toast('请选择账期'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const cid = b.customerId;
+  const paid = paidOf(b.id);
   b.period = period;
   b.amount = amount;
+  // 待收金额独立保存；与「账单金额 − 已收」一致时不保留覆盖值，恢复自动计算
+  const naturalRemaining = Math.max(0, round2(amount - paid));
+  if (remainingInput !== naturalRemaining) b.remainingOverride = remainingInput;
+  else delete b.remainingOverride;
   await dbPut('bills', b);
   await loadState();
   closeModal();
