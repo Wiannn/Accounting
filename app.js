@@ -1261,7 +1261,7 @@ function openCustDetail(cid) {
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
-        return '<tr><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td></tr>';
       }).join('') || '<tr><td colspan="5" class="empty">暂无账单</td></tr>')
@@ -1284,6 +1284,44 @@ $('#btn-cust-detail-back').addEventListener('click', () => {
   renderBills();
   syncMobileNav();
 });
+// 双击应收账单明细行：修改账期与金额
+$('#cust-detail-body').addEventListener('dblclick', e => {
+  const row = e.target.closest('[data-custbill]');
+  if (row) openBillEditModal(row.dataset.custbill);
+});
+
+let editingBillId = null;
+function openBillEditModal(billId) {
+  const b = S.bills.find(x => x.id === billId);
+  if (!b) return;
+  editingBillId = billId;
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
+    + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block;margin-bottom:10px">金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
+    + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
+  $('#modal-mask').classList.remove('hidden');
+  $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
+  $('#edit-bill-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
+}
+async function saveBillEdit() {
+  const b = S.bills.find(x => x.id === editingBillId);
+  if (!b) return;
+  const period = $('#edit-bill-period').value;
+  const amount = round2($('#edit-bill-amount').value);
+  if (!period) { toast('请选择账期'); return; }
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  const cid = b.customerId;
+  b.period = period;
+  b.amount = amount;
+  await dbPut('bills', b);
+  await loadState();
+  closeModal();
+  renderBills();
+  if (!$('#cust-detail').classList.contains('hidden')) openCustDetail(cid);
+  toast('账单已更新');
+}
 
 /* ---------- 员工工资 ---------- */
 function renderWages() {
