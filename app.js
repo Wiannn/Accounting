@@ -174,11 +174,14 @@ const custName = id => { const c = S.customers.find(c => c.id === id); return c 
 const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2 ? e2.name : '(已删除员工)'; };
 const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
 function billState(b) {
-  const paid = paidOf(b.id);
+  const paidRecords = paidOf(b.id);
   const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
-  let remaining = hasOverride ? Math.max(0, round2(Number(b.remainingOverride))) : round2(Number(b.amount) - paid);
+  let remaining = hasOverride ? Math.max(0, round2(Number(b.remainingOverride))) : round2(Number(b.amount) - paidRecords);
+  if (remaining <= 0) remaining = 0;
+  // 已收 = 账单金额 − 待收金额；未手动设置待收时等同于收款记录合计
+  const paid = hasOverride ? Math.max(0, round2(Number(b.amount) - remaining)) : paidRecords;
   let key = 'unpaid', label = '待收';
-  if (remaining <= 0) { key = 'settled'; label = '已结清'; remaining = 0; }
+  if (remaining <= 0) { key = 'settled'; label = '已结清'; }
   else if (paid > 0)  { key = 'partial'; label = '部分收款'; }
   return { paid, remaining, key, label };
 }
@@ -1312,7 +1315,7 @@ function openBillEditModal(billId) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
-    + '<div class="kv"><span>已收（收款记录合计）</span><b>' + fmtInt(st.paid) + '</b></div>'
+    + '<div class="kv"><span>已收（账单金额 − 待收金额）</span><b>' + fmtInt(st.paid) + '</b></div>'
     + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
