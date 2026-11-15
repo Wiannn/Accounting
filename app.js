@@ -262,11 +262,11 @@ function yearIncomeRows() {
 
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
-  $('#stat-unpaid').textContent = fmt(round2(unsettled.reduce((s, x) => s + x.st.remaining, 0)));
+  $('#stat-unpaid').textContent = fmtInt(unsettled.reduce((s, x) => s + x.st.remaining, 0));
   // 本年收入：本年度全部收入（含记一笔现结收入、账单收款及历史收款）
   const rows = yearIncomeRows();
   $('#year-income-label').textContent = new Date().getFullYear() + '年收入';
-  $('#stat-year-income').textContent = fmt(round2(rows.reduce((s, r) => s + r.amount, 0)));
+  $('#stat-year-income').textContent = fmtInt(rows.reduce((s, r) => s + r.amount, 0));
 }
 
 // 点击本年收入卡片：各客户本年收入排名弹窗
@@ -337,12 +337,12 @@ function openIncomeBreakdown() {
   const rows = incomeRowsByPrefix(period);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   const listHtml = rows.length ? rows.map(r =>
-    '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmt(r.amount) + '</span></div>'
+    '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmtInt(r.amount) + '</span></div>'
   ).join('') : '<div class="empty">本月暂无收入</div>';
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + period + ' 收入 · 按客户</h2><button class="modal-x" data-close>&times;</button></div>'
     + listHtml
-    + (rows.length ? '<div class="kv" style="border-bottom:none;margin-top:4px"><span class="strong">合计</span><span class="strong pos">' + fmt(total) + '</span></div>' : '');
+    + (rows.length ? '<div class="kv" style="border-bottom:none;margin-top:4px"><span class="strong">合计</span><span class="strong pos">' + fmtInt(total) + '</span></div>' : '');
   $('#modal-mask').classList.remove('hidden');
 }
 $('#stat-month-income').addEventListener('click', openIncomeBreakdown);
@@ -715,9 +715,9 @@ function renderBills() {
     return '<div class="item-card" data-bill="' + b.id + '">'
       + '<div class="ic-main">'
       + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
-      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmt(st.paid) + '</div>'
+      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(st.paid) + '</div>'
       + '</div>'
-      + '<div class="ic-right"><div class="ic-amt">' + fmt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmt(st.remaining) + '</div></div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
       + '</div>';
   };
   // 默认展示所有客户，无待收账单的客户显示「全部已结清」
@@ -734,8 +734,8 @@ function renderBills() {
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
       + '<div class="bill-group-top"><div class="ic-title bill-group-name">' + esc(custName(cid)) + '</div><div class="ic-sub2 bill-group-toggle">' + (isOpen ? '收起 ▲' : '展开 ▼') + '</div></div>'
       + '<div class="bill-group-summary">'
-      + '<div class="bill-group-stat"><span>本年已收</span><strong>' + fmt(yearReceived[cid] || 0) + '</strong></div>'
-      + '<div class="bill-group-stat"><span>待收金额</span><strong class="' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmt(sum.remaining > 0 ? sum.remaining : 0) + '</strong></div>'
+      + '<div class="bill-group-stat"><span>本年已收</span><strong>' + fmtInt(yearReceived[cid] || 0) + '</strong></div>'
+      + '<div class="bill-group-stat"><span>待收金额</span><strong class="' + (sum.remaining > 0 ? 'neg' : '') + '">' + fmtInt(sum.remaining > 0 ? sum.remaining : 0) + '</strong></div>'
       + '</div>'
       + '</div>'
       + (isOpen ? '<div class="bill-group-inner">' + bills.map(billCardHtml).join('') + '<div class="group-foot"><button class="ghost small" data-custdetail="' + cid + '">账单明细</button><button class="ghost small" data-custinfo="' + cid + '">收费标准</button></div></div>' : '')
@@ -776,14 +776,14 @@ function openBillModal(billId) {
 
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>账单金额</span><b>' + fmt(b.amount) + '</b></div>'
-    + '<div class="kv"><span>已收 / 待收</span><b>' + fmt(st.paid) + ' / <span class="strong">' + fmt(st.remaining) + '</span></b></div>'
+    + '<div class="kv"><span>账单金额</span><b>' + fmtInt(b.amount) + '</b></div>'
+    + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(st.paid) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
     + '<div class="kv"><span>开票状态</span><b><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></b></div>'
-    + '<div class="kv"><span>已开票 / 待开</span><b>' + fmt(ist.invoiced) + ' / <span class="strong">' + fmt(ist.remaining) + '</span></b></div>'
+    + '<div class="kv"><span>已开票 / 待开</span><b>' + fmtInt(ist.invoiced) + ' / <span class="strong">' + fmtInt(ist.remaining) + '</span></b></div>'
     + '<div class="sub-title">收款记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>金额</th><th>备注</th><th></th></tr></thead><tbody>'
-    + (pays.map(p => '<tr><td>' + (p.date || '—') + '</td><td>' + fmt(p.amount) + '</td><td>' + esc(p.note || '') + '</td>'
+    + (pays.map(p => '<tr><td>' + (p.date || '—') + '</td><td>' + fmtInt(p.amount) + '</td><td>' + esc(p.note || '') + '</td>'
         + '<td><button class="link-btn danger" data-delpay="' + p.id + '">删除</button></td></tr>').join('')
       || '<tr><td colspan="4" class="empty">还没有收款</td></tr>')
     + '</tbody></table>'
@@ -797,7 +797,7 @@ function openBillModal(billId) {
       : '<p class="muted" style="margin-top:8px">账单已结清</p>')
     + '<div class="sub-title">开票记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>开票金额</th><th></th></tr></thead><tbody>'
-    + (invs.map(v => '<tr><td>' + (v.date || '—') + '</td><td>' + fmt(Number(v.amount) > 0 ? v.amount : b.amount) + '</td>'
+    + (invs.map(v => '<tr><td>' + (v.date || '—') + '</td><td>' + fmtInt(Number(v.amount) > 0 ? v.amount : b.amount) + '</td>'
         + '<td><button class="link-btn danger" data-delinv="' + v.id + '">删除</button></td></tr>').join('')
       || '<tr><td colspan="3" class="empty">还没有开票</td></tr>')
     + '</tbody></table>'
@@ -1253,20 +1253,20 @@ function openCustDetail(cid) {
   $('#cust-detail-name').textContent = c.name;
   $('#cust-detail-body').innerHTML =
     '<div class="panel">'
-    + '<div class="kv"><span>收入合计（现结）</span><b>' + fmt(incTotal) + '</b></div>'
-    + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmt(typeSum('进仓费')) + '　·　打印费 ' + fmt(typeSum('打印费')) + '</span><b></b></div>'
-    + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmt(owed) + '</b></div>'
+    + '<div class="kv"><span>收入合计（现结）</span><b>' + fmtInt(incTotal) + '</b></div>'
+    + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmtInt(typeSum('进仓费')) + '　·　打印费 ' + fmtInt(typeSum('打印费')) + '</span><b></b></div>'
+    + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
     + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>状态</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
-        return '<tr><td>' + esc(b.period) + '</td><td>' + fmt(b.amount) + '</td><td>' + fmt(st.remaining) + '</td>'
+        return '<tr><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td></tr>';
       }).join('') || '<tr><td colspan="4" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
-    + (cashIncs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
+    + (cashIncs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmtInt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
       || '<tr><td colspan="4" class="empty">暂无收入记录</td></tr>')
     + '</tbody></table>'
     + '</div>';
