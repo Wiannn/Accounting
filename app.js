@@ -128,6 +128,13 @@ async function loadState() {
       }
     }
   }
+  // 迁移：历史账单收款生成的收入曾被标成「进仓费」，统一改为「账单收款」
+  for (const i of S.incomes) {
+    if (i.paymentId && i.type !== '账单收款') {
+      i.type = '账单收款';
+      await dbPut('incomes', i);
+    }
+  }
   const m = {};
   meta.forEach(r => { m[r.id] = r.value; });
   S.settings = Object.assign({}, DEFAULTS, m);
@@ -917,8 +924,8 @@ const handleModalClick = async e => {
     if (!bill) return;
     const pid = uid();
     await dbPut('payments', { id: pid, billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
-    // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）
-    await dbPut('incomes', { id: uid(), date: date, type: bill.feeType || '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pid, createdAt: Date.now() });
+    // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）；月账单收款固定记为「账单收款」，不混入现结收入
+    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pid, createdAt: Date.now() });
     await loadState();
     openBillModal(currentBillId);
     renderBills();
@@ -1236,11 +1243,12 @@ function openCustDetail(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   const incs = S.incomes.filter(i => i.customerId === cid).sort((a, b) => b.date.localeCompare(a.date));
+  const cashIncs = incs.filter(i => !i.billId);
   const bills = S.bills.filter(b => b.customerId === cid).sort((a, b) => b.period.localeCompare(a.period));
-  const incTotal = round2(incs.reduce((s, i) => s + Number(i.amount), 0));
+  const incTotal = round2(cashIncs.reduce((s, i) => s + Number(i.amount), 0));
   const owed = round2(bills.reduce((s, b) => s + billState(b).remaining, 0));
 
-  const typeSum = t => round2(incs.filter(i => (i.type || '进仓费') === t).reduce((s, i) => s + Number(i.amount), 0));
+  const typeSum = t => round2(cashIncs.filter(i => (i.type || '进仓费') === t).reduce((s, i) => s + Number(i.amount), 0));
 
   $('#cust-detail-name').textContent = c.name;
   $('#cust-detail-body').innerHTML =
@@ -1258,7 +1266,7 @@ function openCustDetail(cid) {
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
-    + (incs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
+    + (cashIncs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
       || '<tr><td colspan="4" class="empty">暂无收入记录</td></tr>')
     + '</tbody></table>'
     + '</div>';
