@@ -197,7 +197,11 @@ function invState(b) {
   const invoiced = round2(S.invoices.filter(i => i.billId === b.id).reduce((s, i) => s + (Number(i.amount) > 0 ? Number(i.amount) : Number(b.amount)), 0));
   const remaining = Math.max(0, round2(Number(b.amount) - invoiced));
   let key = 'none', label = '待开票';
-  if (invoiced > 0 && remaining <= 0) { key = 'done'; label = '已开票'; }
+  // 手动覆盖开票状态：待开票/部分开票/已开票
+  if (b.invOverride === 'done' || b.invOverride === 'partial' || b.invOverride === 'none') {
+    key = b.invOverride;
+    label = key === 'done' ? '已开票' : key === 'partial' ? '部分开票' : '待开票';
+  } else if (invoiced > 0 && remaining <= 0) { key = 'done'; label = '已开票'; }
   else if (invoiced > 0) { key = 'partial'; label = '部分开票'; }
   return { invoiced, remaining, key, label };
 }
@@ -1519,6 +1523,12 @@ function openBillEditModal(billId) {
     + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block;margin-bottom:10px">开票状态<select id="edit-bill-inv" style="width:100%;margin-top:6px;padding:6px">'
+    + '<option value="auto"' + (!b.invOverride ? ' selected' : '') + '>自动（按开票记录）</option>'
+    + '<option value="none"' + (b.invOverride === 'none' ? ' selected' : '') + '>待开票</option>'
+    + '<option value="partial"' + (b.invOverride === 'partial' ? ' selected' : '') + '>部分开票</option>'
+    + '<option value="done"' + (b.invOverride === 'done' ? ' selected' : '') + '>已开票</option>'
+    + '</select></label>'
     + '<div class="muted" style="font-size:12px;margin-bottom:10px">账单金额与待收金额分别保存，互不影响。</div>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
@@ -1543,6 +1553,10 @@ async function saveBillEdit() {
   const naturalRemaining = Math.max(0, round2(amount - paid));
   if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(amount, Math.max(0, remainingInput));
   else delete b.remainingOverride;
+  // 开票状态：auto 表示按开票记录自动计算，否则手动覆盖
+  const invSel = $('#edit-bill-inv').value;
+  if (invSel === 'auto') delete b.invOverride;
+  else b.invOverride = invSel;
   await dbPut('bills', b);
   await loadState();
   closeModal();
