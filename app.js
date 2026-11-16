@@ -1393,9 +1393,9 @@ function openCustDetail(cid) {
   $('#cust-detail-name').textContent = c.name;
   $('#cust-detail-body').innerHTML =
     '<div class="panel">'
-    + '<div class="kv"><span>现结收入</span><b>' + fmtInt(incTotal) + '</b></div>'
+    + '<div class="kv"><span>现结</span><b>' + fmtInt(incTotal) + '</b></div>'
     + '<div class="kv"><span>本年应收</span><b>' + fmtInt(yearReceivable) + '</b></div>'
-    + '<div class="kv"><span>已结清月结</span><b>' + fmtInt(settledTotal) + '</b></div>'
+    + '<div class="kv"><span>已收</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
     + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
