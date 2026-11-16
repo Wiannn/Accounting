@@ -126,7 +126,11 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ic-act{display:flex;gap:10px;flex-shrink:0}
 .inline-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .inline-form input{flex:1;min-width:110px}
-.modal-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end}
+.modal-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.file-preview{max-height:58vh;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;padding:8px;background:#fff}
+.preview-sheet-title{font-size:12px;font-weight:600;color:var(--muted);margin:6px 0 4px}
+.preview-sheet table{border-collapse:collapse;font-size:12px}
+.preview-sheet td,.preview-sheet th{border:1px solid var(--border);padding:4px 6px;white-space:nowrap}
 #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#24263A;color:#fff;padding:10px 22px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;z-index:99;pointer-events:none}
 #toast.show{opacity:.95}
 

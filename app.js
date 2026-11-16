@@ -1330,16 +1330,7 @@ $('#cust-detail-body').addEventListener('click', e => {
     input.click();
   } else if (open) {
     const f = billFileOf(open.dataset.billfileOpen);
-    if (!f) return;
-    const bin = atob(f.data || '');
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([bytes], { type: f.mime || 'application/octet-stream' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = f.name || '账单.xlsx';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (f) previewBillFile(f);
   } else if (del) {
     if (!confirm('删除该账单的 Excel 附件？账单金额不受影响。')) return;
     const billId = del.dataset.billfileDel;
@@ -1347,6 +1338,40 @@ $('#cust-detail-body').addEventListener('click', e => {
     awaitDelBillFile(billId, bill ? bill.customerId : null);
   }
 });
+// 在线预览附件：直接渲染 Excel 内容，另提供下载入口
+async function previewBillFile(f) {
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>账单预览</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="muted" style="margin-bottom:8px;word-break:break-all">' + esc(f.name || '') + '</div>'
+    + '<div id="bill-file-preview" class="file-preview"><div class="muted">正在解析…</div></div>'
+    + '<div class="modal-foot"><button class="ghost" id="btn-bill-file-download">下载原文件</button><button class="primary" data-close>关闭</button></div>';
+  $('#modal-mask').classList.remove('hidden');
+  $('#btn-bill-file-download').addEventListener('click', () => downloadBillFile(f));
+  try {
+    await ensureXLSX();
+    const bin = atob(f.data || '');
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const wb = XLSX.read(bytes, { type: 'array' });
+    const html = wb.SheetNames.map(n => '<div class="preview-sheet-title">' + esc(n) + '</div><div class="preview-sheet">' + XLSX.utils.sheet_to_html(wb.Sheets[n]) + '</div>').join('');
+    const box = $('#bill-file-preview');
+    if (box) box.innerHTML = html || '<div class="muted">表格为空</div>';
+  } catch (err) {
+    const box = $('#bill-file-preview');
+    if (box) box.innerHTML = '<div class="muted">无法解析该文件，可删除后重新上传。</div>';
+  }
+}
+function downloadBillFile(f) {
+  const bin = atob(f.data || '');
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: f.mime || 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.name || '账单.xlsx';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 async function awaitDelBillFile(billId, cid) {
   await dbDel('billFiles', billId);
   await loadState();
