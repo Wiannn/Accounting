@@ -528,7 +528,7 @@ function renderIncTypes(selected) {
 function openIncTypeModal() {
   $('#subcat-modal').innerHTML =
     '<div class="modal-head"><h2>新增费用类型</h2><button class="modal-x" id="btn-subcat-x">&times;</button></div>'
-    + '<label style="display:block">类型名称<input type="text" id="subcat-name" autocomplete="off" placeholder="例如：扫描费" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block">类型名称<input type="text" id="subcat-name" autocomplete="off" style="width:100%;margin-top:6px"></label>'
     + '<div class="modal-foot"><button class="ghost" id="btn-subcat-cancel">取消</button><button class="primary" id="btn-inc-type-save">保存</button></div>';
   $('#subcat-mask').classList.remove('hidden');
   $('#btn-subcat-x').addEventListener('click', closeSubcatModal);
