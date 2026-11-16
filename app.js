@@ -1414,9 +1414,7 @@ function openCustDetail(cid) {
             : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
           + '</td></tr>';
       }).join('') || '<tr><td colspan="7" class="empty">暂无账单</td></tr>')
-    + '</tbody>'
-    + (bills.length ? '<tfoot><tr><th>合计</th><th>' + fmtInt(round2(bills.reduce((s, b) => s + Number(b.amount), 0))) + '</th><th class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</th><th colspan="4"></th></tr></tfoot>' : '')
-    + '</table>'
+    + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
     + (cashIncs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmtInt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
