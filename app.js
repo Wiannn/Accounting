@@ -598,6 +598,7 @@ function openBillForm() {
   if (lastC && S.customers.some(c => c.id === lastC)) $('#bill3-customer').value = lastC;
   $('#bill3-period').value = monthStr();
   $('#bill3-amount').value = '';
+  $('#bill3-note').value = '';
   $('#btn-save-bill3').addEventListener('click', saveBill3);
   $('#bill3-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill3(); } });
 }
@@ -606,12 +607,13 @@ async function saveBill3() {
   const cid = $('#bill3-customer').value;
   const period = $('#bill3-period').value;
   const amount = round2($('#bill3-amount').value);
+  const note = $('#bill3-note').value.trim();
   if (!cid) { toast('请先添加顾客'); return; }
   if (!period) { toast('请选择月份'); return; }
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
   if (dup && !confirm('该顾客这个月份已有账单，确定再添加一张吗？')) return;
-  await dbPut('bills', { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, billDate: '', createdAt: Date.now() });
+  await dbPut('bills', { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, note: note, billDate: '', createdAt: Date.now() });
   await saveSetting('lastBillCustomer', cid);
   await loadState();
   closeModal();
@@ -1387,7 +1389,7 @@ function openCustDetail(cid) {
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmtInt(typeSum('进仓费')) + '　·　打印费 ' + fmtInt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th><th>账单</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
@@ -1396,13 +1398,16 @@ function openCustDetail(cid) {
         return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
+          + '<td>' + esc(b.note || '') + '</td>'
           + '<td style="white-space:nowrap">' + (bf
             ? '<button data-billfile-open="' + b.id + '" style="' + btn + '" title="' + esc(bf.name) + '">查看</button>'
               + '<button data-billfile-del="' + b.id + '" style="' + btn + ';margin-left:3px" title="删除附件">×</button>'
             : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
           + '</td></tr>';
-      }).join('') || '<tr><td colspan="6" class="empty">暂无账单</td></tr>')
-    + '</tbody></table>'
+      }).join('') || '<tr><td colspan="7" class="empty">暂无账单</td></tr>')
+    + '</tbody>'
+    + (bills.length ? '<tfoot><tr><th>合计</th><th>' + fmtInt(round2(bills.reduce((s, b) => s + Number(b.amount), 0))) + '</th><th class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</th><th colspan="4"></th></tr></tfoot>' : '')
+    + '</table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
     + (cashIncs.slice(0, 30).map(i => '<tr><td>' + i.date + '</td><td>' + esc(i.type || '进仓费') + '</td><td>' + fmtInt(i.amount) + '</td><td>' + esc(i.note || '') + '</td></tr>').join('')
@@ -1529,6 +1534,7 @@ function openBillEditModal(billId) {
     + '<option value="partial"' + (b.invOverride === 'partial' ? ' selected' : '') + '>部分开票</option>'
     + '<option value="done"' + (b.invOverride === 'done' ? ' selected' : '') + '>已开票</option>'
     + '</select></label>'
+    + '<label style="display:block;margin-bottom:10px">备注 <input type="text" id="edit-bill-note" value="' + esc(b.note || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<div class="muted" style="font-size:12px;margin-bottom:10px">账单金额与待收金额分别保存，互不影响。</div>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
@@ -1557,6 +1563,7 @@ async function saveBillEdit() {
   const invSel = $('#edit-bill-inv').value;
   if (invSel === 'auto') delete b.invOverride;
   else b.invOverride = invSel;
+  b.note = $('#edit-bill-note').value.trim();
   await dbPut('bills', b);
   await loadState();
   closeModal();

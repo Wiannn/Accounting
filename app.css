@@ -117,6 +117,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .kv span{color:var(--muted)}
 .sub-title{font-size:13px;font-weight:600;margin:16px 0 8px}
 .mini-table th,.mini-table td{padding:7px 8px;font-size:13px}
+.mini-table tfoot th{border-top:2px solid var(--border);font-weight:600;background:var(--gray-bg)}
 
 /* App 风格卡片列表 */
 .item-list{display:flex;flex-direction:column;gap:10px}
