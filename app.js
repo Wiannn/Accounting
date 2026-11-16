@@ -347,10 +347,16 @@ function openExpenseBreakdown() {
 }
 $('#stat-month-expense').addEventListener('click', openExpenseBreakdown);
 
-// 点击当月收入：按来源客户汇总弹窗（含账单收款，与当月收入卡片同口径）
+// 点击当月收入：按来源客户汇总弹窗（仅现结收入，与当月收入卡片同口径）
 function openIncomeBreakdown() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
-  const rows = incomeRowsByPrefix(period);
+  const sums = {};
+  S.incomes.forEach(i => {
+    if (i.billId) return; // 账单收款不计入记一笔
+    if (!(i.date || '').startsWith(period)) return;
+    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+  });
+  const rows = Object.keys(sums).map(cid => ({ cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   const listHtml = rows.length ? rows.map(r =>
     '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmtInt(r.amount) + '</span></div>'
@@ -370,8 +376,8 @@ function renderLedger() {
   $('#ledger-month-text').textContent = m + '月';
   $('#ledger-year').textContent = y + '年';
   // 当月收支（挂账支出不计入统计）
-  // 当月收入：收入流水 + 无对应流水的账单收款（已结清/部分收款都算，不重复）
-  const income = round2(incomeRowsByPrefix(period).reduce((s, r) => s + r.amount, 0));
+  // 当月收入：仅现结收入，账单收款（客户页已结清）不计入记一笔
+  const income = round2(S.incomes.filter(i => !i.billId && (i.date || '').startsWith(period)).reduce((s, i) => s + Number(i.amount || 0), 0));
   let expense = 0, reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
@@ -385,7 +391,8 @@ function renderLedger() {
   $('#ledger-expense').textContent = '−' + fmt2(expense) + (pendNote ? '（另有' + pendNote + '）' : '');
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）；有搜索词时搜索全部月份
-  const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
+  // 账单收款（客户页已结清）不计入记一笔流水
+  const all = S.incomes.filter(i => !i.billId).map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: e.driverId ? empName(e.driverId) : '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   // 搜索过滤：匹配分类、客户、备注、金额、日期（全部月份）
