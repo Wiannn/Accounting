@@ -459,8 +459,9 @@ function renderTxSubs() {
 function driverOptions(selected) {
   const list = S.employees.filter(e2 => e2.active !== false && e2.role === '司机')
     .sort((a, b) => a.name.localeCompare(b.name, 'zh'));
-  let html = '<option value="">不关联</option>' + list.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
-  if (selected && !list.some(e2 => e2.id === selected)) html += '<option value="' + selected + '">' + esc(empName(selected)) + '</option>';
+  let html = '<option value=""' + (selected ? '' : ' selected') + '>不关联</option>'
+    + list.map(e2 => '<option value="' + e2.id + '"' + (e2.id === selected ? ' selected' : '') + '>' + esc(e2.name) + '</option>').join('');
+  if (selected && !list.some(e2 => e2.id === selected)) html += '<option value="' + selected + '" selected>' + esc(empName(selected)) + '</option>';
   return html;
 }
 
