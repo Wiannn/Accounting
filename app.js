@@ -98,7 +98,8 @@ const DEFAULTS = {
     '仓库': ['办公用品', '工具材料', '油费'],
     '车队': ['上车费', '高速费', '油费', '打印费'],
     '员工': ['员工工资', '报销']
-  }
+  },
+  incomeFees: ['进仓费', '打印费']
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
@@ -501,15 +502,47 @@ async function saveSubcat() {
 // 按钮位于弹窗模板内，挂载后才存在，使用事件委托绑定
 document.addEventListener('click', e => {
   if (e.target.closest('#btn-add-sub')) { e.preventDefault(); openSubcatModal(); }
+  if (e.target.closest('#btn-add-inc-type')) { e.preventDefault(); openIncTypeModal(); }
 });
 
-function initTxForm() {  $('#tx-date').value = todayStr();
+/* ---------- 自定义收入费用类型 ---------- */
+function renderIncTypes(selected) {
+  const list = S.settings.incomeFees && S.settings.incomeFees.length ? S.settings.incomeFees : ['进仓费', '打印费'];
+  const keep = selected || ($('#inc-type') && $('#inc-type').value);
+  $('#inc-type').innerHTML = list.map(s => '<option' + (s === keep ? ' selected' : '') + '>' + esc(s) + '</option>').join('');
+}
+function openIncTypeModal() {
+  $('#subcat-modal').innerHTML =
+    '<div class="modal-head"><h2>新增费用类型</h2><button class="modal-x" id="btn-subcat-x">&times;</button></div>'
+    + '<label style="display:block">类型名称<input type="text" id="subcat-name" autocomplete="off" placeholder="例如：扫描费" style="width:100%;margin-top:6px"></label>'
+    + '<div class="modal-foot"><button class="ghost" id="btn-subcat-cancel">取消</button><button class="primary" id="btn-inc-type-save">保存</button></div>';
+  $('#subcat-mask').classList.remove('hidden');
+  $('#btn-subcat-x').addEventListener('click', closeSubcatModal);
+  $('#btn-subcat-cancel').addEventListener('click', closeSubcatModal);
+  $('#btn-inc-type-save').addEventListener('click', saveIncType);
+  $('#subcat-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveIncType(); } });
+}
+async function saveIncType() {
+  const name = ($('#subcat-name').value || '').trim();
+  if (!name) { toast('请输入类型名称'); return; }
+  const list = S.settings.incomeFees || [];
+  if (list.includes(name)) { toast('该类型已存在'); return; }
+  S.settings.incomeFees = list.concat([name]);
+  await saveSetting('incomeFees', S.settings.incomeFees);
+  renderIncTypes(name);
+  closeSubcatModal();
+  toast('已新增类型：' + name);
+}
+
+function initTxForm() {
+  $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
   $('#tx-status').value = 'paid';
   $('#wrap-tx-date').classList.remove('hidden');
   if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
+  renderIncTypes();
   const lastInc = S.settings.lastIncCustomer;
   if (lastInc && S.customers.some(c => c.id === lastInc)) $('#inc-customer').value = lastInc;
   setTxTab('expense');
@@ -531,6 +564,7 @@ function setTxTab(t) {
   $('#wrap-tx-status').classList.toggle('hidden', inc);
   $('#wrap-inc-customer').classList.toggle('hidden', !inc);
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
+  if (inc) renderIncTypes();
   $('#wrap-tx-date').classList.toggle('hidden', !inc && $('#tx-status').value !== 'paid');
   $('#tx-note').placeholder = inc ? '选填，可写车牌/事项' : '选填，可写司机名/供应商名';
   $('#tx-hint').textContent = inc
