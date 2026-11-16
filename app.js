@@ -181,7 +181,10 @@ const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).redu
 function billState(b) {
   const paidRecords = paidOf(b.id);
   const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
-  let remaining = hasOverride ? Math.max(0, round2(Number(b.remainingOverride))) : round2(Number(b.amount) - paidRecords);
+  // 待收金额永远不超过账单金额；手动设置的 override 封顶为账单金额，避免删除收款时翻倍
+  let remaining = hasOverride
+    ? Math.min(round2(Number(b.amount)), Math.max(0, round2(Number(b.remainingOverride))))
+    : Math.max(0, round2(Number(b.amount) - paidRecords));
   if (remaining <= 0) remaining = 0;
   // 已收 = 账单金额 − 待收金额；未手动设置待收时等同于收款记录合计
   const paid = hasOverride ? Math.max(0, round2(Number(b.amount) - remaining)) : paidRecords;
@@ -1026,9 +1029,11 @@ const handleModalClick = async e => {
     if (!bill) return;
     const pid = uid();
     await dbPut('payments', { id: pid, billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
-    // 若账单被手动设置过待收金额，登记收款后同步扣减该待收金额
+    // 若账单被手动设置过待收金额，登记收款后同步扣减该待收金额；归零或等于自然值时清除覆盖
     if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
       bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amount));
+      const naturalAfter = Math.max(0, round2(Number(bill.amount) - (paidOf(bill.id) + amount)));
+      if (bill.remainingOverride <= 0 || round2(bill.remainingOverride) === naturalAfter) delete bill.remainingOverride;
       await dbPut('bills', bill);
     }
     // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）；月账单收款固定记为「账单收款」，不混入现结收入
@@ -1045,9 +1050,14 @@ const handleModalClick = async e => {
     const delBill = S.bills.find(x => x.id === currentBillId);
     for (const inc of S.incomes.filter(i => i.paymentId === t.dataset.delpay)) await dbDel('incomes', inc.id);
     await dbDel('payments', t.dataset.delpay);
-    // 若账单被手动设置过待收金额，删除收款后同步回补该待收金额
+    // 若账单被手动设置过待收金额，删除收款后同步回补该待收金额；封顶为账单金额，避免翻倍
     if (delPay && delBill && delBill.remainingOverride !== undefined && delBill.remainingOverride !== null && isFinite(Number(delBill.remainingOverride))) {
-      delBill.remainingOverride = round2(Number(delBill.remainingOverride) + Number(delPay.amount));
+      delBill.remainingOverride = Math.min(
+        round2(Number(delBill.amount)),
+        round2(Number(delBill.remainingOverride) + Number(delPay.amount))
+      );
+      const naturalAfter = Math.max(0, round2(Number(delBill.amount) - (paidOf(delBill.id) - Number(delPay.amount))));
+      if (round2(delBill.remainingOverride) === naturalAfter) delete delBill.remainingOverride;
       await dbPut('bills', delBill);
     }
     await loadState();
@@ -1531,7 +1541,7 @@ async function saveBillEdit() {
   b.amount = amount;
   // 待收金额独立保存；与「账单金额 − 已收」一致时不保留覆盖值，恢复自动计算
   const naturalRemaining = Math.max(0, round2(amount - paid));
-  if (remainingInput !== naturalRemaining) b.remainingOverride = remainingInput;
+  if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(amount, Math.max(0, remainingInput));
   else delete b.remainingOverride;
   await dbPut('bills', b);
   await loadState();
