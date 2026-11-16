@@ -1386,6 +1386,7 @@ function openCustDetail(cid) {
   const bills = S.bills.filter(b => b.customerId === cid).sort((a, b) => b.period.localeCompare(a.period));
   const incTotal = round2(cashIncs.reduce((s, i) => s + Number(i.amount), 0));
   const owed = round2(bills.reduce((s, b) => s + billState(b).remaining, 0));
+  const settledTotal = round2(bills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + Number(b.amount), 0));
 
   const typeSum = t => round2(cashIncs.filter(i => (i.type || '进仓费') === t).reduce((s, i) => s + Number(i.amount), 0));
 
@@ -1393,6 +1394,7 @@ function openCustDetail(cid) {
   $('#cust-detail-body').innerHTML =
     '<div class="panel">'
     + '<div class="kv"><span>收入合计（现结）</span><b>' + fmtInt(incTotal) + '</b></div>'
+    + '<div class="kv"><span>已结清月结</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmtInt(typeSum('进仓费')) + '　·　打印费 ' + fmtInt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
