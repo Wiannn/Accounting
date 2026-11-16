@@ -42,12 +42,12 @@ function toast(msg) {
 // 全局错误兜底：任何静默失败都以提示浮出，便于定位
 window.addEventListener('error', e => { try { toast('出错了：' + (e.message || '未知错误')); } catch (_) {} });
 window.addEventListener('unhandledrejection', e => { try { const r = e.reason; toast('操作失败：' + ((r && r.message) || r || '未知错误')); } catch (_) {} });
-const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'meta'];
+const STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'meta', 'billFiles'];
 let _db = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('company-ledger', 7);
+    const req = indexedDB.open('company-ledger', 8);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       STORES.forEach(s => { if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' }); });
@@ -102,12 +102,13 @@ const DEFAULTS = {
 };
 const LEGACY_CATS = { '工资': ['员工', '员工工资'], '办公用品': ['仓库', '办公用品'], '仓库工具': ['仓库', '工具材料'], '车队报销': ['车队', '其他'] };
 const ROLE_ORDER = ['叉车工', '装卸工', '司机', '调度', '操作', '换单'];
-let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], settings: Object.assign({}, DEFAULTS) };
+let S = { customers: [], incomes: [], expenses: [], bills: [], payments: [], invoices: [], employees: [], wages: [], billFiles: [], settings: Object.assign({}, DEFAULTS) };
 
 async function loadState() {
-  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, meta] = await Promise.all(STORES.map(dbGetAll));
+  const [customers, incomes, expenses, bills, payments, invoices, employees, wages, meta, billFiles] = await Promise.all(STORES.map(dbGetAll));
   S.customers = customers.sort((a, b) => a.createdAt - b.createdAt);
   S.incomes = incomes; S.expenses = expenses; S.bills = bills; S.payments = payments; S.invoices = invoices;
+  S.billFiles = billFiles || [];
   S.employees = employees.sort((a, b) => a.createdAt - b.createdAt); S.wages = wages;
   // 迁移：旧工资单若有 paidDate 但无 payments → 用已生成的支出记录反推一条 payment
   let needSave = false;
@@ -1273,14 +1274,21 @@ function openCustDetail(cid) {
     + '<div class="kv"><span style="font-size:12px;color:var(--muted)">进仓费 ' + fmtInt(typeSum('进仓费')) + '　·　打印费 ' + fmtInt(typeSum('打印费')) + '</span><b></b></div>'
     + '<div class="kv"><span>当前欠款（账单未收）</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th><th>账单</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
+        const bf = billFileOf(b.id);
+        const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
         return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
-          + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td></tr>';
-      }).join('') || '<tr><td colspan="5" class="empty">暂无账单</td></tr>')
+          + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
+          + '<td style="white-space:nowrap">' + (bf
+            ? '<button data-billfile-open="' + b.id + '" style="' + btn + '" title="' + esc(bf.name) + '">查看</button>'
+              + '<button data-billfile-del="' + b.id + '" style="' + btn + ';margin-left:3px" title="删除附件">×</button>'
+            : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
+          + '</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
@@ -1304,6 +1312,64 @@ $('#btn-cust-detail-back').addEventListener('click', () => {
 $('#cust-detail-body').addEventListener('dblclick', e => {
   const row = e.target.closest('[data-custbill]');
   if (row) openBillEditModal(row.dataset.custbill);
+});
+
+/* ---------- 账单附件：Excel 存档 ---------- */
+function billFileOf(billId) {
+  return S.billFiles.find(f => f.id === billId);
+}
+let pendingBillFileId = null;
+$('#cust-detail-body').addEventListener('click', e => {
+  const up = e.target.closest('[data-billfile-upload]');
+  const open = e.target.closest('[data-billfile-open]');
+  const del = e.target.closest('[data-billfile-del]');
+  if (up) {
+    pendingBillFileId = up.dataset.billfileUpload;
+    const input = $('#bill-file-input');
+    input.value = '';
+    input.click();
+  } else if (open) {
+    const f = billFileOf(open.dataset.billfileOpen);
+    if (!f) return;
+    const bin = atob(f.data || '');
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: f.mime || 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name || '账单.xlsx';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } else if (del) {
+    if (!confirm('删除该账单的 Excel 附件？账单金额不受影响。')) return;
+    const billId = del.dataset.billfileDel;
+    const bill = S.bills.find(x => x.id === billId);
+    awaitDelBillFile(billId, bill ? bill.customerId : null);
+  }
+});
+async function awaitDelBillFile(billId, cid) {
+  await dbDel('billFiles', billId);
+  await loadState();
+  if (cid) openCustDetail(cid);
+  toast('附件已删除');
+}
+$('#bill-file-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !pendingBillFileId) return;
+  if (file.size > 10 * 1024 * 1024) { toast('文件超过 10MB，请压缩后再上传'); return; }
+  const bill = S.bills.find(x => x.id === pendingBillFileId);
+  if (!bill) return;
+  const base64 = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+  await dbPut('billFiles', { id: bill.id, billId: bill.id, name: file.name, mime: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size: file.size, data: base64, createdAt: Date.now() });
+  await loadState();
+  openCustDetail(bill.customerId);
+  toast('附件已保存：' + file.name);
 });
 
 let editingBillId = null;
@@ -1608,7 +1674,7 @@ $('#btn-backup').addEventListener('click', () => {
     app: 'company-ledger', version: 1, exportedAt: new Date().toISOString(),
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
     bills: S.bills, payments: S.payments, invoices: S.invoices,
-    employees: S.employees, wages: S.wages,
+    employees: S.employees, wages: S.wages, billFiles: S.billFiles,
     settings: S.settings
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1784,6 +1850,7 @@ async function importBackup(file) {
   for (const iv of data.invoices || []) await dbPut('invoices', iv);
   for (const em of data.employees || []) await dbPut('employees', em);
   for (const wg of data.wages || []) await dbPut('wages', wg);
+  for (const bf of data.billFiles || []) await dbPut('billFiles', bf);
   for (const p of data.purchases || []) { /* 采购功能已删除 */ }
   // 报销功能已并入支出（车队分类），旧报销数据不再导入
   const st = data.settings || {};
