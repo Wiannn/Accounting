@@ -479,7 +479,10 @@ async function saveSubcat() {
   closeSubcatModal();
   toast('已新增分类：' + name);
 }
-$('#btn-add-sub').addEventListener('click', openSubcatModal);
+// 按钮位于弹窗模板内，挂载后才存在，使用事件委托绑定
+document.addEventListener('click', e => {
+  if (e.target.closest('#btn-add-sub')) { e.preventDefault(); openSubcatModal(); }
+});
 
 function initTxForm() {  $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
