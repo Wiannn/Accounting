@@ -378,7 +378,7 @@ function renderLedger() {
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）；有搜索词时搜索全部月份
   const all = S.incomes.map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
-    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
+    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: e.driverId ? empName(e.driverId) : '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   // 搜索过滤：匹配分类、客户、备注、金额、日期（全部月份）
   const kw = (($('#ledger-search') && $('#ledger-search').value) || '').trim().toLowerCase();
@@ -444,6 +444,24 @@ function renderTxSubs() {
   } else {
     wrap.classList.add('hidden');
   }
+  // 车队支出可关联司机
+  const drvWrap = $('#wrap-tx-driver');
+  if (drvWrap) {
+    drvWrap.classList.toggle('hidden', g !== '车队');
+    if (g === '车队') {
+      const keep = $('#tx-driver').value;
+      $('#tx-driver').innerHTML = driverOptions(keep);
+    }
+  }
+}
+
+// 司机下拉：仅在职的「司机」职位员工
+function driverOptions(selected) {
+  const list = S.employees.filter(e2 => e2.active !== false && e2.role === '司机')
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+  let html = '<option value="">不关联</option>' + list.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('');
+  if (selected && !list.some(e2 => e2.id === selected)) html += '<option value="' + selected + '">' + esc(empName(selected)) + '</option>';
+  return html;
 }
 
 /* ---------- 自定义支出子分类 ---------- */
@@ -508,6 +526,7 @@ function setTxTab(t) {
   $('#seg-income').classList.toggle('active', inc);
   $('#wrap-tx-group').classList.toggle('hidden', inc);
   $('#wrap-subcategory').classList.toggle('hidden', inc);
+  $('#wrap-tx-driver').classList.toggle('hidden', inc || $('#tx-group').value !== '车队');
   $('#wrap-tx-status').classList.toggle('hidden', inc);
   $('#wrap-inc-customer').classList.toggle('hidden', !inc);
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
@@ -617,7 +636,8 @@ async function saveTx() {
   const group = $('#tx-group').value;
   const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
   const newId = uid();
-  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
+  const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
+  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
   await loadState();
   closeModal();
   revealLedgerRecord('expenses', newId, date);
@@ -654,11 +674,13 @@ $('#ledger-list').addEventListener('click', e => {
         + '<div class="form-grid" style="margin-top:10px;margin-bottom:0">'
         + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
         + '<label>备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
+        + (rec.category === '车队' ? '<label>司机 <select id="le-driver">' + driverOptions(rec.driverId) + '</select></label>' : '')
         + '</div>'
       : '<div class="form-grid" style="margin-top:12px;margin-bottom:0">'
         + '<label>日期 <input type="date" id="le-date" value="' + (rec.date || '') + '"></label>'
         + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
         + '<label class="span2">备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
+        + (rec.category === '车队' ? '<label class="span2">司机 <select id="le-driver">' + driverOptions(rec.driverId) + '</select></label>' : '')
         + '</div>')
     + '<button class="primary" id="btn-ledger-save" style="margin-top:12px">保存修改</button>'
     + (pending
@@ -1119,6 +1141,8 @@ const handleModalClick = async e => {
     }
     rec.amount = amt;
     rec.note = $('#le-note').value.trim();
+    const drvEl = $('#le-driver');
+    if (drvEl) rec.driverId = drvEl.value || null;
     await dbPut(store, rec);
     await loadState();
     closeModal();
