@@ -144,11 +144,14 @@ async function loadState() {
 const saveSetting = (key, value) => dbPut('meta', { id: key, value: value });
 
 async function migrateCategories() {
-  // 车队子分类统一为：上车费/高速费/油费/打印费（员工报销并入支出·车队）
+  // 一次性统一车队默认子分类；之后用户自行新增的分类不再被覆盖
   const FLEET_SUBS = ['上车费', '高速费', '油费', '打印费'];
-  if (JSON.stringify(S.settings.catGroups['车队']) !== JSON.stringify(FLEET_SUBS)) {
-    S.settings.catGroups['车队'] = FLEET_SUBS;
+  if (!S.settings.fleetSubsMigrated) {
+    const cur = S.settings.catGroups['车队'] || [];
+    if (!cur.some(x => !FLEET_SUBS.includes(x))) S.settings.catGroups['车队'] = FLEET_SUBS.slice();
+    S.settings.fleetSubsMigrated = true;
     await saveSetting('catGroups', S.settings.catGroups);
+    await saveSetting('fleetSubsMigrated', true);
   }
   // 老数据补上「报销」子分类（历史报销生成的支出仍能显示分类名）
   if (!(S.settings.catGroups['员工'] || []).includes('报销')) {
@@ -443,8 +446,42 @@ function renderTxSubs() {
   }
 }
 
-function initTxForm() {
-  $('#tx-date').value = todayStr();
+/* ---------- 自定义支出子分类 ---------- */
+let subcatGroup = '';
+function openSubcatModal() {
+  const g = $('#tx-group').value;
+  if (!g || g === '其他') { toast('请先选择主分类'); return; }
+  subcatGroup = g;
+  $('#subcat-modal').innerHTML =
+    '<div class="modal-head"><h2>新增分类 · ' + esc(g) + '</h2><button class="modal-x" id="btn-subcat-x">&times;</button></div>'
+    + '<label style="display:block">分类名称<input type="text" id="subcat-name" autocomplete="off" placeholder="例如：叉车维修" style="width:100%;margin-top:6px"></label>'
+    + '<div class="modal-foot"><button class="ghost" id="btn-subcat-cancel">取消</button><button class="primary" id="btn-subcat-save">保存</button></div>';
+  $('#subcat-mask').classList.remove('hidden');
+  $('#btn-subcat-x').addEventListener('click', closeSubcatModal);
+  $('#btn-subcat-cancel').addEventListener('click', closeSubcatModal);
+  $('#btn-subcat-save').addEventListener('click', saveSubcat);
+  $('#subcat-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSubcat(); } });
+}
+function closeSubcatModal() {
+  $('#subcat-mask').classList.add('hidden');
+  $('#subcat-modal').innerHTML = '';
+}
+async function saveSubcat() {
+  const name = ($('#subcat-name').value || '').trim();
+  const g = subcatGroup;
+  if (!name) { toast('请输入分类名称'); return; }
+  const list = S.settings.catGroups[g] || [];
+  if (list.includes(name)) { toast('该分类已存在'); return; }
+  S.settings.catGroups[g] = list.concat([name]);
+  await saveSetting('catGroups', S.settings.catGroups);
+  renderTxSubs();
+  $('#tx-category').value = name;
+  closeSubcatModal();
+  toast('已新增分类：' + name);
+}
+$('#btn-add-sub').addEventListener('click', openSubcatModal);
+
+function initTxForm() {  $('#tx-date').value = todayStr();
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
   $('#tx-status').value = 'paid';
