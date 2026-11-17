@@ -235,7 +235,7 @@ function renderPage(p) {
     $('#cust-detail').classList.add('hidden');
     $('#bills-main').classList.remove('hidden');
   }
-  ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: () => {} }[p] || function () {})();
+  ({ add: renderAdd, bills: renderBills, wages: renderWages, settings: renderExportCustSelect }[p] || function () {})();
 }
 
 /* ---------- 客户页顶部统计 ---------- */
@@ -1828,6 +1828,51 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
 
   XLSX.writeFile(wb, '账本报表_' + label + '.xlsx');
   toast('Excel 已导出');
+});
+
+// 客户选择下拉：进入设置页时按客户名重新填充
+function renderExportCustSelect() {
+  const sel = $('#export-cust-select');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = S.customers.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+    .map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  if (prev && S.customers.some(c => c.id === prev)) sel.value = prev;
+}
+
+// 按客户导出全部月账单 + 记一笔日收入（含备注）
+$('#btn-export-cust').addEventListener('click', async () => {
+  const cid = $('#export-cust-select').value;
+  if (!cid) { toast('请先选择客户'); return; }
+  if (typeof XLSX === 'undefined') {
+    toast('首次导出需加载组件，请稍候…');
+    try { await ensureXLSX(); } catch (err) { alert(err.message); return; }
+  }
+  const wb = XLSX.utils.book_new();
+
+  // 月账单
+  const r1 = [['客户', '账期', '账单金额(元)', '已收(元)', '待收(元)', '收款状态', '开票状态', '备注']];
+  S.bills.filter(b => b.customerId === cid)
+    .sort((a, b) => (a.period || '').localeCompare(b.period || ''))
+    .forEach(b => {
+      const st = billState(b);
+      r1.push([custName(cid), b.period || '', Number(b.amount) || 0, st.paid, st.remaining, st.label, invState(b).label, b.note || '']);
+    });
+  const ws1 = XLSX.utils.aoa_to_sheet(r1);
+  ws1['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws1, '月账单');
+
+  // 记一笔日收入（现结收入，不含账单收款）
+  const r2 = [['日期', '费用类型', '金额(元)', '备注']];
+  S.incomes.filter(i => i.customerId === cid && !i.billId)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .forEach(i => r2.push([i.date || '', i.type || '进仓费', Number(i.amount) || 0, i.note || '']));
+  const ws2 = XLSX.utils.aoa_to_sheet(r2);
+  ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws2, '日收入');
+
+  XLSX.writeFile(wb, '客户账单_' + custName(cid) + '_' + todayStr() + '.xlsx');
+  toast('客户账单已导出');
 });
 
 /* ---------- 备份与恢复 ---------- */

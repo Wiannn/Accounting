@@ -39,6 +39,14 @@
         <button class="primary" id="btn-export-xlsx">导出 Excel</button>
       </div>
       <div class="panel">
+        <div class="panel-title">导出客户账单 Excel</div>
+        <p class="muted" style="margin-bottom:12px">按客户导出全部月账单和记一笔日收入（含备注），生成「月账单」「日收入」两个工作表。</p>
+        <div class="form-grid">
+          <label>选择客户 <select id="export-cust-select"></select></label>
+        </div>
+        <button class="primary" id="btn-export-cust">导出该客户账单</button>
+      </div>
+      <div class="panel">
         <div class="panel-title">导入 Excel 现结收入</div>
         <p class="muted" style="margin-bottom:12px">表头包含「日期、进仓费（或金额）」列即可。有「客户」列按列读取；没有客户列时，自动用<b>文件名</b>作为客户名（一个文件一个客户）。没有的客户自动新建，相同客户+日期+金额的已有记录自动跳过，导入前可先预览核对。</p>
         <button class="primary" id="btn-import-xlsx">上传 Excel 导入</button>
@@ -194,6 +202,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=50"></script>
+<script src="app.js?v=51"></script>
 </body>
 </html>
