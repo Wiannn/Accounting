@@ -1384,16 +1384,16 @@ function openCustDetail(cid) {
   const incs = S.incomes.filter(i => i.customerId === cid).sort((a, b) => b.date.localeCompare(a.date));
   const cashIncs = incs.filter(i => !i.billId);
   const bills = S.bills.filter(b => b.customerId === cid).sort((a, b) => b.period.localeCompare(a.period));
-  const incTotal = round2(cashIncs.reduce((s, i) => s + Number(i.amount), 0));
   const owed = round2(bills.reduce((s, b) => s + billState(b).remaining, 0));
   const settledTotal = round2(bills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + Number(b.amount), 0));
   const yearPrefix = String(new Date().getFullYear());
+  const incTotal = round2(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).reduce((s, i) => s + Number(i.amount), 0));
   const yearReceivable = round2(bills.filter(b => (b.period || '').startsWith(yearPrefix)).reduce((s, b) => s + Number(b.amount), 0));
 
   $('#cust-detail-name').textContent = c.name;
   $('#cust-detail-body').innerHTML =
     '<div class="panel">'
-    + '<div class="kv"><span>现结</span><b>' + fmtInt(incTotal) + '</b></div>'
+    + '<div class="kv"><span>本年现结</span><b>' + fmtInt(incTotal) + '</b></div>'
     + '<div class="kv"><span>本年应收</span><b>' + fmtInt(yearReceivable) + '</b></div>'
     + '<div class="kv"><span>已收</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
