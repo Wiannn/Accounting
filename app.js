@@ -349,6 +349,7 @@ function renderAdd() {
 }
 
 let expenseBreakdownTab = 'main';
+let ledgerMonthCache = null;
 // 点击当月支出：进入支出统计次页面
 function enterExpenseBreakdownPage() {
   expenseBreakdownTab = 'main';
