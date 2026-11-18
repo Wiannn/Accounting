@@ -348,13 +348,13 @@ function renderAdd() {
   renderLedger();
 }
 
-let statsTab = 'exp-main';
+let statsTab = 'exp-sub';
 let statsMode = 'month';
 let ledgerMonthCache = null;
 
 // === 统一统计页面 ===
 function openStatsPage(defaultTab) {
-  statsTab = defaultTab || 'exp-main';
+  statsTab = defaultTab || 'exp-sub';
   statsMode = 'month';
   $('.ledger-topbar').style.display = 'none';
   $('.ledger-search').style.display = 'none';
@@ -388,7 +388,7 @@ function syncStatsPeriodPicker() {
 function renderStatsPage() {
   const period = statsPeriod();
   const modeLabel = statsMode === 'month' ? '' : period + '年 ';
-  const tabLabel = { 'exp-main': '支出 · 主分类', 'exp-sub': '支出 · 子分类', 'income': '收入 · 按客户' }[statsTab];
+  const tabLabel = { 'exp-sub': '支出 · 子分类', 'income': '收入 · 按客户' }[statsTab];
   $('#stats-title').textContent = modeLabel + tabLabel;
   $$('[data-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.statsMode === statsMode));
   $$('[data-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.statsTab === statsTab));
@@ -396,8 +396,7 @@ function renderStatsPage() {
   const body = $('#stats-body');
   let trendHtml = '';
   if (statsMode === 'year') trendHtml = renderYearTrend(period);
-  if (statsTab === 'exp-main') body.innerHTML = trendHtml + renderExpenseMain(period);
-  else if (statsTab === 'exp-sub') body.innerHTML = trendHtml + renderExpenseSub(period);
+  if (statsTab === 'exp-sub') body.innerHTML = trendHtml + renderExpenseSub(period);
   else body.innerHTML = trendHtml + renderIncomeByCustomer(period);
 }
 function shiftStatsPeriod(delta) {
@@ -580,9 +579,9 @@ $$('[data-stats-tab]').forEach(b => b.addEventListener('click', () => {
   statsTab = b.dataset.statsTab;
   renderStatsPage();
 }));
-$('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-main'));
+$('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-sub'));
 $('#stat-month-income').addEventListener('click', () => openStatsPage('income'));
-$('#btn-open-stats').addEventListener('click', () => openStatsPage(statsTab || 'exp-main'));
+$('#btn-open-stats').addEventListener('click', () => openStatsPage(statsTab || 'exp-sub'));
 $('#btn-period-prev').addEventListener('click', () => shiftStatsPeriod(-1));
 $('#btn-period-next').addEventListener('click', () => shiftStatsPeriod(1));
 $('#stats-period-month').addEventListener('change', setStatsPeriodFromPicker);
