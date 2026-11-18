@@ -658,8 +658,8 @@ function renderYearTrend(year) {
     const xe = cx + 1;
     const yi = padT + plotH - hi;
     const ye = padT + plotH - he;
-    bars += '<rect x="' + xi + '" y="' + yi + '" width="' + barW + '" height="' + hi + '" fill="#10b981" rx="2"></rect>'
-      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#f59e0b" rx="2"></rect>'
+    bars += '<rect x="' + xi + '" y="' + yi + '" width="' + barW + '" height="' + hi + '" fill="#3BB346" rx="2"></rect>'
+      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#C0392B" rx="2"></rect>'
       + '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + m.label + '</text>';
   });
   bars += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
@@ -670,11 +670,11 @@ function renderYearTrend(year) {
   return '<div class="year-trend-card">'
     + '<div class="donut-title">' + year + '年 · 月度收支趋势</div>'
     + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>'
-    + '<div class="trend-legend"><span class="trend-dot" style="background:#10b981"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#f59e0b"></span>支出合计 ' + fmt(totalExpense) + '</div>'
+    + '<div class="trend-legend"><span class="trend-dot" style="background:#3BB346"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#C0392B"></span>支出合计 ' + fmt(totalExpense) + '</div>'
   + '</div>';
 }
 
-const DONUT_PALETTE = ['#F59E0B', '#EF4444', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1'];
+const DONUT_PALETTE = ['#0064FA', '#3BB346', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6', '#F97316', '#84CC16', '#6366F1', '#8B949E'];
 function renderDonutCard(title, items, total) {
   // 极小子分类合并：占比 < 2% 的并入"其他"，避免出现极细弧段
   const THRESHOLD = 0.02;
@@ -812,7 +812,7 @@ function renderLedger() {
       const dayInc = filtered.filter(x => x.date === r.date && x.type === 'income').reduce((s, x) => s + x.amount, 0);
       const dayExp = filtered.filter(x => x.date === r.date && x.type === 'expense').reduce((s, x) => s + x.amount, 0);
       if (dayInc) html += '<span class="pos" style="font-size:12px;margin-left:8px">收 +' + fmt2(dayInc) + '</span>';
-      if (dayExp) html += '<span style="font-size:12px;margin-left:6px;color:#D84848">支 −' + fmt2(dayExp) + '</span>';
+      if (dayExp) html += '<span style="font-size:12px;margin-left:6px;color:var(--danger)">支 −' + fmt2(dayExp) + '</span>';
       html += '</div>';
       lastDate = r.date;
     }
