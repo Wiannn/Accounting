@@ -178,6 +178,8 @@ async function migrateCategories() {
 const custName = id => { const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
 const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2 ? e2.name : '(已删除员工)'; };
 const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
+// 结账日期：取该账单最近一次登记收款的日期
+const lastPayDate = billId => S.payments.filter(p => p.billId === billId).map(p => p.date || '').filter(Boolean).sort().pop() || '';
 function billState(b) {
   const paidRecords = paidOf(b.id);
   const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
@@ -1398,7 +1400,7 @@ function openCustDetail(cid) {
     + '<div class="kv"><span>已收</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
@@ -1406,6 +1408,7 @@ function openCustDetail(cid) {
         const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
         return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
+          + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
           + '<td>' + esc(b.note || '') + '</td>'
           + '<td style="white-space:nowrap">' + (bf
@@ -1413,7 +1416,7 @@ function openCustDetail(cid) {
               + '<button data-billfile-del="' + b.id + '" style="' + btn + ';margin-left:3px" title="删除附件">×</button>'
             : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
           + '</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="empty">暂无账单</td></tr>')
+      }).join('') || '<tr><td colspan="8" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
