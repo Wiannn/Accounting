@@ -250,3 +250,26 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   #modal{max-width:none}
   #toast{bottom:calc(76px + env(safe-area-inset-bottom))}
 }
+
+/* ---------- 支出统计次页面 ---------- */
+.expense-tabs{display:flex;gap:8px;margin-bottom:14px}
+.expense-tab{flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;transition:.15s}
+.expense-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* 主分类：进度条 */
+.exp-bar-row{margin-bottom:14px}
+.exp-bar-head{display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px}
+.exp-bar-name{font-weight:500}
+.exp-bar-amt{color:var(--text)}
+.exp-bar-track{height:10px;background:#f1f2f5;border-radius:999px;overflow:hidden}
+.exp-bar-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:999px;transition:width .35s}
+.exp-total-row{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:16px}
+/* 子分类：环形图卡片 */
+.donut-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.donut-title{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--text)}
+.donut-body{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.donut-body svg{flex-shrink:0}
+.donut-legend{flex:1;min-width:120px}
+.donut-legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
+.donut-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.donut-legend-name{flex:1;color:var(--text)}
+.donut-legend-amt{color:var(--muted);font-variant-numeric:tabular-nums}

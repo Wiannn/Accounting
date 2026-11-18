@@ -220,11 +220,11 @@ function switchPage(p) {
   renderPage(p);
   syncMobileNav();
 }
-// 手机端底部导航：仅在四个主页面显示，进入次级页面（客户管理、编辑客户、账单明细）时隐藏
+// 手机端底部导航：仅在四个主页面显示，进入次级页面（客户管理、编辑客户、账单明细、支出统计）时隐藏
 function syncMobileNav() {
   const nav = $('#mobile-nav');
   if (!nav) return;
-  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail'].some(id => {
+  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail', 'expense-breakdown-page'].some(id => {
     const el = $('#' + id);
     return el && !el.classList.contains('hidden');
   });
@@ -348,10 +348,35 @@ function renderAdd() {
   renderLedger();
 }
 
-let ledgerMonthCache = null;
-// 点击当月支出：按主分类汇总弹窗（仓库/车队/其他，不含挂账与待报销）
-function openExpenseBreakdown() {
+let expenseBreakdownTab = 'main';
+// 点击当月支出：进入支出统计次页面
+function enterExpenseBreakdownPage() {
+  expenseBreakdownTab = 'main';
+  $('.ledger-topbar').style.display = 'none';
+  $('.ledger-search').style.display = 'none';
+  $('.ledger-list').style.display = 'none';
+  $('#fab-add').style.display = 'none';
+  $('#expense-breakdown-page').classList.remove('hidden');
+  syncMobileNav();
+  renderExpenseBreakdown();
+}
+function exitExpenseBreakdownPage() {
+  $('#expense-breakdown-page').classList.add('hidden');
+  $('.ledger-topbar').style.display = '';
+  $('.ledger-search').style.display = '';
+  $('.ledger-list').style.display = '';
+  $('#fab-add').style.display = '';
+  syncMobileNav();
+}
+function renderExpenseBreakdown() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
+  $('#expense-page-title').textContent = period + ' 支出统计';
+  $$('.expense-tab').forEach(b => b.classList.toggle('active', b.dataset.expTab === expenseBreakdownTab));
+  if (expenseBreakdownTab === 'main') renderExpenseMain(period);
+  else renderExpenseSub(period);
+}
+// --- 主分类 Tab ---
+function renderExpenseMain(period) {
   const sums = {};
   let reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
@@ -366,17 +391,85 @@ function openExpenseBreakdown() {
   });
   const rows = Object.keys(sums).map(k => ({ k, amt: round2(sums[k]) })).sort((a, b) => b.amt - a.amt);
   const total = round2(rows.reduce((s, r) => s + r.amt, 0));
-  const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + period + ' 支出 · 按主分类</h2><button class="modal-x" data-close>&times;</button></div>'
-    + (rows.length
-      ? rows.map(r => '<div class="kv"><span>' + esc(r.k) + '</span><span class="strong">' + fmt(r.amt) + '</span></div>').join('')
-        + '<div class="kv" style="border-bottom:none"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
-      : '<div class="empty">本月暂无支出</div>')
-    + (pendNote ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + pendNote + '</p>' : '');
-  $('#modal-mask').classList.remove('hidden');
+  const body = $('#expense-page-body');
+  if (!rows.length) {
+    body.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">本月暂无支出</div>'
+      + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px;text-align:center">挂账 ¥' + fmt(payableSum) + ' · 待报销 ¥' + fmt(reimbSum) + '（未计入）</p>' : '');
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const pct = total > 0 ? (r.amt / total * 100).toFixed(1) : '0.0';
+    return '<div class="exp-bar-row">'
+      + '<div class="exp-bar-head"><span class="exp-bar-name">' + esc(r.k) + '</span><span class="exp-bar-amt">' + fmt(r.amt) + ' <span class="muted" style="font-size:12px">' + pct + '%</span></span></div>'
+      + '<div class="exp-bar-track"><div class="exp-bar-fill" style="width:' + pct + '%"></div></div>'
+      + '</div>';
+  }).join('')
+  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
+  + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
-$('#stat-month-expense').addEventListener('click', openExpenseBreakdown);
+// --- 子分类 Tab：仓库 / 车队 / 其他 各一张环形图 ---
+function renderExpenseSub(period) {
+  // 聚合 { category: { sub: amount } }
+  const buckets = {};
+  let reimbSum = 0, payableSum = 0;
+  S.expenses.forEach(e => {
+    if (!(e.date || '').startsWith(period)) return;
+    if (e.status === 'pending') {
+      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
+      else reimbSum += Number(e.amount || 0);
+      return;
+    }
+    const g = e.category || '其他';
+    const s = e.sub || '(无)';
+    if (!buckets[g]) buckets[g] = {};
+    buckets[g][s] = (buckets[g][s] || 0) + Number(e.amount || 0);
+  });
+  const cats = ['仓库', '车队', '其他'].filter(c => buckets[c]);
+  const body = $('#expense-page-body');
+  if (!cats.length) {
+    body.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">本月暂无支出</div>';
+    return;
+  }
+  body.innerHTML = cats.map(cat => {
+    const map = buckets[cat];
+    const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
+    const total = round2(items.reduce((s, r) => s + r.amt, 0));
+    return renderDonutCard(cat, items, total);
+  }).join('')
+  + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
+}
+// 环形图 + 图例：纯 SVG，颜色从调色板取
+const DONUT_PALETTE = ['#F59E0B', '#EF4444', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1'];
+function renderDonutCard(title, items, total) {
+  const size = 120, stroke = 26, r = (size - stroke) / 2, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
+  let offset = 0;
+  const segs = items.map((it, i) => {
+    const frac = total > 0 ? it.amt / total : 0;
+    const len = C * frac;
+    const seg = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '" stroke-width="' + stroke + '" stroke-dasharray="' + len + ' ' + (C - len) + '" stroke-dashoffset="' + (-offset) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" />';
+    offset += len;
+    return seg;
+  }).join('');
+  const legend = items.map((it, i) => {
+    const pct = total > 0 ? (it.amt / total * 100).toFixed(1) : '0.0';
+    return '<div class="donut-legend-row"><span class="donut-dot" style="background:' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span><span class="donut-legend-name">' + esc(it.k) + '</span><span class="donut-legend-amt">' + fmt(it.amt) + ' <span class="muted" style="font-size:11px">' + pct + '%</span></span></div>';
+  }).join('');
+  return '<div class="donut-card">'
+    + '<div class="donut-title">' + esc(title) + ' · 合计 ' + fmt(total) + '</div>'
+    + '<div class="donut-body">'
+      + '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + segs + '</svg>'
+      + '<div class="donut-legend">' + legend + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// 事件绑定
+$('#btn-expense-back').addEventListener('click', exitExpenseBreakdownPage);
+$$('.expense-tab').forEach(b => b.addEventListener('click', () => {
+  expenseBreakdownTab = b.dataset.expTab;
+  renderExpenseBreakdown();
+}));
+$('#stat-month-expense').addEventListener('click', enterExpenseBreakdownPage);
 
 // 点击当月收入：按来源客户汇总弹窗（仅现结收入，与当月收入卡片同口径）
 function openIncomeBreakdown() {
@@ -780,7 +873,10 @@ $('#card-add-bill').addEventListener('click', () => {
 });
 
 // 月份切换
-$('#ledger-month').addEventListener('change', renderLedger);
+$('#ledger-month').addEventListener('change', function () {
+  renderLedger();
+  if (!$('#expense-breakdown-page').classList.contains('hidden')) renderExpenseBreakdown();
+});
 $('#ledger-month').addEventListener('click', function () {
   if (this.showPicker) {
     try { this.showPicker(); } catch (_) {}
