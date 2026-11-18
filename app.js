@@ -353,10 +353,59 @@ function renderCustStatsPage() {
   syncCustStatsPeriodPicker();
   const body = $('#cust-stats-body');
   if (custStatsTab === 'income') {
-    body.innerHTML = renderIncomeByCustomer(period, true);
+    body.innerHTML = renderCustIncomeTable(period);
   } else {
     body.innerHTML = renderUnpaidByCustomer(period);
   }
+}
+// 客户统计页收入表：三列口径拆分（应收=当期账单金额；已收=当期账单当前实收；现结=当期记一笔散收入）
+// 对账关系：应收 = 已收 + 待收；实际到手 = 已收 + 现结
+function renderCustIncomeTable(period) {
+  const agg = {};
+  const row = cid => (agg[cid] = agg[cid] || { receivable: 0, received: 0, cash: 0 });
+  S.bills.forEach(b => {
+    if (!(b.period || '').startsWith(period)) return;
+    const st = billState(b);
+    const r = row(b.customerId);
+    r.receivable += Number(b.amount || 0);
+    r.received += st.paid;
+  });
+  S.incomes.forEach(i => {
+    if (i.billId) return;
+    if (!(i.date || '').startsWith(period)) return;
+    row(i.customerId).cash += Number(i.amount || 0);
+  });
+  const rows = Object.keys(agg).map(cid => ({
+    cid,
+    receivable: round2(agg[cid].receivable),
+    received: round2(agg[cid].received),
+    cash: round2(agg[cid].cash),
+  })).sort((a, b) => b.receivable - a.receivable || b.cash - a.cash);
+  if (!rows.length) {
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无收入</div>';
+  }
+  const tot = rows.reduce((t, r) => ({
+    receivable: round2(t.receivable + r.receivable),
+    received: round2(t.received + r.received),
+    cash: round2(t.cash + r.cash),
+  }), { receivable: 0, received: 0, cash: 0 });
+  const label = period.length === 4 ? '当年' : '当月';
+  const head = '<table class="mini-table cust-income-table"><thead><tr>'
+    + '<th>客户</th><th style="text-align:right">应收</th><th style="text-align:right">已收</th><th style="text-align:right">现结</th>'
+    + '</tr></thead><tbody>';
+  const bodyRows = rows.map(r =>
+    '<tr><td>' + esc(custName(r.cid)) + '</td>'
+    + '<td style="text-align:right">' + fmtInt(r.receivable) + '</td>'
+    + '<td style="text-align:right" class="pos">' + fmtInt(r.received) + '</td>'
+    + '<td style="text-align:right" class="pos">' + fmtInt(r.cash) + '</td></tr>'
+  ).join('');
+  const foot = '</tbody><tfoot><tr><th>合计</th>'
+    + '<th style="text-align:right">' + fmtInt(tot.receivable) + '</th>'
+    + '<th style="text-align:right" class="pos">' + fmtInt(tot.received) + '</th>'
+    + '<th style="text-align:right" class="pos">' + fmtInt(tot.cash) + '</th></tr></tfoot>';
+  return head + bodyRows + foot + '</table>'
+    + '<p class="muted" style="margin-top:10px">应收＝' + label + '账期账单金额；已收＝这些账单当前实收（应收−已收＝待收）；现结＝' + label + '记一笔散收入（不含账单收款）</p>'
+    + '<p class="muted">实际到手＝已收 ' + fmtInt(tot.received) + ' ＋ 现结 ' + fmtInt(tot.cash) + ' ＝ <b class="pos">' + fmtInt(round2(tot.received + tot.cash)) + '</b></p>';
 }
 // 待收排名：按账期归属过滤（月=当月账期，年=当年账期），仅统计当前仍未收清的账单
 function renderUnpaidByCustomer(period) {
