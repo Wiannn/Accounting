@@ -126,7 +126,7 @@
       <div id="bills-main">
       <div class="cards">
         <div class="card ok-card" id="card-year-income" style="cursor:pointer"><div class="card-label" id="year-income-label">本年收入</div><div class="card-num" style="color:var(--ok)" id="stat-year-income">¥0.00</div></div>
-        <div class="card warn-card"><div class="card-label">待收总额</div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
+        <div class="card warn-card" id="card-unpaid" style="cursor:pointer"><div class="card-label">待收总额 <span class="muted" style="font-size:11px">双击查看</span></div><div class="card-num" style="color:var(--warn)" id="stat-unpaid">¥0.00</div></div>
         <div class="card add-card slim" id="card-add-bill"><span class="card-label">添加客户月账单</span><span class="slim-plus">＋</span></div>
         <div class="card add-card slim" id="card-cust-manage"><span class="card-label">客户管理</span></div>
       </div>
@@ -202,6 +202,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=53"></script>
+<script src="app.js?v=54"></script>
 </body>
 </html>

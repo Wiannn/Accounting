@@ -309,6 +309,35 @@ function openYearIncomeModal() {
 }
 $('#card-year-income').addEventListener('click', openYearIncomeModal);
 
+// 双击待收总额卡片：各客户待收排名弹窗（按待收金额从高到低）
+function openUnpaidByCustomerModal() {
+  const sums = {};
+  S.bills.forEach(b => {
+    const remain = billState(b).remaining;
+    if (remain <= 0) return;
+    sums[b.customerId] = (sums[b.customerId] || 0) + remain;
+  });
+  const rows = Object.keys(sums)
+    .map(cid => ({ cid, amount: round2(sums[cid]) }))
+    .sort((a, b) => b.amount - a.amount);
+  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
+  const listHtml = rows.length ? rows.map((r, idx) =>
+    '<div class="item-card" style="cursor:default">'
+    + '<div class="ic-main">'
+    + '<div class="ic-title"><span class="badge badge-gray">' + (idx + 1) + '</span>' + esc(custName(r.cid)) + '</div>'
+    + '<div class="ic-sub">占待收总额 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</div>'
+    + '</div>'
+    + '<div class="ic-right"><div class="ic-amt neg">' + fmt(r.amount) + '</div></div>'
+    + '</div>'
+  ).join('') : '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">当前没有待收账款</div>';
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>各客户待收总额</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="item-list">' + listHtml + '</div>'
+    + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b class="neg">' + fmt(total) + '</b></div>' : '');
+  $('#modal-mask').classList.remove('hidden');
+}
+$('#card-unpaid').addEventListener('dblclick', openUnpaidByCustomerModal);
+
 /* ---------- 记一笔 ---------- */
 const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');
 
