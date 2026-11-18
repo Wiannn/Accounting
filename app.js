@@ -547,23 +547,33 @@ function renderYearTrend(year) {
 
 const DONUT_PALETTE = ['#F59E0B', '#EF4444', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1'];
 function renderDonutCard(title, items, total) {
+  // 极小子分类合并：占比 < 2% 的并入"其他"，避免出现像素级锯齿段
+  const THRESHOLD = 0.02;
+  const merged = [];
+  let otherAmt = 0;
+  items.forEach(it => {
+    if (total > 0 && it.amt / total < THRESHOLD) otherAmt += it.amt;
+    else merged.push(it);
+  });
+  if (otherAmt > 0) merged.push({ k: '其他', amt: round2(otherAmt) });
+
   const size = 120, stroke = 26, r = (size - stroke) / 2, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
   let offset = 0;
-  const segs = items.map((it, i) => {
+  const segs = merged.map((it, i) => {
     const frac = total > 0 ? it.amt / total : 0;
-    const len = C * frac;
+    const len = Math.max(0.5, C * frac); // 最短 0.5px，避免 0 像素锯齿
     const seg = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '" stroke-width="' + stroke + '" stroke-dasharray="' + len + ' ' + (C - len) + '" stroke-dashoffset="' + (-offset) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" />';
     offset += len;
     return seg;
   }).join('');
-  const legend = items.map((it, i) => {
+  const legend = merged.map((it, i) => {
     const pct = total > 0 ? (it.amt / total * 100).toFixed(1) : '0.0';
     return '<div class="donut-legend-row"><span class="donut-dot" style="background:' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span><span class="donut-legend-name">' + esc(it.k) + '</span><span class="donut-legend-amt">' + fmt(it.amt) + ' <span class="muted" style="font-size:11px">' + pct + '%</span></span></div>';
   }).join('');
   return '<div class="donut-card">'
     + '<div class="donut-title">' + esc(title) + ' · 合计 ' + fmt(total) + '</div>'
     + '<div class="donut-body">'
-      + '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + segs + '</svg>'
+      + '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="geometricPrecision">' + segs + '</svg>'
       + '<div class="donut-legend">' + legend + '</div>'
     + '</div>'
   + '</div>';
