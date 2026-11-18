@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=39">
+<link rel="stylesheet" href="app.css?v=40">
 </head>
 <body>
 <div id="app">
@@ -29,37 +29,49 @@
   <main id="main">
 
     <section id="page-settings" class="page">
-      <div class="panel">
-        <div class="panel-title">导出 Excel 报表</div>
-        <p class="muted" style="margin-bottom:12px">按工作表分类导出：收入、支出（仓库/车队/其他）、应收台账、收款记录、发票台账、工资表</p>
-        <div class="form-grid">
-          <label>报表月份 <input type="month" id="report-month"></label>
-          <label class="check" style="justify-content:flex-end"><input type="checkbox" id="report-all"> 导出全部数据（不按月份过滤）</label>
+      <div class="settings-group">
+        <div class="settings-group-title">数据导出</div>
+        <div class="panel">
+          <div class="panel-title">导出月度报表</div>
+          <p class="panel-desc">收入、支出、应收台账、收款、发票、工资，按月份筛选。</p>
+          <div class="form-grid">
+            <label>报表月份 <input type="month" id="report-month"></label>
+          </div>
+          <label class="check settings-check"><input type="checkbox" id="report-all"> 导出全部数据（不按月份过滤）</label>
+          <button class="primary block" id="btn-export-xlsx">导出 Excel</button>
         </div>
-        <button class="primary" id="btn-export-xlsx">导出 Excel</button>
-      </div>
-      <div class="panel">
-        <div class="panel-title">导出客户账单 Excel</div>
-        <p class="muted" style="margin-bottom:12px">按客户导出全部月账单和记一笔日收入（含备注），生成「月账单」「日收入」两个工作表。</p>
-        <div class="form-grid">
-          <label>选择客户 <select id="export-cust-select"></select></label>
+        <div class="panel">
+          <div class="panel-title">导出客户账单</div>
+          <p class="panel-desc">单个客户的月账单与日收入，含备注。</p>
+          <div class="form-grid">
+            <label>选择客户 <select id="export-cust-select"></select></label>
+          </div>
+          <button class="primary block" id="btn-export-cust">导出该客户账单</button>
         </div>
-        <button class="primary" id="btn-export-cust">导出该客户账单</button>
       </div>
-      <div class="panel">
-        <div class="panel-title">导入 Excel 现结收入</div>
-        <p class="muted" style="margin-bottom:12px">表头包含「日期、进仓费（或金额）」列即可。有「客户」列按列读取；没有客户列时，自动用<b>文件名</b>作为客户名（一个文件一个客户）。没有的客户自动新建，相同客户+日期+金额的已有记录自动跳过，导入前可先预览核对。</p>
-        <button class="primary" id="btn-import-xlsx">上传 Excel 导入</button>
-        <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" class="hidden">
-      </div>
-      <div class="panel">
-        <div class="panel-title">备份与恢复</div>
-        <p class="muted" style="margin-bottom:12px">账本数据保存在本浏览器中。清理浏览器数据前请先导出备份；建议每周备份一次，备份文件可存U盘或发送到微信文件助手。</p>
-        <div class="backup-btns">
-          <button class="primary" id="btn-backup">导出备份</button>
-          <button class="primary" id="btn-restore">导入备份</button>
+
+      <div class="settings-group">
+        <div class="settings-group-title">数据导入</div>
+        <div class="panel">
+          <div class="panel-title">导入现结收入</div>
+          <p class="panel-desc">表头含「日期」与「进仓费」或「金额」即可；无客户列时用文件名作为客户名。</p>
+          <button class="primary block" id="btn-import-xlsx">上传 Excel 导入</button>
+          <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" class="hidden">
         </div>
-        <input type="file" id="restore-file" accept=".json,application/json" class="hidden">
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">备份与恢复</div>
+        <div class="panel">
+          <div class="panel-title">数据备份</div>
+          <p class="panel-desc">数据保存在本机浏览器，清理缓存前请先备份。</p>
+          <div class="backup-btns">
+            <button class="primary" id="btn-backup">导出备份</button>
+            <button class="ghost danger" id="btn-restore">导入备份</button>
+          </div>
+          <p class="panel-warn">导入备份会覆盖当前全部数据</p>
+          <input type="file" id="restore-file" accept=".json,application/json" class="hidden">
+        </div>
       </div>
     </section>
 
@@ -237,6 +249,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=70"></script>
+<script src="app.js?v=71"></script>
 </body>
 </html>

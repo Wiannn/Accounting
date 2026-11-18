@@ -89,6 +89,14 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .filters{display:flex;gap:8px}
 .backup-btns{display:flex;gap:8px}
 .backup-btns .primary{flex:1}
+.settings-group{margin-bottom:22px}
+.settings-group-title{display:flex;align-items:center;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.06em;margin:0 0 10px 2px;padding-left:9px;line-height:1.2;border-left:3px solid var(--primary)}
+.settings-group .panel{margin-bottom:10px}
+.settings-group .panel:last-child{margin-bottom:0}
+.panel-desc{font-size:12px;color:var(--muted);line-height:1.6;margin:-4px 0 14px}
+.settings-check{margin:-4px 0 14px;font-size:13px;color:var(--muted)}
+.primary.block{display:block;width:100%;padding:11px 0;font-size:15px}
+.panel-warn{font-size:12px;color:var(--danger);margin-top:10px}
 .filters select, .filters input[type=month], .filters input[type=text]{
   padding:7px 10px;
   border:1px solid var(--border);
