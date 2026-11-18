@@ -8,7 +8,7 @@
   --warn-bg:#FFF8EA; --warn:#FC8800;
   --info-bg:#EAF5FF; --info:#0064FA;
   --gray-bg:rgba(46,50,56,.05); --gray:rgba(28,31,35,.62);
-  --danger-bg:#FBEDEA; --danger:#C01E25;
+  --danger-bg:#FBEDEA; --danger:#CE3A3A;
   --radius-s:3px; --radius-m:6px; --radius-l:12px;
   --shadow-elevated:0 0 1px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.1);
 }

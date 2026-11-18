@@ -659,7 +659,7 @@ function renderYearTrend(year) {
     const yi = padT + plotH - hi;
     const ye = padT + plotH - he;
     bars += '<rect x="' + xi + '" y="' + yi + '" width="' + barW + '" height="' + hi + '" fill="#3BB346" rx="2"></rect>'
-      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#C01E25" rx="2"></rect>'
+      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#CE3A3A" rx="2"></rect>'
       + '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + m.label + '</text>';
   });
   bars += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
@@ -670,7 +670,7 @@ function renderYearTrend(year) {
   return '<div class="year-trend-card">'
     + '<div class="donut-title">' + year + '年 · 月度收支趋势</div>'
     + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>'
-    + '<div class="trend-legend"><span class="trend-dot" style="background:#3BB346"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#C01E25"></span>支出合计 ' + fmt(totalExpense) + '</div>'
+    + '<div class="trend-legend"><span class="trend-dot" style="background:#3BB346"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#CE3A3A"></span>支出合计 ' + fmt(totalExpense) + '</div>'
   + '</div>';
 }
 
