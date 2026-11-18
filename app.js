@@ -355,13 +355,14 @@ function renderCustStatsPage() {
   if (custStatsTab === 'income') {
     body.innerHTML = renderIncomeByCustomer(period, true);
   } else {
-    body.innerHTML = renderUnpaidByCustomer();
+    body.innerHTML = renderUnpaidByCustomer(period);
   }
 }
-// 待收排名：时点数据，不受月/年影响
-function renderUnpaidByCustomer() {
+// 待收排名：按账期归属过滤（月=当月账期，年=当年账期），仅统计当前仍未收清的账单
+function renderUnpaidByCustomer(period) {
   const sums = {};
   S.bills.forEach(b => {
+    if (!(b.period || '').startsWith(period)) return;
     const remain = billState(b).remaining;
     if (remain <= 0) return;
     sums[b.customerId] = (sums[b.customerId] || 0) + remain;
@@ -371,7 +372,7 @@ function renderUnpaidByCustomer() {
     .sort((a, b) => b.amount - a.amount);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   if (!rows.length) {
-    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">当前没有待收账款</div>';
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无待收账款</div>';
   }
   return rows.map(r => {
     const pct = total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0';
@@ -381,7 +382,7 @@ function renderUnpaidByCustomer() {
       + '</div>';
   }).join('')
   + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
-  + '<p class="muted" style="margin-top:10px">待收为时点数据（截至当前），不受月/年周期影响</p>';
+  + '<p class="muted" style="margin-top:10px">口径：' + (period.length === 4 ? '当年' : '当月') + '账期账单中仍未收清的金额</p>';
 }
 
 // 事件绑定
