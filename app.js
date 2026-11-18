@@ -224,7 +224,7 @@ function switchPage(p) {
 function syncMobileNav() {
   const nav = $('#mobile-nav');
   if (!nav) return;
-  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail', 'expense-breakdown-page'].some(id => {
+  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail', 'stats-page'].some(id => {
     const el = $('#' + id);
     return el && !el.classList.contains('hidden');
   });
@@ -348,35 +348,75 @@ function renderAdd() {
   renderLedger();
 }
 
-let expenseBreakdownTab = 'main';
+let statsTab = 'exp-main';
+let statsMode = 'month';
 let ledgerMonthCache = null;
-// 点击当月支出：进入支出统计次页面
-function enterExpenseBreakdownPage() {
-  expenseBreakdownTab = 'main';
+
+// === 统一统计页面 ===
+function openStatsPage(defaultTab) {
+  statsTab = defaultTab || 'exp-main';
+  statsMode = 'month';
   $('.ledger-topbar').style.display = 'none';
   $('.ledger-search').style.display = 'none';
   $('.ledger-list').style.display = 'none';
   $('#fab-add').style.display = 'none';
-  $('#expense-breakdown-page').classList.remove('hidden');
+  $('#stats-page').classList.remove('hidden');
   syncMobileNav();
-  renderExpenseBreakdown();
+  renderStatsPage();
 }
-function exitExpenseBreakdownPage() {
-  $('#expense-breakdown-page').classList.add('hidden');
+function exitStatsPage() {
+  $('#stats-page').classList.add('hidden');
   $('.ledger-topbar').style.display = '';
   $('.ledger-search').style.display = '';
   $('.ledger-list').style.display = '';
   $('#fab-add').style.display = '';
   syncMobileNav();
 }
-function renderExpenseBreakdown() {
-  const period = $('#ledger-month').value || todayStr().slice(0, 7);
-  $('#expense-page-title').textContent = period + ' 支出统计';
-  $$('.expense-tab').forEach(b => b.classList.toggle('active', b.dataset.expTab === expenseBreakdownTab));
-  if (expenseBreakdownTab === 'main') renderExpenseMain(period);
-  else renderExpenseSub(period);
+function statsPeriod() {
+  const m = $('#ledger-month').value || todayStr().slice(0, 7);
+  return statsMode === 'month' ? m : m.slice(0, 4);
 }
-// --- 主分类 Tab ---
+function renderStatsPage() {
+  const period = statsPeriod();
+  const modeLabel = statsMode === 'month' ? '' : period + '年 ';
+  const tabLabel = { 'exp-main': '支出 · 主分类', 'exp-sub': '支出 · 子分类', 'income': '收入 · 按客户' }[statsTab];
+  $('#stats-title').textContent = modeLabel + tabLabel;
+  $$('[data-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.statsMode === statsMode));
+  $$('[data-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.statsTab === statsTab));
+  renderYearSwitcher();
+  const body = $('#stats-body');
+  let trendHtml = '';
+  if (statsMode === 'year') trendHtml = renderYearTrend(period);
+  if (statsTab === 'exp-main') body.innerHTML = trendHtml + renderExpenseMain(period);
+  else if (statsTab === 'exp-sub') body.innerHTML = trendHtml + renderExpenseSub(period);
+  else body.innerHTML = trendHtml + renderIncomeByCustomer(period);
+}
+function renderYearSwitcher() {
+  const title = $('#stats-title');
+  const existing = $('#year-switcher');
+  if (statsMode === 'year') {
+    if (!existing) {
+      const wrap = document.createElement('div');
+      wrap.id = 'year-switcher';
+      wrap.className = 'year-switcher';
+      wrap.innerHTML = '<button class="ghost" id="btn-year-prev" style="padding:6px 10px">‹</button><span id="year-switcher-label" style="font-size:14px;font-weight:500;min-width:60px;text-align:center"></span><button class="ghost" id="btn-year-next" style="padding:6px 10px">›</button>';
+      title.parentElement.insertBefore(wrap, title.nextSibling);
+      $('#btn-year-prev').addEventListener('click', () => shiftStatsYear(-1));
+      $('#btn-year-next').addEventListener('click', () => shiftStatsYear(1));
+    }
+    $('#year-switcher-label').textContent = statsPeriod();
+  } else if (existing) {
+    existing.remove();
+  }
+}
+function shiftStatsYear(delta) {
+  const cur = statsPeriod();
+  const y = String(Number(cur) + delta);
+  const lm = $('#ledger-month');
+  lm.value = y + '-' + (lm.value ? lm.value.slice(5, 7) : '01');
+  renderStatsPage();
+}
+
 function renderExpenseMain(period) {
   const sums = {};
   let reimbSum = 0, payableSum = 0;
@@ -392,13 +432,11 @@ function renderExpenseMain(period) {
   });
   const rows = Object.keys(sums).map(k => ({ k, amt: round2(sums[k]) })).sort((a, b) => b.amt - a.amt);
   const total = round2(rows.reduce((s, r) => s + r.amt, 0));
-  const body = $('#expense-page-body');
   if (!rows.length) {
-    body.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">本月暂无支出</div>'
-      + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px;text-align:center">挂账 ¥' + fmt(payableSum) + ' · 待报销 ¥' + fmt(reimbSum) + '（未计入）</p>' : '');
-    return;
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无支出</div>'
+      + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px;text-align:center">挂账 ' + fmt(payableSum) + ' · 待报销 ' + fmt(reimbSum) + '（未计入）</p>' : '');
   }
-  body.innerHTML = rows.map(r => {
+  return rows.map(r => {
     const pct = total > 0 ? (r.amt / total * 100).toFixed(1) : '0.0';
     return '<div class="exp-bar-row">'
       + '<div class="exp-bar-head"><span class="exp-bar-name">' + esc(r.k) + '</span><span class="exp-bar-amt">' + fmt(r.amt) + ' <span class="muted" style="font-size:12px">' + pct + '%</span></span></div>'
@@ -408,9 +446,7 @@ function renderExpenseMain(period) {
   + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
-// --- 子分类 Tab：仓库 / 车队 / 其他 各一张环形图 ---
 function renderExpenseSub(period) {
-  // 聚合 { category: { sub: amount } }
   const buckets = {};
   let reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
@@ -426,12 +462,10 @@ function renderExpenseSub(period) {
     buckets[g][s] = (buckets[g][s] || 0) + Number(e.amount || 0);
   });
   const cats = ['仓库', '车队', '其他'].filter(c => buckets[c]);
-  const body = $('#expense-page-body');
   if (!cats.length) {
-    body.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">本月暂无支出</div>';
-    return;
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无支出</div>';
   }
-  body.innerHTML = cats.map(cat => {
+  return cats.map(cat => {
     const map = buckets[cat];
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
     const total = round2(items.reduce((s, r) => s + r.amt, 0));
@@ -439,7 +473,68 @@ function renderExpenseSub(period) {
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
-// 环形图 + 图例：纯 SVG，颜色从调色板取
+function renderIncomeByCustomer(period) {
+  const sums = {};
+  S.incomes.forEach(i => {
+    if (i.billId) return;
+    if (!(i.date || '').startsWith(period)) return;
+    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+  });
+  const rows = Object.keys(sums).map(cid => ({ cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
+  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
+  if (!rows.length) {
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无收入</div>';
+  }
+  return rows.map(r => {
+    const pct = total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0';
+    return '<div class="exp-bar-row">'
+      + '<div class="exp-bar-head"><span class="exp-bar-name">' + esc(custName(r.cid)) + '</span><span class="exp-bar-amt pos">+' + fmt(r.amount) + ' <span class="muted" style="font-size:12px">' + pct + '%</span></span></div>'
+      + '<div class="exp-bar-track"><div class="exp-bar-fill exp-bar-fill-pos" style="width:' + pct + '%"></div></div>'
+      + '</div>';
+  }).join('')
+  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong pos">+' + fmt(total) + '</span></div>';
+}
+function renderYearTrend(year) {
+  const months = [];
+  for (let m = 1; m <= 12; m++) {
+    const mm = String(m).padStart(2, '0');
+    const key = year + '-' + mm;
+    let income = 0, expense = 0;
+    S.incomes.forEach(i => { if (!i.billId && (i.date || '').startsWith(key)) income += Number(i.amount || 0); });
+    S.expenses.forEach(e => {
+      if ((e.date || '').startsWith(key) && e.status !== 'pending') expense += Number(e.amount || 0);
+    });
+    months.push({ label: mm + '月', income: round2(income), expense: round2(expense) });
+  }
+  const max = Math.max(1, ...months.map(m => Math.max(m.income, m.expense)));
+  const W = 320, H = 140, padL = 36, padR = 8, padT = 14, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const barW = plotW / 12 * 0.35, gap = plotW / 12;
+  let bars = '';
+  months.forEach((m, i) => {
+    const cx = padL + i * gap + gap / 2;
+    const hi = (m.income / max) * plotH;
+    const he = (m.expense / max) * plotH;
+    const xi = cx - barW - 1;
+    const xe = cx + 1;
+    const yi = padT + plotH - hi;
+    const ye = padT + plotH - he;
+    bars += '<rect x="' + xi + '" y="' + yi + '" width="' + barW + '" height="' + hi + '" fill="#10b981" rx="2"></rect>'
+      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#f59e0b" rx="2"></rect>'
+      + '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + m.label + '</text>';
+  });
+  bars += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
+    + '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
+    + '<text x="' + (padL - 4) + '" y="' + (padT + 4) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + (max >= 10000 ? (max / 10000).toFixed(0) + 'w' : Math.round(max)) + '</text>';
+  const totalIncome = round2(months.reduce((s, m) => s + m.income, 0));
+  const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
+  return '<div class="year-trend-card">'
+    + '<div class="donut-title">' + year + '年 · 月度收支趋势</div>'
+    + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>'
+    + '<div class="trend-legend"><span class="trend-dot" style="background:#10b981"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#f59e0b"></span>支出合计 ' + fmt(totalExpense) + '</div>'
+  + '</div>';
+}
+
 const DONUT_PALETTE = ['#F59E0B', '#EF4444', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1'];
 function renderDonutCard(title, items, total) {
   const size = 120, stroke = 26, r = (size - stroke) / 2, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
@@ -464,35 +559,21 @@ function renderDonutCard(title, items, total) {
   + '</div>';
 }
 
-// 事件绑定
-$('#btn-expense-back').addEventListener('click', exitExpenseBreakdownPage);
-$$('.expense-tab').forEach(b => b.addEventListener('click', () => {
-  expenseBreakdownTab = b.dataset.expTab;
-  renderExpenseBreakdown();
+// === 事件绑定 ===
+$('#btn-stats-back').addEventListener('click', exitStatsPage);
+$$('[data-stats-mode]').forEach(b => b.addEventListener('click', () => {
+  statsMode = b.dataset.statsMode;
+  renderStatsPage();
 }));
-$('#stat-month-expense').addEventListener('click', enterExpenseBreakdownPage);
+$$('[data-stats-tab]').forEach(b => b.addEventListener('click', () => {
+  statsTab = b.dataset.statsTab;
+  renderStatsPage();
+}));
+$('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-main'));
+$('#stat-month-income').addEventListener('click', () => openStatsPage('income'));
+$('#btn-open-stats').addEventListener('click', () => openStatsPage(statsTab || 'exp-main'));
 
-// 点击当月收入：按来源客户汇总弹窗（仅现结收入，与当月收入卡片同口径）
-function openIncomeBreakdown() {
-  const period = $('#ledger-month').value || todayStr().slice(0, 7);
-  const sums = {};
-  S.incomes.forEach(i => {
-    if (i.billId) return; // 账单收款不计入记一笔
-    if (!(i.date || '').startsWith(period)) return;
-    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
-  });
-  const rows = Object.keys(sums).map(cid => ({ cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
-  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
-  const listHtml = rows.length ? rows.map(r =>
-    '<div class="kv"><span>' + esc(custName(r.cid)) + '<span class="muted"> · 占比 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</span></span><span class="strong pos">' + fmtInt(r.amount) + '</span></div>'
-  ).join('') : '<div class="empty">本月暂无收入</div>';
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + period + ' 收入 · 按客户</h2><button class="modal-x" data-close>&times;</button></div>'
-    + listHtml
-    + (rows.length ? '<div class="kv" style="border-bottom:none;margin-top:4px"><span class="strong">合计</span><span class="strong pos">' + fmtInt(total) + '</span></div>' : '');
-  $('#modal-mask').classList.remove('hidden');
-}
-$('#stat-month-income').addEventListener('click', openIncomeBreakdown);
+// 已迁入统一统计页面
 
 function renderLedger() {
   const period = $('#ledger-month').value || todayStr().slice(0, 7);
@@ -876,7 +957,7 @@ $('#card-add-bill').addEventListener('click', () => {
 // 月份切换
 $('#ledger-month').addEventListener('change', function () {
   renderLedger();
-  if (!$('#expense-breakdown-page').classList.contains('hidden')) renderExpenseBreakdown();
+  if (!$('#stats-page').classList.contains('hidden')) renderStatsPage();
 });
 $('#ledger-month').addEventListener('click', function () {
   if (this.showPicker) {
