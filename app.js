@@ -1531,6 +1531,7 @@ function openBillEditModal(billId) {
   if (!b) return;
   editingBillId = billId;
   const st = billState(b);
+  const hasPays = S.payments.some(p => p.billId === b.id);
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
@@ -1538,6 +1539,8 @@ function openBillEditModal(billId) {
     + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
     + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
+    + '<label style="display:block;margin-bottom:10px">结账日期<input type="date" id="edit-bill-settledate" value="' + esc(lastPayDate(b.id)) + '"' + (hasPays ? '' : ' disabled') + ' style="width:100%;margin-top:6px"></label>'
+    + (hasPays ? '' : '<div class="muted" style="font-size:12px;margin:-4px 0 10px">该账单暂无收款记录，结账日期来自「登记收款」</div>')
     + '<label style="display:block;margin-bottom:10px">开票状态<select id="edit-bill-inv" style="width:100%;margin-top:6px;padding:6px">'
     + '<option value="auto"' + (!b.invOverride ? ' selected' : '') + '>自动（按开票记录）</option>'
     + '<option value="none"' + (b.invOverride === 'none' ? ' selected' : '') + '>待开票</option>'
@@ -1574,6 +1577,18 @@ async function saveBillEdit() {
   if (invSel === 'auto') delete b.invOverride;
   else b.invOverride = invSel;
   b.note = $('#edit-bill-note').value.trim();
+  // 结账日期：回写到最近一次收款记录，并同步对应收入流水的日期；留空则不修改
+  const settleDate = $('#edit-bill-settledate').value;
+  if (settleDate) {
+    const pays = S.payments.filter(p => p.billId === b.id).sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+    const last = pays[pays.length - 1];
+    if (last && last.date !== settleDate) {
+      last.date = settleDate;
+      await dbPut('payments', last);
+      const inc = S.incomes.find(i => i.paymentId === last.id);
+      if (inc) { inc.date = settleDate; await dbPut('incomes', inc); }
+    }
+  }
   await dbPut('bills', b);
   await loadState();
   closeModal();
