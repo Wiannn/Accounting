@@ -353,7 +353,7 @@ function renderCustStatsPage() {
   syncCustStatsPeriodPicker();
   const body = $('#cust-stats-body');
   if (custStatsTab === 'income') {
-    body.innerHTML = renderIncomeByCustomer(period);
+    body.innerHTML = renderIncomeByCustomer(period, true);
   } else {
     body.innerHTML = renderUnpaidByCustomer();
   }
@@ -546,17 +546,25 @@ function renderExpenseSub(period) {
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
-function renderIncomeByCustomer(period) {
+function renderIncomeByCustomer(period, includeBills) {
   const sums = {};
+  // 记一笔现结收入（不含账单收款，避免和账单应收重复）
   S.incomes.forEach(i => {
     if (i.billId) return;
     if (!(i.date || '').startsWith(period)) return;
     sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
   });
+  // 客户页口径：加上当月/当年账单应收（按账期归属）
+  if (includeBills) {
+    S.bills.forEach(b => {
+      if (!(b.period || '').startsWith(period)) return;
+      sums[b.customerId] = (sums[b.customerId] || 0) + Number(b.amount || 0);
+    });
+  }
   const rows = Object.keys(sums).map(cid => ({ cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
   if (!rows.length) {
-    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无收入</div>';
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无收入</div>';
   }
   return rows.map(r => {
     const pct = total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0';
@@ -565,7 +573,8 @@ function renderIncomeByCustomer(period) {
       + '<div class="exp-bar-track"><div class="exp-bar-fill exp-bar-fill-pos" style="width:' + pct + '%"></div></div>'
       + '</div>';
   }).join('')
-  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong pos">+' + fmt(total) + '</span></div>';
+  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong pos">+' + fmt(total) + '</span></div>'
+  + (includeBills ? '<p class="muted" style="margin-top:10px">口径：账单应收（按账期）+ 记一笔现结收入</p>' : '');
 }
 function renderYearTrend(year) {
   const months = [];
