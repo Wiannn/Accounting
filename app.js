@@ -220,11 +220,11 @@ function switchPage(p) {
   renderPage(p);
   syncMobileNav();
 }
-// 手机端底部导航：仅在四个主页面显示，进入次级页面（客户管理、编辑客户、账单明细、支出统计）时隐藏
+// 手机端底部导航：仅在四个主页面显示，进入次级页面（客户管理、编辑客户、账单明细、客户统计、支出统计）时隐藏
 function syncMobileNav() {
   const nav = $('#mobile-nav');
   if (!nav) return;
-  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail', 'stats-page'].some(id => {
+  const inSubPage = ['cust-admin', 'cust-edit', 'cust-detail', 'cust-stats-page', 'stats-page'].some(id => {
     const el = $('#' + id);
     return el && !el.classList.contains('hidden');
   });
@@ -287,30 +287,79 @@ function renderUnpaid() {
   $('#stat-year-income').textContent = fmtInt(rows.reduce((s, r) => s + r.amount, 0));
 }
 
-// 点击本年收入卡片：各客户本年收入排名弹窗
-function openYearIncomeModal() {
-  const year = String(new Date().getFullYear());
-  const rows = yearIncomeRows();
-  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
-  const listHtml = rows.length ? rows.map((r, idx) =>
-    '<div class="item-card" style="cursor:default">'
-    + '<div class="ic-main">'
-    + '<div class="ic-title"><span class="badge badge-gray">' + (idx + 1) + '</span>' + esc(custName(r.cid)) + '</div>'
-    + '<div class="ic-sub">占总收入 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</div>'
-    + '</div>'
-    + '<div class="ic-right"><div class="ic-amt">' + fmt(r.amount) + '</div></div>'
-    + '</div>'
-  ).join('') : '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">本年还没有收入记录</div>';
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + year + '年收入</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="item-list">' + listHtml + '</div>'
-    + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b>' + fmt(total) + '</b></div>' : '');
-  $('#modal-mask').classList.remove('hidden');
-}
-$('#card-year-income').addEventListener('click', openYearIncomeModal);
+// === 客户统计次页面（收入按客户 + 待收排名）===
+let custStatsTab = 'income';
+let custStatsMode = 'year';
 
-// 点击待收总额卡片：各客户待收排名弹窗（按待收金额从高到低）
-function openUnpaidByCustomerModal() {
+function openCustStatsPage(defaultTab, defaultMode) {
+  custStatsTab = defaultTab || 'income';
+  custStatsMode = defaultMode || 'year';
+  $('#bills-main').classList.add('hidden');
+  $('#cust-admin').classList.add('hidden');
+  $('#cust-detail').classList.add('hidden');
+  $('#cust-stats-page').classList.remove('hidden');
+  syncMobileNav();
+  renderCustStatsPage();
+}
+function exitCustStatsPage() {
+  $('#cust-stats-page').classList.add('hidden');
+  $('#bills-main').classList.remove('hidden');
+  syncMobileNav();
+}
+function custStatsPeriod() {
+  const m = $('#ledger-month').value || todayStr().slice(0, 7);
+  return custStatsMode === 'month' ? m : m.slice(0, 4);
+}
+function syncCustStatsPeriodPicker() {
+  const lm = $('#ledger-month');
+  const period = lm.value || todayStr().slice(0, 7);
+  $('#cust-stats-period-month').value = period;
+  $('#cust-stats-period-year').value = period.slice(0, 4);
+  $('#cust-stats-period-month').classList.toggle('hidden', custStatsMode !== 'month');
+  $('#cust-stats-period-year').classList.toggle('hidden', custStatsMode !== 'year');
+}
+function shiftCustStatsPeriod(delta) {
+  const lm = $('#ledger-month');
+  const cur = lm.value || todayStr().slice(0, 7);
+  if (custStatsMode === 'year') {
+    lm.value = String(Number(cur.slice(0, 4)) + delta) + '-' + cur.slice(5, 7);
+  } else {
+    const [y, m] = cur.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    lm.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  renderBills();
+  renderCustStatsPage();
+}
+function setCustStatsPeriod() {
+  const lm = $('#ledger-month');
+  if (custStatsMode === 'month') {
+    const v = $('#cust-stats-period-month').value;
+    if (v) lm.value = v;
+  } else {
+    const v = $('#cust-stats-period-year').value;
+    if (v) lm.value = v + '-' + (lm.value ? lm.value.slice(5, 7) : '01');
+  }
+  renderBills();
+  renderCustStatsPage();
+}
+function renderCustStatsPage() {
+  const period = custStatsPeriod();
+  const modeLabel = custStatsMode === 'month' ? '' : period + '年 ';
+  const tabLabel = { 'income': '收入 · 按客户', 'unpaid': '待收 · 排名' }[custStatsTab];
+  $('#cust-stats-title').textContent = modeLabel + tabLabel;
+  $$('[data-cust-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.custStatsMode === custStatsMode));
+  $$('[data-cust-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.custStatsTab === custStatsTab));
+  syncCustStatsPeriodPicker();
+  const body = $('#cust-stats-body');
+  if (custStatsTab === 'income') {
+    body.innerHTML = renderIncomeByCustomer(period);
+  } else {
+    body.innerHTML = renderUnpaidByCustomer();
+  }
+}
+// 待收排名：时点数据，不受月/年影响
+function renderUnpaidByCustomer() {
   const sums = {};
   S.bills.forEach(b => {
     const remain = billState(b).remaining;
@@ -321,22 +370,36 @@ function openUnpaidByCustomerModal() {
     .map(cid => ({ cid, amount: round2(sums[cid]) }))
     .sort((a, b) => b.amount - a.amount);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
-  const listHtml = rows.length ? rows.map((r, idx) =>
-    '<div class="item-card" style="cursor:default">'
-    + '<div class="ic-main">'
-    + '<div class="ic-title"><span class="badge badge-gray">' + (idx + 1) + '</span>' + esc(custName(r.cid)) + '</div>'
-    + '<div class="ic-sub">占待收总额 ' + (total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0') + '%</div>'
-    + '</div>'
-    + '<div class="ic-right"><div class="ic-amt neg">' + fmt(r.amount) + '</div></div>'
-    + '</div>'
-  ).join('') : '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">当前没有待收账款</div>';
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>各客户待收总额</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="item-list">' + listHtml + '</div>'
-    + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b class="neg">' + fmt(total) + '</b></div>' : '');
-  $('#modal-mask').classList.remove('hidden');
+  if (!rows.length) {
+    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">当前没有待收账款</div>';
+  }
+  return rows.map(r => {
+    const pct = total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0';
+    return '<div class="exp-bar-row">'
+      + '<div class="exp-bar-head"><span class="exp-bar-name">' + esc(custName(r.cid)) + '</span><span class="exp-bar-amt neg">' + fmt(r.amount) + ' <span class="muted" style="font-size:12px">' + pct + '%</span></span></div>'
+      + '<div class="exp-bar-track"><div class="exp-bar-fill" style="width:' + pct + '%"></div></div>'
+      + '</div>';
+  }).join('')
+  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong neg">' + fmt(total) + '</span></div>'
+  + '<p class="muted" style="margin-top:10px">待收为时点数据（截至当前），不受月/年周期影响</p>';
 }
-$('#card-unpaid').addEventListener('click', openUnpaidByCustomerModal);
+
+// 事件绑定
+$('#btn-cust-stats-back').addEventListener('click', exitCustStatsPage);
+$$('[data-cust-stats-mode]').forEach(b => b.addEventListener('click', () => {
+  custStatsMode = b.dataset.custStatsMode;
+  renderCustStatsPage();
+}));
+$$('[data-cust-stats-tab]').forEach(b => b.addEventListener('click', () => {
+  custStatsTab = b.dataset.custStatsTab;
+  renderCustStatsPage();
+}));
+$('#btn-cust-period-prev').addEventListener('click', () => shiftCustStatsPeriod(-1));
+$('#btn-cust-period-next').addEventListener('click', () => shiftCustStatsPeriod(1));
+$('#cust-stats-period-month').addEventListener('change', setCustStatsPeriod);
+$('#cust-stats-period-year').addEventListener('change', setCustStatsPeriod);
+$('#card-year-income').addEventListener('click', () => openCustStatsPage('income', 'year'));
+$('#card-unpaid').addEventListener('click', () => openCustStatsPage('unpaid', 'year'));
 
 /* ---------- 记一笔 ---------- */
 const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');

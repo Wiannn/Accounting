@@ -181,6 +181,24 @@
         <div class="page-head"><h1>账单明细 · <span id="cust-detail-name"></span></h1><button class="ghost" id="btn-cust-detail-back">‹ 返回</button></div>
         <div id="cust-detail-body"></div>
       </div>
+      <div id="cust-stats-page" class="hidden">
+        <div class="page-head"><h1 id="cust-stats-title">客户统计</h1><button class="ghost" id="btn-cust-stats-back">‹ 返回</button></div>
+        <div class="seg seg-full">
+          <button class="seg-btn active" data-cust-stats-mode="month">月</button>
+          <button class="seg-btn" data-cust-stats-mode="year">年</button>
+        </div>
+        <div class="stats-period-row">
+          <button class="ghost" id="btn-cust-period-prev" style="padding:6px 10px">‹</button>
+          <input type="month" id="cust-stats-period-month">
+          <input type="number" id="cust-stats-period-year" min="2000" max="2100" step="1" class="hidden">
+          <button class="ghost" id="btn-cust-period-next" style="padding:6px 10px">›</button>
+        </div>
+        <div class="expense-tabs">
+          <button class="expense-tab active" data-cust-stats-tab="income">收入 · 按客户</button>
+          <button class="expense-tab" data-cust-stats-tab="unpaid">待收 · 排名</button>
+        </div>
+        <div id="cust-stats-body"></div>
+      </div>
     </section>
 
     <section id="page-wages" class="page">
