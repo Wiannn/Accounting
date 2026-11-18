@@ -500,9 +500,6 @@ function syncStatsPeriodPicker() {
 }
 function renderStatsPage() {
   const period = statsPeriod();
-  const modeLabel = statsMode === 'month' ? '' : period + '年 ';
-  const tabLabel = { 'exp-sub': '支出 · 子分类', 'income': '收入 · 按客户' }[statsTab];
-  $('#stats-title').textContent = modeLabel + tabLabel;
   $$('[data-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.statsMode === statsMode));
   $$('[data-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.statsTab === statsTab));
   syncStatsPeriodPicker();
