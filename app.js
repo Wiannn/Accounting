@@ -309,7 +309,7 @@ function openYearIncomeModal() {
 }
 $('#card-year-income').addEventListener('click', openYearIncomeModal);
 
-// 双击待收总额卡片：各客户待收排名弹窗（按待收金额从高到低）
+// 点击待收总额卡片：各客户待收排名弹窗（按待收金额从高到低）
 function openUnpaidByCustomerModal() {
   const sums = {};
   S.bills.forEach(b => {
@@ -336,7 +336,7 @@ function openUnpaidByCustomerModal() {
     + (rows.length ? '<div class="kv" style="margin-top:10px;border-bottom:none"><span>合计</span><b class="neg">' + fmt(total) + '</b></div>' : '');
   $('#modal-mask').classList.remove('hidden');
 }
-$('#card-unpaid').addEventListener('dblclick', openUnpaidByCustomerModal);
+$('#card-unpaid').addEventListener('click', openUnpaidByCustomerModal);
 
 /* ---------- 记一笔 ---------- */
 const catLabel = r => r.sub ? r.category + ' · ' + r.sub : (r.category || '');
