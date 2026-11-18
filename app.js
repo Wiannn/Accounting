@@ -571,6 +571,7 @@ function renderExpenseMain(period) {
 }
 function renderExpenseSub(period) {
   const buckets = {};
+  const driverBuckets = {}; // 车队支出按司机汇总
   let reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
@@ -583,6 +584,11 @@ function renderExpenseSub(period) {
     const s = e.sub || '(无)';
     if (!buckets[g]) buckets[g] = {};
     buckets[g][s] = (buckets[g][s] || 0) + Number(e.amount || 0);
+    // 车队支出额外按司机归集，未指定司机单独成块
+    if (g === '车队') {
+      const dn = e.driverId ? empName(e.driverId) : '未指定司机';
+      driverBuckets[dn] = (driverBuckets[dn] || 0) + Number(e.amount || 0);
+    }
   });
   const cats = ['仓库', '车队', '其他'].filter(c => buckets[c]);
   if (!cats.length) {
@@ -592,7 +598,11 @@ function renderExpenseSub(period) {
     const map = buckets[cat];
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
     const total = round2(items.reduce((s, r) => s + r.amt, 0));
-    return renderDonutCard(cat, items, total);
+    const card = renderDonutCard(cat, items, total);
+    if (cat !== '车队') return card;
+    const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
+    const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
+    return card + (dItems.length ? renderDonutCard('车队 · 按司机', dItems, dTotal) : '');
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
