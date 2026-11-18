@@ -257,9 +257,6 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .expense-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .stats-period-row{display:flex;align-items:center;gap:8px;margin:0 0 14px}
 .stats-period-row input{flex:1;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);font-size:14px}
-/* 顶栏统计按钮 */
-.lb-stat.stats-btn{border:1px solid var(--primary);background:var(--primary);color:#fff;cursor:pointer;font-size:13px;font-weight:500;padding:0 14px}
-.lb-stat.stats-btn:hover{opacity:.9}
 /* 主分类：进度条 */
 .exp-bar-row{margin-bottom:14px}
 .exp-bar-head{display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px}

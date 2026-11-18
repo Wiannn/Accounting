@@ -581,7 +581,6 @@ $$('[data-stats-tab]').forEach(b => b.addEventListener('click', () => {
 }));
 $('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-sub'));
 $('#stat-month-income').addEventListener('click', () => openStatsPage('income'));
-$('#btn-open-stats').addEventListener('click', () => openStatsPage(statsTab || 'exp-sub'));
 $('#btn-period-prev').addEventListener('click', () => shiftStatsPeriod(-1));
 $('#btn-period-next').addEventListener('click', () => shiftStatsPeriod(1));
 $('#stats-period-month').addEventListener('change', setStatsPeriodFromPicker);
