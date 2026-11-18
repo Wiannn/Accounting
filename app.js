@@ -373,8 +373,17 @@ function exitStatsPage() {
   syncMobileNav();
 }
 function statsPeriod() {
-  const m = $('#ledger-month').value || todayStr().slice(0, 7);
-  return statsMode === 'month' ? m : m.slice(0, 4);
+  const lm = $('#ledger-month').value || todayStr().slice(0, 7);
+  return statsMode === 'month' ? lm : lm.slice(0, 4);
+}
+// 同步统计页的 period picker 状态 + 值
+function syncStatsPeriodPicker() {
+  const lm = $('#ledger-month');
+  const period = lm.value || todayStr().slice(0, 7);
+  $('#stats-period-month').value = period;
+  $('#stats-period-year').value = period.slice(0, 4);
+  $('#stats-period-month').classList.toggle('hidden', statsMode !== 'month');
+  $('#stats-period-year').classList.toggle('hidden', statsMode !== 'year');
 }
 function renderStatsPage() {
   const period = statsPeriod();
@@ -383,7 +392,7 @@ function renderStatsPage() {
   $('#stats-title').textContent = modeLabel + tabLabel;
   $$('[data-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.statsMode === statsMode));
   $$('[data-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.statsTab === statsTab));
-  renderYearSwitcher();
+  syncStatsPeriodPicker();
   const body = $('#stats-body');
   let trendHtml = '';
   if (statsMode === 'year') trendHtml = renderYearTrend(period);
@@ -391,29 +400,31 @@ function renderStatsPage() {
   else if (statsTab === 'exp-sub') body.innerHTML = trendHtml + renderExpenseSub(period);
   else body.innerHTML = trendHtml + renderIncomeByCustomer(period);
 }
-function renderYearSwitcher() {
-  const title = $('#stats-title');
-  const existing = $('#year-switcher');
-  if (statsMode === 'year') {
-    if (!existing) {
-      const wrap = document.createElement('div');
-      wrap.id = 'year-switcher';
-      wrap.className = 'year-switcher';
-      wrap.innerHTML = '<button class="ghost" id="btn-year-prev" style="padding:6px 10px">‹</button><span id="year-switcher-label" style="font-size:14px;font-weight:500;min-width:60px;text-align:center"></span><button class="ghost" id="btn-year-next" style="padding:6px 10px">›</button>';
-      title.parentElement.insertBefore(wrap, title.nextSibling);
-      $('#btn-year-prev').addEventListener('click', () => shiftStatsYear(-1));
-      $('#btn-year-next').addEventListener('click', () => shiftStatsYear(1));
-    }
-    $('#year-switcher-label').textContent = statsPeriod();
-  } else if (existing) {
-    existing.remove();
-  }
-}
-function shiftStatsYear(delta) {
-  const cur = statsPeriod();
-  const y = String(Number(cur) + delta);
+function shiftStatsPeriod(delta) {
   const lm = $('#ledger-month');
-  lm.value = y + '-' + (lm.value ? lm.value.slice(5, 7) : '01');
+  const cur = lm.value || todayStr().slice(0, 7);
+  if (statsMode === 'year') {
+    const y = String(Number(cur.slice(0, 4)) + delta);
+    lm.value = y + '-' + cur.slice(5, 7);
+  } else {
+    // month
+    const [y, m] = cur.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    lm.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  renderLedger();
+  renderStatsPage();
+}
+function setStatsPeriodFromPicker() {
+  const lm = $('#ledger-month');
+  if (statsMode === 'month') {
+    const v = $('#stats-period-month').value;
+    if (v) lm.value = v;
+  } else {
+    const v = $('#stats-period-year').value;
+    if (v) lm.value = v + '-' + (lm.value ? lm.value.slice(5, 7) : '01');
+  }
+  renderLedger();
   renderStatsPage();
 }
 
@@ -572,6 +583,10 @@ $$('[data-stats-tab]').forEach(b => b.addEventListener('click', () => {
 $('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-main'));
 $('#stat-month-income').addEventListener('click', () => openStatsPage('income'));
 $('#btn-open-stats').addEventListener('click', () => openStatsPage(statsTab || 'exp-main'));
+$('#btn-period-prev').addEventListener('click', () => shiftStatsPeriod(-1));
+$('#btn-period-next').addEventListener('click', () => shiftStatsPeriod(1));
+$('#stats-period-month').addEventListener('change', setStatsPeriodFromPicker);
+$('#stats-period-year').addEventListener('change', setStatsPeriodFromPicker);
 
 // 已迁入统一统计页面
 

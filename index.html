@@ -83,6 +83,12 @@
           <button class="seg-btn active" data-stats-mode="month">月</button>
           <button class="seg-btn" data-stats-mode="year">年</button>
         </div>
+        <div class="stats-period-row">
+          <button class="ghost" id="btn-period-prev" style="padding:6px 10px">‹</button>
+          <input type="month" id="stats-period-month">
+          <input type="number" id="stats-period-year" min="2000" max="2100" step="1" class="hidden">
+          <button class="ghost" id="btn-period-next" style="padding:6px 10px">›</button>
+        </div>
         <div class="expense-tabs">
           <button class="expense-tab active" data-stats-tab="exp-main">支出 · 主分类</button>
           <button class="expense-tab" data-stats-tab="exp-sub">支出 · 子分类</button>
