@@ -936,10 +936,6 @@ function setTxTab(t) {
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
   if (inc) renderIncTypes();
   $('#wrap-tx-date').classList.remove('hidden');
-  $('#tx-note').placeholder = inc ? '选填，可写车牌/事项' : '选填，可写司机名/供应商名';
-  $('#tx-hint').textContent = inc
-    ? '收入即时入账，自动计入该客户的「现结收入」'
-    : '支出按现结入账，计入支出统计';
 }
 
 function openTxForm() {
