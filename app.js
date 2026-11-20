@@ -669,12 +669,15 @@ function renderYearTrend(year) {
       + '<text x="' + (padL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + label + '</text>';
   });
   const expensePath = expensePts.join(' ');
+  // 先画 polyline（在底层）
   svg += '<polygon points="' + padL + ',' + (padT + plotH) + ' ' + expensePath + ' ' + (W - padR) + ',' + (padT + plotH) + '" fill="#CE3A3A" opacity="0.12"></polygon>'
-    + '<polyline points="' + expensePath + '" fill="none" stroke="#CE3A3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>';
+    + '<polyline points="' + expensePath + '" fill="none" stroke="#CE3A3A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="trend-polyline"></polyline>';
+  // 每月两个 circle：透明大圈（热区 r=14）+ 实心小圈（视觉 r=5），都带 data 属性
   months.forEach((m, i) => {
     const cx = padL + i * gap + gap / 2;
     const ye = padT + plotH - (m.expense / max) * plotH;
-    svg += '<circle class="dot" cx="' + cx + '" cy="' + ye + '" r="6" fill="#CE3A3A" stroke="#fff" stroke-width="1.8" data-month="' + m.label + '" data-expense="' + fmt(m.expense) + '"></circle>';
+    svg += '<circle class="hit" cx="' + cx + '" cy="' + ye + '" r="14" fill="transparent" data-month="' + m.label + '" data-expense="' + fmt(m.expense) + '"></circle>'
+      + '<circle class="dot" cx="' + cx + '" cy="' + ye + '" r="5" fill="#CE3A3A" stroke="#fff" stroke-width="1.8" data-month="' + m.label + '" data-expense="' + fmt(m.expense) + '"></circle>';
   });
   svg += labels;
   const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
@@ -854,15 +857,34 @@ function periodLabel(period) {
 // 折线图圆点点击 → 浮层显示月份+支出（兼容手机触屏）
 document.addEventListener('click', e => {
   const t = e.target;
-  // 直接命中：circle 本身就是 data-month
-  const c = (t.nodeName === 'circle' && t.dataset && t.dataset.month) ? t : null;
+  let c = null;
+  // 1) 直接命中：带 data-month 的 circle（.hit 或 .dot）
+  if (t.nodeName === 'circle' && t.dataset && t.dataset.month) c = t;
+  // 2) 兜底：点到 polyline → 反查最近的月份点
+  if (!c && t.nodeName === 'polyline') {
+    const svg = t.ownerSVGElement;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    // 屏幕坐标 → viewBox 坐标
+    const px = ((e.clientX - rect.left) / rect.width) * vb.width;
+    const py = ((e.clientY - rect.top) / rect.height) * vb.height;
+    const circles = svg.querySelectorAll('circle[data-month]');
+    let best = null, bestD = Infinity;
+    circles.forEach(cc => {
+      const cx = Number(cc.getAttribute('cx'));
+      const cy = Number(cc.getAttribute('cy'));
+      const d = Math.hypot(cx - px, cy - py);
+      if (d < bestD) { bestD = d; best = cc; }
+    });
+    // 阈值：半个月份间距（viewBox 单位）
+    const gap = vb.width / 12;
+    if (best && bestD <= gap * 0.9) c = best;
+  }
   if (!c) {
-    // 点别处 → 关闭浮层
     const tip = document.getElementById('trend-tip');
     if (tip) tip.remove();
     return;
   }
-  // 确认这个 circle 确实在 year-trend-card 里
   if (!c.ownerSVGElement || !c.ownerSVGElement.closest('.year-trend-card')) return;
   const svg = c.ownerSVGElement;
   const rect = svg.getBoundingClientRect();
