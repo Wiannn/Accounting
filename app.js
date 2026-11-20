@@ -583,7 +583,12 @@ function renderExpenseSub(period) {
       driverBuckets[dn] = (driverBuckets[dn] || 0) + Number(e.amount || 0);
     }
   });
-  const cats = ['仓库', '车队', '其他'].filter(c => buckets[c]);
+  // 主分类固定为仓库、车队；历史数据里的其他分类仍然展示，避免金额凭空消失
+  const ORDER = ['仓库', '车队'];
+  const cats = Object.keys(buckets).sort((a, b) => {
+    const ra = ORDER.indexOf(a), rb = ORDER.indexOf(b);
+    return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
+  });
   if (!cats.length) {
     return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无支出</div>';
   }
@@ -793,7 +798,7 @@ function renderTxSubs() {
   const keptAmount = amountEl ? amountEl.value : '';
   const wrap = $('#wrap-subcategory');
   const subs = S.settings.catGroups[g] || [];
-  if (g !== '其他' && subs.length) {
+  if (subs.length) {
     wrap.classList.remove('hidden');
     $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
   } else {
@@ -825,7 +830,7 @@ function driverOptions(selected) {
 let subcatGroup = '';
 function openSubcatModal() {
   const g = $('#tx-group').value;
-  if (!g || g === '其他') { toast('请先选择主分类'); return; }
+  if (!g) { toast('请先选择主分类'); return; }
   subcatGroup = g;
   $('#subcat-modal').innerHTML =
     '<div class="modal-head"><h2>新增分类 · ' + esc(g) + '</h2><button class="modal-x" id="btn-subcat-x">&times;</button></div>'
@@ -892,7 +897,7 @@ async function saveIncType() {
 function initTxForm() {
   // 沿用上一笔的分类与日期（金额从空开始，方便录入新一笔）
   const last = S.settings.lastTx || {};
-  const groups = ['仓库', '车队', '其他'];
+  const groups = ['仓库', '车队'];
   const group = groups.includes(last.group) ? last.group : '仓库';
   $('#tx-date').value = last.date || todayStr();
   $('#tx-group').value = group;

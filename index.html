@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=46">
+<link rel="stylesheet" href="app.css?v=47">
 </head>
 <body>
 <div id="app">
@@ -116,7 +116,6 @@
         <label id="wrap-tx-group">主分类 <select id="tx-group">
           <option value="仓库">仓库</option>
           <option value="车队">车队</option>
-          <option value="其他">其他</option>
         </select></label>
         <label id="wrap-subcategory">子分类 <span class="sub-pick"><select id="tx-category"></select><button type="button" id="btn-add-sub" class="mini-plus" title="新增子分类">+</button></span></label>
         <label id="wrap-tx-driver" class="hidden">司机 <select id="tx-driver"></select></label>
@@ -244,6 +243,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=77"></script>
+<script src="app.js?v=78"></script>
 </body>
 </html>
