@@ -834,6 +834,9 @@ function renderLedger() {
 
 function renderTxSubs() {
   const g = $('#tx-group').value;
+  // 切换主分类会重绘子分类下拉，这里保留用户已输入的金额，避免被清空
+  const amountEl = $('#tx-amount');
+  const keptAmount = amountEl ? amountEl.value : '';
   const wrap = $('#wrap-subcategory');
   const subs = S.settings.catGroups[g] || [];
   if (g !== '其他' && subs.length) {
@@ -851,6 +854,7 @@ function renderTxSubs() {
       $('#tx-driver').innerHTML = driverOptions(keep);
     }
   }
+  if (amountEl) amountEl.value = keptAmount;
 }
 
 // 司机下拉：仅在职的「司机」职位员工
@@ -932,13 +936,21 @@ async function saveIncType() {
 }
 
 function initTxForm() {
-  $('#tx-date').value = todayStr();
+  // 沿用上一笔的分类与日期（金额从空开始，方便录入新一笔）
+  const last = S.settings.lastTx || {};
+  const groups = ['仓库', '车队', '其他'];
+  const group = groups.includes(last.group) ? last.group : '仓库';
+  $('#tx-date').value = last.date || todayStr();
+  $('#tx-group').value = group;
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
   $('#tx-status').value = 'paid';
   $('#wrap-tx-date').classList.remove('hidden');
-  if (!$('#tx-group').value) $('#tx-group').value = '仓库';
   renderTxSubs();
+  if (last.group === group && last.category) {
+    const catSel = $('#tx-category');
+    if (catSel && Array.from(catSel.options).some(o => o.value === last.category)) catSel.value = last.category;
+  }
   renderIncTypes();
   const lastInc = S.settings.lastIncCustomer;
   if (lastInc && S.customers.some(c => c.id === lastInc)) $('#inc-customer').value = lastInc;
@@ -1054,6 +1066,7 @@ async function saveTx() {
     const newId = uid();
     await dbPut('incomes', { id: newId, date: date, type: $('#inc-type').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
     await saveSetting('lastIncCustomer', cid);
+    await saveSetting('lastTx', Object.assign({}, S.settings.lastTx || {}, { date: date }));
     await loadState();
     closeModal();
     revealLedgerRecord('incomes', newId, date);
@@ -1072,6 +1085,7 @@ async function saveTx() {
   const newId = uid();
   const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
   await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
+  await saveSetting('lastTx', { group: group, category: sub, date: date });
   await loadState();
   closeModal();
   revealLedgerRecord('expenses', newId, date);
