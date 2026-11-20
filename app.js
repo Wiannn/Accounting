@@ -2117,9 +2117,12 @@ function renderWageGen() {
   const actives = S.employees.filter(e2 => e2.active);
   const pending = actives.filter(e2 => !S.wages.some(w => w.employeeId === e2.id && w.period === period));
   const sel = $('#wage-emp-select');
+  const prev = sel.value;
   sel.innerHTML = pending.length
     ? pending.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('')
     : '<option value="">' + (actives.length ? '本月工资已全部生成' : '暂无在职员工') + '</option>';
+  const okVals = Array.from(sel.options).map(o => o.value);
+  sel.value = okVals.includes(prev) ? prev : (okVals[0] || '');
   sel.disabled = !pending.length;
   $('#wage-emp-pop') && $('#wage-emp-pop').classList.add('hidden');
   const btn = $('#wage-emp-btn');
