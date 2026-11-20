@@ -627,16 +627,16 @@ function renderExpenseSub(period) {
     const map = buckets[cat];
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
     const total = round2(items.reduce((s, r) => s + r.amt, 0));
-    const card = renderDonutCard(cat + '支出', items, total);
+    const card = renderDonutCard(cat + '支出', items, total, { cat: cat, dim: 'sub', period: period });
     if (cat === '车队') {
       const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
       const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
-      return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal) : '');
+      return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal, { cat: '车队', dim: 'driver', period: period }) : '');
     }
     if (cat === '工资') {
       const wItems = Object.keys(empBuckets).map(k => ({ k, amt: round2(empBuckets[k]) })).sort((a, b) => b.amt - a.amt);
       const wTotal = round2(wItems.reduce((s, r) => s + r.amt, 0));
-      return card + (wItems.length ? renderDonutCard('按员工支出', wItems, wTotal) : '');
+      return card + (wItems.length ? renderDonutCard('按员工支出', wItems, wTotal, { cat: '工资', dim: 'employee', period: period }) : '');
     }
     return card;
   }).join('')
@@ -684,7 +684,12 @@ function renderYearTrend(year) {
 }
 
 const DONUT_PALETTE = ['#0064FA', '#3BB346', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6', '#F97316', '#84CC16', '#6366F1', '#8B949E'];
-function renderDonutCard(title, items, total) {
+function renderDonutCard(title, items, total, clickCtx) {
+  // clickCtx 可选：{ cat, dim, period }
+  //   cat: '仓库' | '车队' | '工资'
+  //   dim: 'sub' 按子分类 | 'driver' 按司机 | 'employee' 按员工
+  //   period: '2026' 或 '2026-11'
+  // 点击某条 legend 时，会用 cat + dim + 该 legend 的 key 过滤支出记录并弹窗展示
   // 明细不再合并小项，所有子分类都原样列出
   const merged = items;
 
@@ -724,7 +729,15 @@ function renderDonutCard(title, items, total) {
   }).join('');
   const legend = list.map((it, i) => {
     const pct = total > 0 ? (it.amt / total * 100).toFixed(1) : '0.0';
-    return '<div class="donut-legend-row"><span class="donut-dot" style="background:' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span><span class="donut-legend-name">' + esc(it.k) + '</span><span class="donut-legend-amt">' + fmt(it.amt) + ' <span class="muted" style="font-size:11px">' + pct + '%</span></span></div>';
+    const interactive = !!clickCtx;
+    const ctxAttr = clickCtx
+      ? ' data-cat="' + esc(clickCtx.cat || '') + '" data-dim="' + esc(clickCtx.dim || '') + '" data-period="' + esc(clickCtx.period || '') + '"'
+      : '';
+    return '<div class="donut-legend-row' + (interactive ? ' clickable' : '') + '"' + ctxAttr + ' data-key="' + esc(it.k) + '">'
+      + '<span class="donut-dot" style="background:' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span>'
+      + '<span class="donut-legend-name">' + esc(it.k) + '</span>'
+      + '<span class="donut-legend-amt">' + fmt(it.amt) + ' <span class="muted" style="font-size:11px">' + pct + '%</span></span>'
+      + '</div>';
   }).join('');
   return '<div class="donut-card">'
     + '<div class="donut-body">'
@@ -736,6 +749,66 @@ function renderDonutCard(title, items, total) {
       + '<div class="donut-legend">' + legend + '</div>'
     + '</div>'
   + '</div>';
+}
+
+document.addEventListener('click', e => {
+  const row = e.target.closest('.donut-legend-row.clickable');
+  if (row) {
+    showDonutDetail(row.dataset.cat, row.dataset.dim, row.dataset.period, row.dataset.key);
+  }
+});
+
+function showDonutDetail(cat, dim, period, key) {
+  let rows = S.expenses.filter(e => {
+    if ((e.date || '').startsWith(period) === false) return false;
+    if ((e.category || '其他') !== cat) return false;
+    if (dim === 'sub') return (e.sub || '(无)') === key;
+    if (dim === 'driver') {
+      const dn = e.driverId ? empName(e.driverId) : '未指定司机';
+      return dn === key;
+    }
+    if (dim === 'employee') {
+      const en = e.employeeId ? empName(e.employeeId) : '未关联员工';
+      return en === key;
+    }
+    return false;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const total = round2(rows.reduce((s, r) => s + Number(r.amount || 0), 0));
+  const catLabel = { 'sub': '子分类', 'driver': '司机', 'employee': '员工' }[dim] || '';
+
+  if (!rows.length) {
+    $('#modal').innerHTML = '<div class="panel" style="text-align:center;color:var(--muted);padding:32px">' + esc(cat) + ' · ' + esc(catLabel) + '：' + esc(key) + '<p style="margin-top:10px">暂无明细记录</p></div>';
+    $('#modal-mask').classList.remove('hidden');
+    return;
+  }
+
+  const tbody = rows.map(r => {
+    const cols = [
+      esc(r.date || ''),
+      fmt(r.amount),
+      dim === 'sub' ? (r.sub || '') : '',
+      esc(r.note || '')
+    ].filter(Boolean);
+    return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
+  }).join('');
+
+  const headers = ['日期', '金额'];
+  if (dim === 'sub') headers.push('子分类');
+  headers.push('备注');
+
+  $('#modal').innerHTML = '<div class="panel donut-detail-panel">'
+    + '<div class="panel-title">' + esc(cat) + '支出 · ' + esc(catLabel) + '「' + esc(key) + '」</div>'
+    + '<div class="panel-desc">' + esc(periodLabel(period)) + ' · 共 ' + rows.length + ' 条 · 合计 ' + fmt(total) + '</div>'
+    + '<table class="mini-table"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + tbody + '</tbody></table>'
+    + '</div>';
+  $('#modal-mask').classList.remove('hidden');
+}
+function periodLabel(period) {
+  if (!period) return '';
+  if (period.length === 4) return period + '年';
+  if (period.length === 7) return period.replace('-', '年') + '月';
+  return period;
 }
 
 // === 事件绑定 ===
