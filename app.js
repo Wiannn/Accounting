@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /* ---------- 基础工具 ---------- */
 const $  = s => document.querySelector(s);
@@ -1947,23 +1947,19 @@ function openCustDetail(cid) {
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
     + '<div style="margin:6px 0 12px"><button class="primary small" data-receipt="' + c.id + '">登记收款</button></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>开票日期</th><th>备注</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
-        const bf = billFileOf(b.id);
-        const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
+        const invDate = S.invoices.filter(i => i.billId === b.id && i.date).map(i => i.date).sort().pop() || '';
         const realPaid = paidOf(b.id);
         return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (round2(realPaid - billBase(b)) > 0 ? '<div class="muted">多收 ' + fmtInt(round2(realPaid - billBase(b))) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
+          + '<td>' + (invDate || '—') + '</td>'
           + '<td>' + esc(b.note || '') + '</td>'
-          + '<td style="white-space:nowrap">' + (bf
-            ? '<button data-billfile-open="' + b.id + '" style="' + btn + '" title="' + esc(bf.name) + '">查看</button>'
-              + '<button data-billfile-del="' + b.id + '" style="' + btn + ';margin-left:3px" title="删除附件">×</button>'
-            : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
-          + '</td></tr>';
+          + '</tr>';
       }).join('') || '<tr><td colspan="9" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
@@ -1990,91 +1986,11 @@ $('#cust-detail-body').addEventListener('dblclick', e => {
   if (row) openBillEditModal(row.dataset.custbill);
 });
 
-/* ---------- 账单附件：Excel 存档 ---------- */
-function billFileOf(billId) {
-  return S.billFiles.find(f => f.id === billId);
-}
-let pendingBillFileId = null;
+/* ---------- 应收账单交互 ---------- */
 $('#cust-detail-body').addEventListener('click', e => {
   const rc = e.target.closest('[data-receipt]');
   if (rc) { openReceiptModal(rc.dataset.receipt); return; }
-  const up = e.target.closest('[data-billfile-upload]');
-  const open = e.target.closest('[data-billfile-open]');
-  const del = e.target.closest('[data-billfile-del]');
-  if (up) {
-    pendingBillFileId = up.dataset.billfileUpload;
-    const input = $('#bill-file-input');
-    input.value = '';
-    input.click();
-  } else if (open) {
-    const f = billFileOf(open.dataset.billfileOpen);
-    if (f) previewBillFile(f);
-  } else if (del) {
-    if (!confirm('删除该账单的 Excel 附件？账单金额不受影响。')) return;
-    const billId = del.dataset.billfileDel;
-    const bill = S.bills.find(x => x.id === billId);
-    awaitDelBillFile(billId, bill ? bill.customerId : null);
-  }
 });
-// 在线预览附件：直接渲染 Excel 内容，另提供下载入口
-async function previewBillFile(f) {
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>账单预览</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="muted" style="margin-bottom:8px;word-break:break-all">' + esc(f.name || '') + '</div>'
-    + '<div id="bill-file-preview" class="file-preview"><div class="muted">正在解析…</div></div>'
-    + '<div class="modal-foot"><button class="ghost" id="btn-bill-file-download">下载原文件</button><button class="primary" data-close>关闭</button></div>';
-  $('#modal-mask').classList.remove('hidden');
-  $('#btn-bill-file-download').addEventListener('click', () => downloadBillFile(f));
-  try {
-    await ensureXLSX();
-    const bin = atob(f.data || '');
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const wb = XLSX.read(bytes, { type: 'array' });
-    const html = wb.SheetNames.map(n => '<div class="preview-sheet-title">' + esc(n) + '</div><div class="preview-sheet">' + XLSX.utils.sheet_to_html(wb.Sheets[n]) + '</div>').join('');
-    const box = $('#bill-file-preview');
-    if (box) box.innerHTML = html || '<div class="muted">表格为空</div>';
-  } catch (err) {
-    const box = $('#bill-file-preview');
-    if (box) box.innerHTML = '<div class="muted">无法解析该文件，可删除后重新上传。</div>';
-  }
-}
-function downloadBillFile(f) {
-  const bin = atob(f.data || '');
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: f.mime || 'application/octet-stream' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = f.name || '账单.xlsx';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-async function awaitDelBillFile(billId, cid) {
-  await dbDel('billFiles', billId);
-  await loadState();
-  if (cid) openCustDetail(cid);
-  toast('附件已删除');
-}
-$('#bill-file-input').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file || !pendingBillFileId) return;
-  if (file.size > 10 * 1024 * 1024) { toast('文件超过 10MB，请压缩后再上传'); return; }
-  const bill = S.bills.find(x => x.id === pendingBillFileId);
-  if (!bill) return;
-  const base64 = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(',')[1] || '');
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
-  });
-  await dbPut('billFiles', { id: bill.id, billId: bill.id, name: file.name, mime: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size: file.size, data: base64, createdAt: Date.now() });
-  await loadState();
-  openCustDetail(bill.customerId);
-  toast('附件已保存：' + file.name);
-});
-
 let editingBillId = null;
 function openBillEditModal(billId) {
   const b = S.bills.find(x => x.id === billId);
