@@ -117,9 +117,15 @@
         <label id="wrap-tx-group">主分类 <select id="tx-group">
           <option value="仓库">仓库</option>
           <option value="车队">车队</option>
+          <option value="工资">工资</option>
         </select></label>
         <label id="wrap-subcategory">子分类 <span class="sub-pick"><select id="tx-category"></select><button type="button" id="btn-add-sub" class="mini-plus" title="新增子分类">+</button></span></label>
         <label id="wrap-tx-driver" class="hidden">司机 <select id="tx-driver"></select></label>
+        <div id="wrap-tx-employee" class="field hidden">员工 <span class="cust-pick">
+          <button type="button" class="cust-pick-btn" id="tx-emp-btn"><span id="tx-emp-label">选择员工</span><span class="cust-pick-caret">▾</span></button>
+          <div class="cust-pick-pop hidden" id="tx-emp-pop"></div>
+          <select id="tx-employee" class="hidden"></select>
+        </span></div>
         <div id="wrap-inc-customer" class="field hidden">客户 <span class="cust-pick">
           <button type="button" class="cust-pick-btn" id="inc-cust-btn"><span id="inc-cust-label">不选客户</span><span class="cust-pick-caret">▾</span></button>
           <div class="cust-pick-pop hidden" id="inc-cust-pop"></div>
@@ -244,6 +250,6 @@
 <div id="subcat-mask" class="hidden"><div id="subcat-modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=105"></script>
+<script src="app.js?v=106"></script>
 </body>
 </html>

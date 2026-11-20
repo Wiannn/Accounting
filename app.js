@@ -97,7 +97,7 @@ const DEFAULTS = {
   catGroups: {
     '仓库': ['办公用品', '工具材料', '油费'],
     '车队': ['上车费', '高速费', '油费', '打印费'],
-    '员工': ['员工工资', '报销']
+    '工资': ['员工工资']
   },
   incomeFees: ['进仓费', '打印费']
 };
@@ -154,10 +154,30 @@ async function migrateCategories() {
     await saveSetting('catGroups', S.settings.catGroups);
     await saveSetting('fleetSubsMigrated', true);
   }
-  // 老数据补上「报销」子分类（历史报销生成的支出仍能显示分类名）
-  if (!(S.settings.catGroups['员工'] || []).includes('报销')) {
-    S.settings.catGroups['员工'] = (S.settings.catGroups['员工'] || []).concat(['报销']);
+  // 确保工资分类有子分类（员工工资 / 报销），兼容历史上用户自行新增的条目
+  if (!(S.settings.catGroups['工资'] || []).includes('员工工资')) {
+    S.settings.catGroups['工资'] = (S.settings.catGroups['工资'] || []).concat(['员工工资']);
     await saveSetting('catGroups', S.settings.catGroups);
+  }
+  // 一次性迁移：旧版工资相关支出 category='员工'（子分类'员工工资'/'报销'）统一改成 category='工资'
+  if (!S.settings.wageCatMigrated) {
+    let changed = false;
+    for (const e2 of S.expenses) {
+      if (e2.category === '员工') {
+        e2.category = '工资';
+        await dbPut('expenses', e2);
+        changed = true;
+      }
+    }
+    // 用户 settings 里自定义的"员工"分类（如曾经在分类设置里改过）也统一迁成"工资"
+    if (S.settings.catGroups['员工'] && !S.settings.catGroups['工资']) {
+      S.settings.catGroups['工资'] = S.settings.catGroups['员工'];
+      delete S.settings.catGroups['员工'];
+      await saveSetting('catGroups', S.settings.catGroups);
+    }
+    S.settings.wageCatMigrated = true;
+    await saveSetting('wageCatMigrated', true);
+    if (changed) await loadState();
   }
   if (S.settings.catMigrated) return;
   let changed = false;
@@ -588,8 +608,8 @@ function renderExpenseSub(period) {
       driverBuckets[dn] = (driverBuckets[dn] || 0) + Number(e.amount || 0);
     }
   });
-  // 主分类固定为仓库、车队；历史数据里的其他分类仍然展示，避免金额凭空消失
-  const ORDER = ['仓库', '车队'];
+  // 主分类固定为仓库、车队、工资；历史数据里的其他分类仍然展示，避免金额凭空消失
+  const ORDER = ['仓库', '车队', '工资'];
   const cats = Object.keys(buckets).sort((a, b) => {
     const ra = ORDER.indexOf(a), rb = ORDER.indexOf(b);
     return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
@@ -743,7 +763,7 @@ function renderLedger() {
   // 月流水列表（按日期分组）；有搜索词时搜索全部月份
   // 账单收款（客户页已结清）不计入记一笔流水
   const all = S.incomes.filter(isCashIncome).map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
-    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: e.driverId ? empName(e.driverId) : '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
+    .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: (e.employeeId ? empName(e.employeeId) : '') || (e.driverId ? empName(e.driverId) : ''), amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   // 搜索过滤：匹配分类、客户、备注、金额、日期（全部月份）
   const kw = (($('#ledger-search') && $('#ledger-search').value) || '').trim().toLowerCase();
@@ -821,7 +841,31 @@ function renderTxSubs() {
       $('#tx-driver').innerHTML = driverOptions(keep);
     }
   }
+  // 工资支出可关联员工
+  const empWrap = $('#wrap-tx-employee');
+  if (empWrap) {
+    empWrap.classList.toggle('hidden', g !== '工资');
+    if (g === '工资') {
+      const sel = $('#tx-employee');
+      const keep = sel.value;
+      sel.innerHTML = empOptions(keep);
+      const label = $('#tx-emp-label');
+      if (label) {
+        const o = sel.options[sel.selectedIndex];
+        label.textContent = (o && o.value) ? o.textContent : '选择员工';
+      }
+    }
+  }
   if (amountEl) amountEl.value = keptAmount;
+}
+
+function empOptions(selected) {
+  const list = S.employees.filter(e2 => e2.active !== false)
+    .sort((a, b) => (a.role || '').localeCompare(b.role || '', 'zh') || a.name.localeCompare(b.name, 'zh'));
+  let html = '<option value=""' + (selected ? '' : ' selected') + '>不关联</option>'
+    + list.map(e2 => '<option value="' + e2.id + '"' + (e2.id === selected ? ' selected' : '') + '>' + esc(e2.name) + '</option>').join('');
+  if (selected && !list.some(e2 => e2.id === selected)) html += '<option value="' + selected + '" selected>' + esc(empName(selected)) + '</option>';
+  return html;
 }
 
 // 司机下拉：仅在职的「司机」职位员工
@@ -905,7 +949,7 @@ async function saveIncType() {
 function initTxForm() {
   // 沿用上一笔的分类与日期（金额从空开始，方便录入新一笔）
   const last = S.settings.lastTx || {};
-  const groups = ['仓库', '车队'];
+  const groups = ['仓库', '车队', '工资'];
   const group = groups.includes(last.group) ? last.group : '仓库';
   $('#tx-date').value = last.date || todayStr();
   $('#tx-group').value = group;
@@ -937,6 +981,7 @@ function setTxTab(t) {
   $('#wrap-tx-group').classList.toggle('hidden', inc);
   $('#wrap-subcategory').classList.toggle('hidden', inc);
   $('#wrap-tx-driver').classList.toggle('hidden', inc || $('#tx-group').value !== '车队');
+  $('#wrap-tx-employee').classList.toggle('hidden', inc || $('#tx-group').value !== '工资');
   $('#wrap-inc-customer').classList.toggle('hidden', !inc);
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
   if (inc) renderIncTypes();
@@ -955,6 +1000,7 @@ function openTxForm() {
   $('#inc-customer').innerHTML = '<option value="">不选客户</option>' + S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   initTxForm();
   initCustPick({ select: '#inc-customer', btn: '#inc-cust-btn', pop: '#inc-cust-pop', label: '#inc-cust-label', placeholder: '不选客户' });
+  initCustPick({ select: '#tx-employee', btn: '#tx-emp-btn', pop: '#tx-emp-pop', label: '#tx-emp-label', placeholder: '选择员工' });
   bindTxFormEvents();
 }
 
@@ -1085,10 +1131,12 @@ async function saveTx() {
     if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
   const group = $('#tx-group').value;
-  const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
+  const needSub = (group === '仓库' || group === '车队' || group === '工资');
+  const sub = needSub ? ($('#tx-category').value || '') : '';
   const newId = uid();
   const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
-  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, status: null, pendingKind: null, createdAt: Date.now() });
+  const employeeId = group === '工资' ? ($('#tx-employee').value || null) : null;
+  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, employeeId: employeeId, status: null, pendingKind: null, createdAt: Date.now() });
   await saveSetting('lastTx', { group: group, category: sub, date: date });
   await loadState();
   closeModal();
@@ -1120,19 +1168,23 @@ $('#ledger-list').addEventListener('click', e => {
     + (isInc
       ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId) || '未选客户') + '</b></div>'
         + '<div class="kv"><span>费用类型</span><b>' + esc(rec.type || '—') + '</b></div>'
-      : '<div class="kv"><span>分类</span><b>' + esc(catLabel(rec)) + '</b></div>')
+      : '<div class="kv"><span>分类</span><b>' + esc(catLabel(rec)) + '</b></div>'
+        + (rec.category === '工资' ? '<div class="kv"><span>员工</span><b>' + esc(empName(rec.employeeId) || '未关联') + '</b></div>' : '')
+        + (rec.category === '车队' && rec.driverId ? '<div class="kv"><span>司机</span><b>' + esc(empName(rec.driverId)) + '</b></div>' : ''))
     + (pending
       ? '<div class="kv"><span>日期</span><b>' + (rec.date || '—') + '</b></div>'
         + '<div class="form-grid" style="margin-top:10px;margin-bottom:0">'
         + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
         + '<label>备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
         + (rec.category === '车队' ? '<label>司机 <select id="le-driver">' + driverOptions(rec.driverId) + '</select></label>' : '')
+        + (rec.category === '工资' ? '<label>员工 <select id="le-employee">' + empOptions(rec.employeeId) + '</select></label>' : '')
         + '</div>'
       : '<div class="form-grid" style="margin-top:12px;margin-bottom:0">'
         + '<label>日期 <input type="date" id="le-date" value="' + (rec.date || '') + '"></label>'
         + '<label>金额（元） <input type="number" id="le-amount" min="0.01" step="0.01" inputmode="decimal" value="' + rec.amount + '"></label>'
         + '<label class="span2">备注 <input type="text" id="le-note" value="' + esc(rec.note || '') + '"></label>'
         + (rec.category === '车队' ? '<label class="span2">司机 <select id="le-driver">' + driverOptions(rec.driverId) + '</select></label>' : '')
+        + (rec.category === '工资' ? '<label class="span2">员工 <select id="le-employee">' + empOptions(rec.employeeId) + '</select></label>' : '')
         + '</div>')
     + '<button class="primary" id="btn-ledger-save" style="margin-top:12px">保存修改</button>'
     + (pending
@@ -1685,6 +1737,8 @@ const handleModalClick = async e => {
     rec.note = $('#le-note').value.trim();
     const drvEl = $('#le-driver');
     if (drvEl) rec.driverId = drvEl.value || null;
+    const empEl = $('#le-employee');
+    if (empEl) rec.employeeId = empEl.value || null;
     await dbPut(store, rec);
     await loadState();
     closeModal();
@@ -2262,7 +2316,7 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
   // 工作表1：收支明细
   const r1 = [['日期', '收支', '类别', '客户', '收入(元)', '支出(元)', '备注']];
   S.incomes.filter(i => inMonth(i.date)).forEach(i => r1.push([i.date, '收入', i.type || '进仓费', custName(i.customerId), Number(i.amount), '', i.note || '']));
-  S.expenses.filter(e2 => inMonth(e2.date)).forEach(e2 => r1.push([e2.date, '支出', catLabel(e2), '', '', Number(e2.amount), e2.note || '']));
+  S.expenses.filter(e2 => inMonth(e2.date)).forEach(e2 => r1.push([e2.date, '支出', catLabel(e2), (e2.employeeId ? empName(e2.employeeId) : '') || (e2.driverId ? empName(e2.driverId) : ''), '', Number(e2.amount), e2.note || '']));
   const ws1 = XLSX.utils.aoa_to_sheet([r1[0]].concat(r1.slice(1).sort((a, b) => a[0].localeCompare(b[0]))));
   ws1['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, ws1, '收支明细');
