@@ -1239,9 +1239,16 @@ function renderBills() {
       + '</div>';
   };
   // 默认展示所有客户，无待收账单的客户显示「全部已结清」
-  // 客户排序：最近添加过月账单的客户在前，其余按创建顺序
+  // 客户排序：最近新增月账单或登记收款的客户在前，其余按创建顺序
   const lastBillAt = {};
   S.bills.forEach(b => { lastBillAt[b.customerId] = Math.max(lastBillAt[b.customerId] || 0, Number(b.createdAt) || 0); });
+  const billCust = {};
+  S.bills.forEach(b => { billCust[b.id] = b.customerId; });
+  S.payments.forEach(p => {
+    const cid = p.customerId || billCust[p.billId];
+    if (!cid || !lastBillAt[cid]) return;
+    lastBillAt[cid] = Math.max(lastBillAt[cid] || 0, Number(p.createdAt) || (Date.parse(p.date) || 0));
+  });
   const order = S.customers
     .map((c, i) => ({ id: c.id, at: lastBillAt[c.id] || 0, i }))
     .sort((a, b) => (b.at - a.at) || (a.i - b.i))
