@@ -2061,6 +2061,15 @@ $('#modal').addEventListener('click', handleModalClick);
 $('#cust-admin').addEventListener('click', e => {
   handleModalClick(e);
 });
+// 员工管理独立页面也复用同一套 handler（新增/离职/恢复/删除）
+$('#page-emp-manage').addEventListener('click', e => {
+  handleModalClick(e);
+});
+$('#btn-emp-manage-back').addEventListener('click', () => {
+  $('#page-emp-manage').classList.add('hidden');
+  $('#page-wages').classList.remove('hidden');
+  renderWageList();
+});
 
 $('#modal').addEventListener('keydown', e => {
   if ((e.target.id === 'wage-pay-amount' || e.target.id === 'wage-pay-date' || e.target.id === 'wage-pay-note') && e.key === 'Enter') {
@@ -2388,6 +2397,8 @@ function renderEmpList() {
   const el = $('#emp-list');
   if (!el) return;
   const sortedEmps = S.employees.slice().sort((a, b) => {
+    // 离职排最下面
+    if (!!a.active !== !!b.active) return (b.active ? 1 : 0) - (a.active ? 1 : 0);
     const ai = ROLE_ORDER.indexOf(a.role);
     const bi = ROLE_ORDER.indexOf(b.role);
     const ar = ai < 0 ? ROLE_ORDER.length : ai;
@@ -2396,32 +2407,26 @@ function renderEmpList() {
     return (a.name || '').localeCompare(b.name || '', 'zh-CN');
   });
   el.innerHTML = sortedEmps.map(e2 =>
-    '<div class="item-card">'
+    '<div class="item-card' + (e2.active ? '' : ' inactive') + '">'
     + '<div class="ic-main">'
-    + '<div class="ic-title">' + esc(e2.name) + ' ' + (e2.role ? '<span class="badge badge-info">' + esc(e2.role) + '</span>' : '') + '</div>'
+    + '<div class="ic-title">' + esc(e2.name) + ' ' + (e2.role ? '<span class="badge badge-info">' + esc(e2.role) + '</span>' : '') + (e2.active ? '' : '<span class="badge badge-gray">离职</span>') + '</div>'
     + '</div>'
     + '<div class="ic-act">'
-    + (e2.active ? '<span class="badge badge-ok">在职</span>' : '<span class="badge badge-gray">离职</span>')
+    + (e2.active ? '<span class="badge badge-ok">在职</span>' : '')
     + '<button class="link-btn" data-toggle-emp="' + e2.id + '">' + (e2.active ? '离职' : '恢复') + '</button>'
     + '<button class="link-btn danger" data-del-emp="' + e2.id + '">删除</button>'
     + '</div></div>'
   ).join('') || '<div class="empty" style="padding:18px;text-align:center;color:var(--muted)">暂无员工</div>';
+  const cnt = $('#emp-count');
+  if (cnt) cnt.textContent = S.employees.length;
 }
 
 function openEmpManage() {
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>员工管理</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="form-grid">'
-    + '<label>新增员工 <input type="text" id="emp-name" placeholder="员工姓名"></label>'
-    + '<label>职位 <select id="emp-role">'
-    + '<option value="">请选择</option><option>叉车工</option><option>装卸工</option><option>司机</option><option>调度</option><option>操作</option><option>换单</option>'
-    + '</select></label>'
-    + '</div>'
-    + '<button class="primary" id="btn-add-emp">添加员工</button>'
-    + '<div class="sub-title">员工列表（' + S.employees.length + ' 人）</div>'
-    + '<div class="item-list" id="emp-list"></div>';
+  $('#page-wages').classList.add('hidden');
+  $('#page-emp-manage').classList.remove('hidden');
   renderEmpList();
-  $('#modal-mask').classList.remove('hidden');
+  const nameInput = $('#emp-name');
+  if (nameInput) nameInput.value = '';
 }
 
 function openWageGen() {
