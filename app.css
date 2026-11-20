@@ -78,6 +78,7 @@ textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid va
 textarea:focus{outline:2px solid rgba(0,100,250,.15);border-color:var(--primary)}
 input:focus,select:focus{outline:2px solid rgba(0,100,250,.15);border-color:var(--primary)}
 label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.form-grid .field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
 .form-grid .span2{grid-column:span 2}
 .inline-flex{display:flex;gap:8px}
