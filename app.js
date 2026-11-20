@@ -906,7 +906,6 @@ function initTxForm() {
   $('#tx-group').value = group;
   $('#tx-amount').value = '';
   $('#tx-note').value = '';
-  $('#tx-status').value = 'paid';
   $('#wrap-tx-date').classList.remove('hidden');
   renderTxSubs();
   if (last.group === group && last.category) {
@@ -933,15 +932,14 @@ function setTxTab(t) {
   $('#wrap-tx-group').classList.toggle('hidden', inc);
   $('#wrap-subcategory').classList.toggle('hidden', inc);
   $('#wrap-tx-driver').classList.toggle('hidden', inc || $('#tx-group').value !== '车队');
-  $('#wrap-tx-status').classList.toggle('hidden', inc);
   $('#wrap-inc-customer').classList.toggle('hidden', !inc);
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
   if (inc) renderIncTypes();
-  $('#wrap-tx-date').classList.toggle('hidden', !inc && $('#tx-status').value !== 'paid');
+  $('#wrap-tx-date').classList.remove('hidden');
   $('#tx-note').placeholder = inc ? '选填，可写车牌/事项' : '选填，可写司机名/供应商名';
   $('#tx-hint').textContent = inc
     ? '收入即时入账，自动计入该客户的「现结收入」'
-    : '选「挂账」或「待报销」先挂账，不计入支出统计；点流水里的挂账条目可登记付款或确认报销，之后计入支出';
+    : '支出按现结入账，计入支出统计';
 }
 
 function openTxForm() {
@@ -996,9 +994,6 @@ function bindTxFormEvents() {
   $('#seg-expense').addEventListener('click', () => setTxTab('expense'));
   $('#seg-income').addEventListener('click', () => setTxTab('income'));
   $('#tx-group').addEventListener('change', renderTxSubs);
-  $('#tx-status').addEventListener('change', () => {
-    $('#wrap-tx-date').classList.toggle('hidden', $('#tx-status').value !== 'paid');
-  });
   $('#btn-save-tx').addEventListener('click', saveTx);
   ['#tx-amount', '#tx-note'].forEach(sel => {
     $(sel).addEventListener('keydown', e => {
@@ -1041,10 +1036,8 @@ async function saveTx() {
     toast('收入已保存，计入客户现结收入');
     return;
   }
-  const statusVal = $('#tx-status').value;
-  const isPending = statusVal !== 'paid';
-  const date = isPending ? todayStr() : $('#tx-date').value;
-  if (!isPending && !date) { toast('请选择日期'); return; }
+  const date = $('#tx-date').value;
+  if (!date) { toast('请选择日期'); return; }
   if (S.expenses.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
     if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
@@ -1052,12 +1045,12 @@ async function saveTx() {
   const sub = (group === '仓库' || group === '车队') ? ($('#tx-category').value || '') : '';
   const newId = uid();
   const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
-  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, status: isPending ? 'pending' : null, pendingKind: isPending ? (statusVal === 'reimb' ? 'reimb' : 'payable') : null, createdAt: Date.now() });
+  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, status: null, pendingKind: null, createdAt: Date.now() });
   await saveSetting('lastTx', { group: group, category: sub, date: date });
   await loadState();
   closeModal();
   revealLedgerRecord('expenses', newId, date);
-  toast(isPending ? (statusVal === 'reimb' ? '已挂账（待报销）' : '已挂账') : '已保存');
+  toast('已保存');
 }
 
 let currentLedgerId = null;

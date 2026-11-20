@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=50">
+<link rel="stylesheet" href="app.css?v=51">
 </head>
 <body>
 <div id="app">
@@ -123,11 +123,6 @@
         <label id="wrap-inc-type" class="hidden">费用类型 <span class="sub-pick"><select id="inc-type"></select><button type="button" id="btn-add-inc-type" class="mini-plus" title="新增费用类型">+</button></span></label>
         <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
         <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        <label id="wrap-tx-status">付款状态 <select id="tx-status">
-          <option value="paid">现结</option>
-          <option value="pending">挂账</option>
-          <option value="reimb">待报销</option>
-        </select></label>
         <label class="span2">备注 <input type="text" id="tx-note" placeholder="选填，可写司机名/供应商名" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
@@ -243,6 +238,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=81"></script>
+<script src="app.js?v=82"></script>
 </body>
 </html>
