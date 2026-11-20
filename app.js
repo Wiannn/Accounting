@@ -596,11 +596,11 @@ function renderExpenseSub(period) {
     const map = buckets[cat];
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
     const total = round2(items.reduce((s, r) => s + r.amt, 0));
-    const card = renderDonutCard(cat, items, total);
+    const card = renderDonutCard(cat + '支出', items, total);
     if (cat !== '车队') return card;
     const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
     const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
-    return card + (dItems.length ? renderDonutCard('车队 · 按司机', dItems, dTotal) : '');
+    return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal) : '');
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
@@ -651,7 +651,7 @@ function renderDonutCard(title, items, total) {
   const merged = items;
 
   // 用实心扇形路径（而非 stroke-dasharray）绘制，填充图形抗锯齿更平滑，不会再出现锯齿
-  const size = 120, stroke = 26, cx = size / 2, cy = size / 2;
+  const size = 140, stroke = 26, cx = size / 2, cy = size / 2;
   const rOut = size / 2 - 1, rIn = rOut - stroke;
   const n = (v) => Math.round(v * 1000) / 1000;
   const pt = (r, a) => [n(cx + r * Math.cos(a)), n(cy + r * Math.sin(a))];
@@ -689,9 +689,12 @@ function renderDonutCard(title, items, total) {
     return '<div class="donut-legend-row"><span class="donut-dot" style="background:' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span><span class="donut-legend-name">' + esc(it.k) + '</span><span class="donut-legend-amt">' + fmt(it.amt) + ' <span class="muted" style="font-size:11px">' + pct + '%</span></span></div>';
   }).join('');
   return '<div class="donut-card">'
-    + '<div class="donut-title">' + esc(title) + ' · 合计 ' + fmt(total) + '</div>'
     + '<div class="donut-body">'
-      + '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="geometricPrecision">' + segs + '</svg>'
+      + '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="geometricPrecision">' + segs
+        // 环形图中间两行文字：第一行分类名，第二行合计金额
+        + '<text x="' + cx + '" y="' + (cy - 3) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' + esc(title) + '</text>'
+        + '<text x="' + cx + '" y="' + (cy + 14) + '" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">' + fmt(total) + '</text>'
+      + '</svg>'
       + '<div class="donut-legend">' + legend + '</div>'
     + '</div>'
   + '</div>';
