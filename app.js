@@ -1091,6 +1091,7 @@ function pickifySelect(selectEl, opts) {
     if (!item) return;
     e.stopPropagation();
     selectEl.value = item.dataset.v;
+    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
     pop.classList.add('hidden');
   });
 
@@ -1131,6 +1132,7 @@ function initCustPick(cfg) {
     e.stopPropagation();
     sel.value = item.dataset.v;
     sync();
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
     pop.classList.add('hidden');
   });
   sync();
