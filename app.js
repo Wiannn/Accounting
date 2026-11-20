@@ -2100,8 +2100,8 @@ function openWageGen() {
     + '<div class="cust-pick-pop hidden" id="wage-emp-pop"></div>'
     + '<select id="wage-emp-select" class="hidden"></select>'
     + '</span></div>'
-    + '<label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>'
-    + '<label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>'
+    + '<label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount"></label>'
+    + '<label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence"></label>'
     + '</div>'
     + '<button class="primary" id="btn-gen-wages">生成工资单</button>';
   renderWageGen();
