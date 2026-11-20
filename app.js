@@ -175,7 +175,7 @@ async function migrateCategories() {
 }
 
 /* ---------- 派生状态 ---------- */
-const custName = id => { const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
+const custName = id => { if (!id) return ''; const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
 const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2 ? e2.name : '(已删除员工)'; };
 const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
 // 记一笔的"现结收入"：没有挂账单、也不是账单收款（含客户级整笔收款）的收入
@@ -399,7 +399,7 @@ function renderCustIncomeTable(period) {
     + '<th>客户</th><th style="text-align:right">应收</th><th style="text-align:right">已收</th><th style="text-align:right">现结</th>'
     + '</tr></thead><tbody>';
   const bodyRows = rows.map(r =>
-    '<tr><td>' + esc(custName(r.cid)) + '</td>'
+    '<tr><td>' + esc(custName(r.cid) || '未选客户') + '</td>'
     + '<td style="text-align:right">' + fmtInt(r.receivable) + '</td>'
     + '<td style="text-align:right" class="pos">' + fmtInt(r.received) + '</td>'
     + '<td style="text-align:right" class="pos">' + fmtInt(r.cash) + '</td></tr>'
@@ -919,7 +919,7 @@ function initTxForm() {
   }
   renderIncTypes();
   const lastInc = S.settings.lastIncCustomer;
-  if (lastInc && S.customers.some(c => c.id === lastInc)) $('#inc-customer').value = lastInc;
+  $('#inc-customer').value = (lastInc && S.customers.some(c => c.id === lastInc)) ? lastInc : '';
   setTxTab('expense');
   // 滚动到顶部（抽屉页的滚动容器是 #modal）
   const mask = $('#modal-mask');
@@ -952,8 +952,9 @@ function openTxForm() {
   mask.classList.remove('hidden');
   void mask.offsetWidth; // 触发一次重排，让滑入动画生效
   mask.classList.add('open');
-  $('#inc-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  $('#inc-customer').innerHTML = '<option value="">不选客户</option>' + S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   initTxForm();
+  initCustPick({ select: '#inc-customer', btn: '#inc-cust-btn', pop: '#inc-cust-pop', label: '#inc-cust-label', placeholder: '不选客户' });
   bindTxFormEvents();
 }
 
@@ -974,15 +975,16 @@ function openBillForm() {
 }
 
 // 顾客选择：改用限高的可滚动下拉面板，避免客户多时弹层过长
-function initBillCustPick() {
-  const sel = $('#bill3-customer'), btn = $('#bill3-cust-btn'), pop = $('#bill3-cust-pop'), label = $('#bill3-cust-label');
+function initCustPick(cfg) {
+  const sel = $(cfg.select), btn = $(cfg.btn), pop = $(cfg.pop), label = $(cfg.label);
   if (!sel || !btn) return;
   const sync = () => {
     const o = sel.options[sel.selectedIndex];
-    label.textContent = o ? o.textContent : '选择客户';
+    label.textContent = (o && o.value) ? o.textContent : (cfg.placeholder || '选择客户');
   };
   const renderPop = () => {
-    pop.innerHTML = Array.from(sel.options).map(o =>
+    const opts = Array.from(sel.options);
+    pop.innerHTML = opts.map(o =>
       '<div class="cust-pick-item' + (o.value === sel.value ? ' active' : '') + '" data-v="' + esc(o.value) + '">' + esc(o.textContent) + '</div>'
     ).join('') || '<div class="cust-pick-empty">暂无客户</div>';
   };
@@ -995,6 +997,9 @@ function initBillCustPick() {
     pop.classList.add('hidden');
   });
   sync();
+}
+function initBillCustPick() {
+  initCustPick({ select: '#bill3-customer', btn: '#bill3-cust-btn', pop: '#bill3-cust-pop', label: '#bill3-cust-label', placeholder: '选择客户' });
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('.cust-pick')) $$('.cust-pick-pop').forEach(p => p.classList.add('hidden'));
@@ -1063,16 +1068,15 @@ async function saveTx() {
   if (txTab === 'income') {
     const cid = $('#inc-customer').value;
     const date = $('#tx-date').value;
-    if (!cid) { toast('请先添加客户'); return; }
     if (!date) { toast('请选择日期'); return; }
     const newId = uid();
-    await dbPut('incomes', { id: newId, date: date, type: $('#inc-type').value, customerId: cid, amount: amount, note: note, createdAt: Date.now() });
-    await saveSetting('lastIncCustomer', cid);
+    await dbPut('incomes', { id: newId, date: date, type: $('#inc-type').value, customerId: cid || '', amount: amount, note: note, createdAt: Date.now() });
+    await saveSetting('lastIncCustomer', cid || '');
     await saveSetting('lastTx', Object.assign({}, S.settings.lastTx || {}, { date: date }));
     await loadState();
     closeModal();
     revealLedgerRecord('incomes', newId, date);
-    toast('收入已保存，计入客户现结收入');
+    toast(cid ? '收入已保存，计入客户现结收入' : '收入已保存');
     return;
   }
   const date = $('#tx-date').value;
@@ -1114,7 +1118,7 @@ $('#ledger-list').addEventListener('click', e => {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + (isInc ? '收入详情' : '支出详情') + (pending ? ' <span class="badge badge-warn">' + pendLabel + '</span>' : '') + '</h2><button class="modal-x" data-close>&times;</button></div>'
     + (isInc
-      ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId)) + '</b></div>'
+      ? '<div class="kv"><span>客户</span><b>' + esc(custName(rec.customerId) || '未选客户') + '</b></div>'
         + '<div class="kv"><span>费用类型</span><b>' + esc(rec.type || '—') + '</b></div>'
       : '<div class="kv"><span>分类</span><b>' + esc(catLabel(rec)) + '</b></div>')
     + (pending

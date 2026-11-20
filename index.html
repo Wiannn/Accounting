@@ -120,7 +120,11 @@
         </select></label>
         <label id="wrap-subcategory">子分类 <span class="sub-pick"><select id="tx-category"></select><button type="button" id="btn-add-sub" class="mini-plus" title="新增子分类">+</button></span></label>
         <label id="wrap-tx-driver" class="hidden">司机 <select id="tx-driver"></select></label>
-        <label id="wrap-inc-customer" class="hidden">客户 <select id="inc-customer"></select></label>
+        <div id="wrap-inc-customer" class="field hidden">客户 <span class="cust-pick">
+          <button type="button" class="cust-pick-btn" id="inc-cust-btn"><span id="inc-cust-label">不选客户</span><span class="cust-pick-caret">▾</span></button>
+          <div class="cust-pick-pop hidden" id="inc-cust-pop"></div>
+          <select id="inc-customer" class="hidden"></select>
+        </span></div>
         <label id="wrap-inc-type" class="hidden">费用类型 <span class="sub-pick"><select id="inc-type"></select><button type="button" id="btn-add-inc-type" class="mini-plus" title="新增费用类型">+</button></span></label>
         <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
         <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
@@ -240,6 +244,6 @@
 <div id="subcat-mask" class="hidden"><div id="subcat-modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=99"></script>
+<script src="app.js?v=100"></script>
 </body>
 </html>
