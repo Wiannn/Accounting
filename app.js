@@ -1233,7 +1233,7 @@ function renderBills() {
     return '<div class="item-card" data-bill="' + b.id + '">'
       + '<div class="ic-main">'
       + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
-      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(st.paid) + '</div>'
+      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(paidOf(b.id)) + '</div>'
       + '</div>'
       + '<div class="ic-right"><div class="ic-amt">' + fmtInt(billBase(b)) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
       + '</div>';
@@ -1388,7 +1388,7 @@ function openBillModal(billId) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>账单金额</span><b>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<span class="muted">（原 ' + fmtInt(b.amount) + '，减免 ' + fmtInt(b.writeOff) + '）</span>' : '') + '</b></div>'
-    + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(st.paid) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
+    + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(paidOf(b.id)) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
     + (round2(paidOf(b.id) - billBase(b)) > 0 ? '<div class="kv"><span>多收</span><b class="muted">' + fmtInt(round2(paidOf(b.id) - billBase(b))) + '（收款合计超出应收）</b></div>' : '')
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
     + '<div class="kv"><span>开票状态</span><b><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></b></div>'
@@ -1595,7 +1595,7 @@ const handleModalClick = async e => {
     const rem = st.remaining;
     if (!(rem > 0)) return;
     if (!confirm('把待收 ' + fmtInt(rem) + ' 记为减免（抹零），这张账单将置为已结清？')) return;
-    bill.writeOff = round2(Number(bill.amount) - st.paid);
+    bill.writeOff = round2(Number(bill.amount) - Math.min(paidOf(bill.id), Number(bill.amount)));
     delete bill.remainingOverride;
     await dbPut('bills', bill);
     await loadState();
@@ -1947,14 +1947,14 @@ function openCustDetail(cid) {
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
     + '<div style="margin:6px 0 12px"><button class="primary small" data-receipt="' + c.id + '">登记收款</button></div>'
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
         const bf = billFileOf(b.id);
         const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
-        const over = round2(paidOf(b.id) - billBase(b));
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + (over > 0 ? '<div class="muted">多收 ' + fmtInt(over) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        const realPaid = paidOf(b.id);
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
@@ -1964,7 +1964,7 @@ function openCustDetail(cid) {
               + '<button data-billfile-del="' + b.id + '" style="' + btn + ';margin-left:3px" title="删除附件">×</button>'
             : '<button data-billfile-upload="' + b.id + '" style="' + btn + '">上传</button>')
           + '</td></tr>';
-      }).join('') || '<tr><td colspan="8" class="empty">暂无账单</td></tr>')
+      }).join('') || '<tr><td colspan="9" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
