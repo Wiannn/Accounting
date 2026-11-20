@@ -1954,7 +1954,7 @@ function openCustDetail(cid) {
         const bf = billFileOf(b.id);
         const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
         const realPaid = paidOf(b.id);
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (round2(realPaid - billBase(b)) > 0 ? '<div class="muted">多收 ' + fmtInt(round2(realPaid - billBase(b))) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
