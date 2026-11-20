@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=42">
+<link rel="stylesheet" href="app.css?v=43">
 </head>
 <body>
 <div id="app">
@@ -83,7 +83,7 @@
             <label class="lb-month"><span id="ledger-month-text" aria-hidden="true"></span><input type="month" id="ledger-month" aria-label="选择统计月份"></label>
           </div>
           <div class="lb-stat expense-stat" id="stat-month-expense" title="点击查看支出统计"><div class="lb-stat-label">支出</div><div class="lb-stat-num neg" id="ledger-expense">¥0.00</div></div>
-          <div class="lb-stat income-stat" id="stat-month-income" title="点击查看收入统计"><div class="lb-stat-label">收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
+          <div class="lb-stat income-stat" id="stat-month-income"><div class="lb-stat-label">收入</div><div class="lb-stat-num pos" id="ledger-income">¥0.00</div></div>
         </div>
       </div>
       <div class="ledger-search"><input type="search" id="ledger-search" placeholder="搜索客户、分类、备注、金额" autocomplete="off"></div>
@@ -99,10 +99,6 @@
           <input type="month" id="stats-period-month">
           <input type="number" id="stats-period-year" min="2000" max="2100" step="1" class="hidden">
           <button class="ghost" id="btn-period-next" style="padding:6px 10px">›</button>
-        </div>
-        <div class="expense-tabs">
-          <button class="expense-tab active" data-stats-tab="exp-sub">支出 · 子分类</button>
-          <button class="expense-tab" data-stats-tab="income">收入 · 按客户</button>
         </div>
         <div id="stats-body"></div>
       </div>
@@ -248,6 +244,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=73"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>

@@ -188,7 +188,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .ledger-stats{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:stretch}
 .ledger-stats .lb-stat{min-width:0;background:#fff;border-radius:var(--radius-m);padding:10px 12px;text-align:center}
 .ledger-stats .lb-stat.expense-stat{border:1px solid rgba(252,136,0,.45);cursor:pointer;user-select:none}
-.ledger-stats .lb-stat.income-stat{border:1px solid rgba(59,179,70,.45);cursor:pointer;user-select:none}
+.ledger-stats .lb-stat.income-stat{border:1px solid rgba(59,179,70,.45)}
 .item-card.flash-new{animation:flashNew 1.8s ease}
 @keyframes flashNew{0%,60%{background:#FFF8EA;border-color:rgba(252,136,0,.45)}100%{background:var(--panel)}}
 .ledger-stats .lb-stat-label{font-size:12px;color:var(--muted);margin-bottom:2px}

@@ -461,13 +461,11 @@ function renderAdd() {
   renderLedger();
 }
 
-let statsTab = 'exp-sub';
 let statsMode = 'month';
 let ledgerMonthCache = null;
 
-// === 统一统计页面 ===
-function openStatsPage(defaultTab) {
-  statsTab = defaultTab || 'exp-sub';
+// === 支出统计页面 ===
+function openStatsPage() {
   statsMode = 'month';
   $('.ledger-topbar').style.display = 'none';
   $('.ledger-search').style.display = 'none';
@@ -501,13 +499,11 @@ function syncStatsPeriodPicker() {
 function renderStatsPage() {
   const period = statsPeriod();
   $$('[data-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.statsMode === statsMode));
-  $$('[data-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.statsTab === statsTab));
   syncStatsPeriodPicker();
   const body = $('#stats-body');
   let trendHtml = '';
   if (statsMode === 'year') trendHtml = renderYearTrend(period);
-  if (statsTab === 'exp-sub') body.innerHTML = trendHtml + renderExpenseSub(period);
-  else body.innerHTML = trendHtml + renderIncomeByCustomer(period);
+  body.innerHTML = trendHtml + renderExpenseSub(period);
 }
 function shiftStatsPeriod(delta) {
   const lm = $('#ledger-month');
@@ -602,36 +598,6 @@ function renderExpenseSub(period) {
     return card + (dItems.length ? renderDonutCard('车队 · 按司机', dItems, dTotal) : '');
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
-}
-function renderIncomeByCustomer(period, includeBills) {
-  const sums = {};
-  // 记一笔现结收入（不含账单收款，避免和账单应收重复）
-  S.incomes.forEach(i => {
-    if (i.billId) return;
-    if (!(i.date || '').startsWith(period)) return;
-    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
-  });
-  // 客户页口径：加上当月/当年账单应收（按账期归属）
-  if (includeBills) {
-    S.bills.forEach(b => {
-      if (!(b.period || '').startsWith(period)) return;
-      sums[b.customerId] = (sums[b.customerId] || 0) + Number(b.amount || 0);
-    });
-  }
-  const rows = Object.keys(sums).map(cid => ({ cid, amount: round2(sums[cid]) })).sort((a, b) => b.amount - a.amount);
-  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
-  if (!rows.length) {
-    return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无收入</div>';
-  }
-  return rows.map(r => {
-    const pct = total > 0 ? (r.amount / total * 100).toFixed(1) : '0.0';
-    return '<div class="exp-bar-row">'
-      + '<div class="exp-bar-head"><span class="exp-bar-name">' + esc(custName(r.cid)) + '</span><span class="exp-bar-amt pos">+' + fmt(r.amount) + ' <span class="muted" style="font-size:12px">' + pct + '%</span></span></div>'
-      + '<div class="exp-bar-track"><div class="exp-bar-fill exp-bar-fill-pos" style="width:' + pct + '%"></div></div>'
-      + '</div>';
-  }).join('')
-  + '<div class="exp-total-row"><span class="strong">合计</span><span class="strong pos">+' + fmt(total) + '</span></div>'
-  + (includeBills ? '<p class="muted" style="margin-top:10px">口径：账单应收（按账期）+ 记一笔现结收入</p>' : '');
 }
 function renderYearTrend(year) {
   const months = [];
@@ -739,12 +705,7 @@ $$('[data-stats-mode]').forEach(b => b.addEventListener('click', () => {
   statsMode = b.dataset.statsMode;
   renderStatsPage();
 }));
-$$('[data-stats-tab]').forEach(b => b.addEventListener('click', () => {
-  statsTab = b.dataset.statsTab;
-  renderStatsPage();
-}));
-$('#stat-month-expense').addEventListener('click', () => openStatsPage('exp-sub'));
-$('#stat-month-income').addEventListener('click', () => openStatsPage('income'));
+$('#stat-month-expense').addEventListener('click', () => openStatsPage());
 $('#btn-period-prev').addEventListener('click', () => shiftStatsPeriod(-1));
 $('#btn-period-next').addEventListener('click', () => shiftStatsPeriod(1));
 $('#stats-period-month').addEventListener('change', setStatsPeriodFromPicker);
