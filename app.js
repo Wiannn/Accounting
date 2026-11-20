@@ -429,7 +429,6 @@ function renderCustIncomeTable(period) {
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.received) + '</th>'
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.cash) + '</th></tr></tfoot>';
   return head + bodyRows + foot + '</table>'
-    + '<p class="muted" style="margin-top:10px">应收＝' + label + '账期账单金额；已收＝这些账单当前实收（应收−已收＝待收）；现结＝' + label + '记一笔散收入（不含账单收款）</p>'
     + '<p class="muted">实际到手＝已收 ' + fmtInt(tot.received) + ' ＋ 现结 ' + fmtInt(tot.cash) + ' ＝ <b class="pos">' + fmtInt(round2(tot.received + tot.cash)) + '</b></p>';
 }
 // 待收排名：按账期归属过滤（月=当月账期，年=当年账期），仅统计当前仍未收清的账单
