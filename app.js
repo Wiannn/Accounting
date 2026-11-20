@@ -783,39 +783,67 @@ function showDonutDetail(cat, dim, period, key) {
     return;
   }
 
-  // 按日期倒序 → 同一月的排在一起，每组前插月份小计行
+  // 根据 period 长度判断：年统计（4位）用可折叠月卡片，月统计（7位）用扁平表格
+  const isYear = period.length === 4;
   const headers = ['日期', '金额'];
   if (dim === 'sub') headers.push('子分类');
   headers.push('备注');
 
-  let tbody = '';
-  let curMonth = '', monthSum = 0, monthCount = 0;
-  const flushMonth = () => {
-    if (curMonth) {
-      tbody += '<tr class="month-sep"><td colspan="' + headers.length + '">'
-        + '<span class="month-sep-label">' + esc(curMonth + '月') + '</span>'
-        + '<span class="month-sep-sum">' + monthCount + ' 条 · ' + fmt(round2(monthSum)) + '</span>'
-        + '</td></tr>';
-      monthSum = 0; monthCount = 0;
-    }
-  };
-  rows.forEach(r => {
-    const m = (r.date || '').slice(5, 7);
-    if (m !== curMonth) { flushMonth(); curMonth = m; }
-    monthSum += Number(r.amount || 0);
-    monthCount++;
-    const cols = [esc(r.date || ''), fmt(r.amount)];
-    if (dim === 'sub') cols.push(r.sub || '');
-    cols.push(esc(r.note || ''));
-    tbody += '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
-  });
-  flushMonth();
+  let html = '';
+  if (isYear) {
+    // 按月份分组 → 折叠卡片（默认收起）
+    const groups = {};
+    rows.forEach(r => {
+      const m = (r.date || '').slice(0, 7);
+      if (!groups[m]) groups[m] = [];
+      groups[m].push(r);
+    });
+    const sortedMonths = Object.keys(groups).sort().reverse();
+    sortedMonths.forEach(m => {
+      const g = groups[m];
+      const mSum = round2(g.reduce((s, r) => s + Number(r.amount || 0), 0));
+      const mLabel = m.slice(5) + '月';
+      const gid = 'md-' + m;
+      const detailRows = g.map(r => {
+        const cols = [esc(r.date || ''), fmt(r.amount)];
+        if (dim === 'sub') cols.push(r.sub || '');
+        cols.push(esc(r.note || ''));
+        return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
+      }).join('');
+      html += '<div class="month-card">'
+        + '<div class="month-card-head" data-target="' + gid + '">'
+          + '<span class="month-card-label">' + esc(mLabel) + '</span>'
+          + '<span class="month-card-meta">' + g.length + ' 条 · ' + fmt(mSum) + '</span>'
+          + '<span class="month-card-caret">▾</span>'
+        + '</div>'
+        + '<div class="month-card-body hidden" id="' + gid + '">'
+          + '<table class="mini-table"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + detailRows + '</tbody></table>'
+        + '</div>'
+      + '</div>';
+    });
+  } else {
+    // 月统计：扁平表格，不分月
+    const tbody = rows.map(r => {
+      const cols = [esc(r.date || ''), fmt(r.amount)];
+      if (dim === 'sub') cols.push(r.sub || '');
+      cols.push(esc(r.note || ''));
+      return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
+    }).join('');
+    html = '<table class="mini-table"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + tbody + '</tbody></table>';
+  }
 
   $('#modal').innerHTML = '<div class="panel donut-detail-panel">'
     + '<div class="panel-title">' + esc(cat) + '支出 · ' + esc(catLabel) + '「' + esc(key) + '」</div>'
     + '<div class="panel-desc">' + esc(periodLabel(period)) + ' · 共 ' + rows.length + ' 条 · 合计 ' + fmt(total) + '</div>'
-    + '<table class="mini-table"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + tbody + '</tbody></table>'
+    + html
     + '</div>';
+  // 绑定折叠展开
+  $$('#modal .month-card-head').forEach(el => el.addEventListener('click', () => {
+    const body = $('#' + el.dataset.target);
+    if (!body) return;
+    body.classList.toggle('hidden');
+    el.querySelector('.month-card-caret').style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+  }));
   $('#modal-mask').classList.remove('hidden');
 }
 function periodLabel(period) {
