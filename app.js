@@ -1020,8 +1020,8 @@ async function saveBill3() {
     usedPrepaid = Math.min(round2(c.prepaid), amount);
     await addBillPayment(bill, usedPrepaid, todayStr(), '预收余额抵扣', { fromPrepaid: true });
     c.prepaid = round2(Number(c.prepaid) - usedPrepaid);
-    await dbPut('customers', c);
   }
+  if (c) { c.lastActiveAt = Date.now(); await dbPut('customers', c); }
   await loadState();
   closeModal();
   renderBills();
@@ -1250,7 +1250,7 @@ function renderBills() {
     lastBillAt[cid] = Math.max(lastBillAt[cid] || 0, Number(p.createdAt) || (Date.parse(p.date) || 0));
   });
   const order = S.customers
-    .map((c, i) => ({ id: c.id, at: lastBillAt[c.id] || 0, i }))
+    .map((c, i) => ({ id: c.id, at: Math.max(lastBillAt[c.id] || 0, Number(c.lastActiveAt) || 0), i }))
     .sort((a, b) => (b.at - a.at) || (a.i - b.i))
     .map(c => c.id);
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
@@ -1303,6 +1303,9 @@ async function addBillPayment(bill, amount, date, note, extra) {
   if (!(amt > 0)) return null;
   const pay = Object.assign({ id: uid(), billId: bill.id, date: date, amount: amt, note: note || '', createdAt: Date.now() }, extra || {});
   await dbPut('payments', pay);
+  // 登记收款即视为该客户最近有动作，列表排序置顶
+  const rcust = S.customers.find(x => x.id === bill.customerId);
+  if (rcust) { rcust.lastActiveAt = Date.now(); await dbPut('customers', rcust); }
   if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
     bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amt));
     const naturalAfter = Math.max(0, round2(billBase(bill) - (paidOf(bill.id) + amt)));
@@ -1374,8 +1377,9 @@ async function saveReceipt(cid) {
   await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: cid, amount: amount, note: note, receiptId: rid, prepaidPart: left, createdAt: Date.now() });
   if (left > 0) {
     c.prepaid = round2(Number(c.prepaid || 0) + left);
-    await dbPut('customers', c);
   }
+  c.lastActiveAt = Date.now();
+  await dbPut('customers', c);
   await loadState();
   closeModal();
   openCustDetail(cid);
@@ -2113,6 +2117,8 @@ async function saveBillEdit() {
     }
   }
   await dbPut('bills', b);
+  const ecust = S.customers.find(x => x.id === cid);
+  if (ecust) { ecust.lastActiveAt = Date.now(); await dbPut('customers', ecust); }
   await loadState();
   closeModal();
   renderBills();
