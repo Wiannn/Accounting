@@ -120,6 +120,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 #modal-mask.drawer-mode.open #modal{transform:translateX(0)}
 #modal-mask.drawer-mode .drawer-x{position:absolute;top:14px;right:16px;z-index:2;opacity:0;transition:opacity .2s}
 #modal-mask.drawer-mode.open .drawer-x{opacity:1}
+#modal-mask.drawer-mode .drawer-back{position:absolute;top:8px;left:calc(100% - min(420px,100%) + 12px);z-index:2;font-size:26px;opacity:0;transition:opacity .2s}
+#modal-mask.drawer-mode.open .drawer-back{opacity:1}
 
 
 @media(max-width:820px){
