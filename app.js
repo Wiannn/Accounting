@@ -2077,10 +2077,9 @@ function openBillEditModal(billId) {
     + '<label class="edit-line">结账日期<input type="date" id="edit-bill-settledate" value="' + esc(lastPayDate(b.id)) + '"' + (hasPays ? '' : ' disabled') + '></label>'
     + (hasPays ? '' : '<div class="muted" style="font-size:12px;margin:-4px 0 10px">该账单暂无收款记录，结账日期来自「登记收款」</div>')
     + '<label class="edit-line">开票状态<select id="edit-bill-inv">'
-    + '<option value="auto"' + (!b.invOverride ? ' selected' : '') + '>自动（按开票记录）</option>'
-    + '<option value="none"' + (b.invOverride === 'none' ? ' selected' : '') + '>待开票</option>'
-    + '<option value="partial"' + (b.invOverride === 'partial' ? ' selected' : '') + '>部分开票</option>'
-    + '<option value="done"' + (b.invOverride === 'done' ? ' selected' : '') + '>已开票</option>'
+    + '<option value="none"' + (invState(b).key === 'none' ? ' selected' : '') + '>待开票</option>'
+    + '<option value="partial"' + (invState(b).key === 'partial' ? ' selected' : '') + '>部分开票</option>'
+    + '<option value="done"' + (invState(b).key === 'done' ? ' selected' : '') + '>已开票</option>'
     + '</select></label>'
     + '<label class="edit-line">备注<input type="text" id="edit-bill-note" value="' + esc(b.note || '') + '"></label>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
@@ -2152,9 +2151,10 @@ async function saveBillEdit() {
   const naturalRemaining = Math.max(0, round2(receivable - paidInput));
   if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(receivable, Math.max(0, remainingInput));
   else delete b.remainingOverride;
-  // 开票状态：auto 表示按开票记录自动计算，否则手动覆盖
+  // 开票状态：默认按 invoices 自动算，用户手动选不同的才存为覆盖值
   const invSel = $('#edit-bill-inv').value;
-  if (invSel === 'auto') delete b.invOverride;
+  const autoInv = invState(b).key;
+  if (invSel === autoInv) delete b.invOverride;
   else b.invOverride = invSel;
   b.note = $('#edit-bill-note').value.trim();
   // 结账日期：回写到最近一次收款记录，并同步对应收入流水的日期；留空则不修改
