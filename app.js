@@ -783,19 +783,33 @@ function showDonutDetail(cat, dim, period, key) {
     return;
   }
 
-  const tbody = rows.map(r => {
-    const cols = [
-      esc(r.date || ''),
-      fmt(r.amount),
-      dim === 'sub' ? (r.sub || '') : '',
-      esc(r.note || '')
-    ].filter(Boolean);
-    return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
-  }).join('');
-
+  // 按日期倒序 → 同一月的排在一起，每组前插月份小计行
   const headers = ['日期', '金额'];
   if (dim === 'sub') headers.push('子分类');
   headers.push('备注');
+
+  let tbody = '';
+  let curMonth = '', monthSum = 0, monthCount = 0;
+  const flushMonth = () => {
+    if (curMonth) {
+      tbody += '<tr class="month-sep"><td colspan="' + headers.length + '">'
+        + '<span class="month-sep-label">' + esc(curMonth + '月') + '</span>'
+        + '<span class="month-sep-sum">' + monthCount + ' 条 · ' + fmt(round2(monthSum)) + '</span>'
+        + '</td></tr>';
+      monthSum = 0; monthCount = 0;
+    }
+  };
+  rows.forEach(r => {
+    const m = (r.date || '').slice(5, 7);
+    if (m !== curMonth) { flushMonth(); curMonth = m; }
+    monthSum += Number(r.amount || 0);
+    monthCount++;
+    const cols = [esc(r.date || ''), fmt(r.amount)];
+    if (dim === 'sub') cols.push(r.sub || '');
+    cols.push(esc(r.note || ''));
+    tbody += '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
+  });
+  flushMonth();
 
   $('#modal').innerHTML = '<div class="panel donut-detail-panel">'
     + '<div class="panel-title">' + esc(cat) + '支出 · ' + esc(catLabel) + '「' + esc(key) + '」</div>'

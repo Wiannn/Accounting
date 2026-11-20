@@ -337,6 +337,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .donut-legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
 .donut-legend-row.clickable{cursor:pointer;padding:3px 6px;border-radius:var(--radius-m);transition:background .15s}
 .donut-legend-row.clickable:hover{background:var(--gray-bg)}
+.donut-detail-panel .month-sep td{background:var(--gray-bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 12px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.donut-detail-panel .month-sep-label{font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.donut-detail-panel .month-sep-sum{font-size:12px}
 .donut-legend-row.clickable .donut-legend-amt{color:var(--primary);font-weight:500}
 .donut-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .donut-legend-name{flex:1;color:var(--text)}
