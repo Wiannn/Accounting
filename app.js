@@ -788,9 +788,7 @@ function showDonutDetail(cat, dim, period, key) {
 
   // 根据 period 长度判断：年统计（4位）用可折叠月卡片，月统计（7位）用扁平表格
   const isYear = period.length === 4;
-  const headers = ['日期', '金额'];
-  if (dim === 'sub') headers.push('子分类');
-  headers.push('备注');
+  const headers = ['日期', '金额', '备注'];
 
   let html = '';
   if (isYear) {
@@ -808,9 +806,8 @@ function showDonutDetail(cat, dim, period, key) {
       const mLabel = m.slice(5) + '月';
       const gid = 'md-' + m;
       const detailRows = g.map(r => {
-        const cols = [esc(r.date || ''), fmt(r.amount)];
-        if (dim === 'sub') cols.push(r.sub || '');
-        cols.push(esc(r.note || ''));
+        const mmdd = (r.date || '').slice(5) || '--';
+        const cols = [esc(mmdd), fmt(r.amount), esc(r.note || '')];
         return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
       }).join('');
       html += '<div class="month-card">'
@@ -827,9 +824,8 @@ function showDonutDetail(cat, dim, period, key) {
   } else {
     // 月统计：扁平表格，不分月
     const tbody = rows.map(r => {
-      const cols = [esc(r.date || ''), fmt(r.amount)];
-      if (dim === 'sub') cols.push(r.sub || '');
-      cols.push(esc(r.note || ''));
+      const mmdd = (r.date || '').slice(5) || '--';
+      const cols = [esc(mmdd), fmt(r.amount), esc(r.note || '')];
       return '<tr><td>' + cols.join('</td><td>') + '</td></tr>';
     }).join('');
     html = '<table class="mini-table"><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + tbody + '</tbody></table>';
