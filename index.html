@@ -114,13 +114,13 @@
         <button class="seg-btn" id="seg-income" type="button">收入</button>
       </div>
       <div class="form-grid">
-        <label id="wrap-tx-group">主分类 <select id="tx-group">
+        <div id="wrap-tx-group" class="field">主分类 <select id="tx-group">
           <option value="仓库">仓库</option>
           <option value="车队">车队</option>
           <option value="工资">工资</option>
-        </select></label>
-        <label id="wrap-subcategory">子分类 <span class="sub-pick"><select id="tx-category"></select><button type="button" id="btn-add-sub" class="mini-plus" title="新增子分类">+</button></span></label>
-        <label id="wrap-tx-driver" class="hidden">司机 <select id="tx-driver"></select></label>
+        </select></div>
+        <div id="wrap-subcategory" class="field">子分类 <span class="sub-pick"><select id="tx-category"></select><button type="button" id="btn-add-sub" class="mini-plus" title="新增子分类">+</button></span></div>
+        <div id="wrap-tx-driver" class="field hidden">司机 <select id="tx-driver"></select></div>
         <div id="wrap-tx-employee" class="field hidden">员工 <span class="cust-pick">
           <button type="button" class="cust-pick-btn" id="tx-emp-btn"><span id="tx-emp-label">选择员工</span><span class="cust-pick-caret">▾</span></button>
           <div class="cust-pick-pop hidden" id="tx-emp-pop"></div>
@@ -131,10 +131,10 @@
           <div class="cust-pick-pop hidden" id="inc-cust-pop"></div>
           <select id="inc-customer" class="hidden"></select>
         </span></div>
-        <label id="wrap-inc-type" class="hidden">费用类型 <span class="sub-pick"><select id="inc-type"></select><button type="button" id="btn-add-inc-type" class="mini-plus" title="新增费用类型">+</button></span></label>
-        <label id="wrap-tx-date">日期 <input type="date" id="tx-date"></label>
-        <label>金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
-        <label class="span2">备注 <input type="text" id="tx-note" autocomplete="off"></label>
+        <div id="wrap-inc-type" class="field hidden">费用类型 <span class="sub-pick"><select id="inc-type"></select><button type="button" id="btn-add-inc-type" class="mini-plus" title="新增费用类型">+</button></span></div>
+        <label id="wrap-tx-date" class="field">日期 <input type="date" id="tx-date"></label>
+        <label class="field">金额（元） <input type="number" id="tx-amount" min="0.01" step="0.01" inputmode="decimal"></label>
+        <label class="field span2">备注 <input type="text" id="tx-note" autocomplete="off"></label>
       </div>
       <button class="primary" id="btn-save-tx">保存</button>
     </template>
@@ -250,6 +250,6 @@
 <div id="subcat-mask" class="hidden"><div id="subcat-modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=112"></script>
+<script src="app.js?v=113"></script>
 </body>
 </html>
