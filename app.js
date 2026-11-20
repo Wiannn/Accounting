@@ -1623,9 +1623,8 @@ const handleModalClick = async e => {
     w.payments = w.payments || [];
     const pid = uid();
     w.payments.push({ id: pid, amount: amt, date: date, note: note });
-    w.paidDate = date; // latest payment date, kept for backward-compat display
+    w.paidDate = date;
     await dbPut('wages', w);
-    await dbPut('expenses', { id: uid(), date: date, category: '员工', sub: '员工工资', amount: amt, note: empName(w.employeeId) + ' ' + w.period + ' 工资发放' + (note ? '（' + note + '）' : ''), wageId: w.id, paymentId: pid, createdAt: Date.now() });
     await loadState();
     openWageModal(currentWageId);
     renderWages();
@@ -1639,12 +1638,11 @@ const handleModalClick = async e => {
     const pid = t.dataset.delWagePay;
     const pay = (w.payments || []).find(p => p.id === pid);
     if (!pay) return;
-    if (!confirm('删除这条发放记录？对应的工资支出也将一并删除。')) return;
-    // 删对应支出
-    const exToDel = S.expenses.filter(x => x.wageId === w.id && (x.paymentId === pid || (x.amount == pay.amount && !x.paymentId)));
-    for (const ex of exToDel) await dbDel('expenses', ex.id);
+    if (!confirm('删除这条发放记录？')) return;
+    // 清理历史上（改版前）登记发放时自动生成的 expense，新数据不会再产生 expense
+    const oldEx = S.expenses.filter(x => x.wageId === w.id && (x.paymentId === pid || (!x.paymentId && x.amount == pay.amount)));
+    for (const ex of oldEx) await dbDel('expenses', ex.id);
     w.payments = (w.payments || []).filter(p => p.id !== pid);
-    // 自动维护 paidDate（最后一条发放日期，无则清空）
     if (w.payments.length) {
       w.payments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       w.paidDate = w.payments[0].date;
@@ -1661,7 +1659,8 @@ const handleModalClick = async e => {
     const w = S.wages.find(x => x.id === currentWageId);
     if (!w) return;
     const hasPay = (w.payments || []).length > 0;
-    if (!confirm('删除这张工资单？' + (hasPay ? '所有发放记录及对应的工资支出将一并删除。' : ''))) return;
+    if (!confirm('删除这张工资单？' + (hasPay ? '所有发放记录将一并清除。' : ''))) return;
+    // 清理历史 expense，新版工资单不再自动生成
     for (const ex of S.expenses.filter(x => x.wageId === w.id)) await dbDel('expenses', ex.id);
     await dbDel('wages', w.id);
     await loadState();
