@@ -829,6 +829,7 @@ function renderTxSubs() {
   if (subs.length) {
     wrap.classList.remove('hidden');
     $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
+    $('#tx-category')._sync && $('#tx-category')._sync();
   } else {
     wrap.classList.add('hidden');
   }
@@ -839,9 +840,10 @@ function renderTxSubs() {
     if (g === '车队') {
       const keep = $('#tx-driver').value;
       $('#tx-driver').innerHTML = driverOptions(keep);
+      $('#tx-driver').value = keep; // 触发劫持的 value setter 自动 sync
     }
   }
-  // 工资支出可关联员工
+  // 工资支出可关联员工（用 initCustPick 绑定的，手动 sync 按钮文字）
   const empWrap = $('#wrap-tx-employee');
   if (empWrap) {
     empWrap.classList.toggle('hidden', g !== '工资');
@@ -849,6 +851,7 @@ function renderTxSubs() {
       const sel = $('#tx-employee');
       const keep = sel.value;
       sel.innerHTML = empOptions(keep);
+      sel.value = keep;
       const label = $('#tx-emp-label');
       if (label) {
         const o = sel.options[sel.selectedIndex];
@@ -922,6 +925,7 @@ function renderIncTypes(selected) {
   const list = S.settings.incomeFees && S.settings.incomeFees.length ? S.settings.incomeFees : ['进仓费', '打印费'];
   const keep = selected || ($('#inc-type') && $('#inc-type').value);
   $('#inc-type').innerHTML = list.map(s => '<option' + (s === keep ? ' selected' : '') + '>' + esc(s) + '</option>').join('');
+  $('#inc-type')._sync && $('#inc-type')._sync();
 }
 function openIncTypeModal() {
   $('#subcat-modal').innerHTML =
@@ -998,6 +1002,13 @@ function openTxForm() {
   void mask.offsetWidth; // 触发一次重排，让滑入动画生效
   mask.classList.add('open');
   $('#inc-customer').innerHTML = '<option value="">不选客户</option>' + S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+
+  // 把抽屉里的原生 select 全部变成 cust-pick 风格
+  pickifySelect($('#tx-group'), { placeholder: '仓库' });
+  pickifySelect($('#tx-driver'), { placeholder: '不关联' });
+  pickifySelect($('#tx-category'), { placeholder: '选择子分类' });
+  pickifySelect($('#inc-type'), { placeholder: '选择费用类型' });
+
   initTxForm();
   initCustPick({ select: '#inc-customer', btn: '#inc-cust-btn', pop: '#inc-cust-pop', label: '#inc-cust-label', placeholder: '不选客户' });
   initCustPick({ select: '#tx-employee', btn: '#tx-emp-btn', pop: '#tx-emp-pop', label: '#tx-emp-label', placeholder: '选择员工' });
@@ -1020,7 +1031,74 @@ function openBillForm() {
   $('#bill3-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill3(); } });
 }
 
-// 顾客选择：改用限高的可滚动下拉面板，避免客户多时弹层过长
+// 把一个已存在的原生 <select> 改造成 cust-pick 风格的下拉
+function pickifySelect(selectEl, opts) {
+  if (!selectEl || selectEl._pickified) return null;
+  opts = opts || {};
+  const placeholder = opts.placeholder || '选择';
+  const btnExtra = opts.btnExtra || ''; // 按钮右侧可附加元素，比如「+」按钮
+
+  const id = selectEl.id || ('sel_' + Math.random().toString(36).slice(2, 8));
+  selectEl.id = id;
+
+  // 把原 select 从文档流中拿出来，放在 wrapper 里隐藏（保留兄弟元素在父级）
+  const parent = selectEl.parentNode;
+  const wrapper = document.createElement('span');
+  wrapper.className = 'cust-pick cust-pick-enhanced';
+  selectEl.parentNode.replaceChild(wrapper, selectEl);
+  selectEl.classList.add('hidden');
+  selectEl.style.display = 'none';
+  wrapper.appendChild(selectEl);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cust-pick-btn';
+  btn.id = id + '_btn';
+  btn.innerHTML = '<span id="' + id + '_label"></span><span class="cust-pick-caret">▾</span>' + btnExtra;
+
+  const pop = document.createElement('div');
+  pop.className = 'cust-pick-pop hidden';
+  pop.id = id + '_pop';
+
+  wrapper.insertBefore(btn, selectEl);
+  wrapper.appendChild(pop);
+
+  const label = $('#' + id + '_label');
+  const sync = () => {
+    const o = selectEl.options[selectEl.selectedIndex];
+    label.textContent = (o && o.value) ? o.textContent : placeholder;
+  };
+  const renderPop = () => {
+    pop.innerHTML = Array.from(selectEl.options).map(o =>
+      '<div class="cust-pick-item' + (o.value === selectEl.value ? ' active' : '') + '" data-v="' + esc(o.value) + '">' + esc(o.textContent) + '</div>'
+    ).join('') || '<div class="cust-pick-empty">—</div>';
+  };
+  btn.addEventListener('click', e => { e.stopPropagation(); renderPop(); pop.classList.toggle('hidden'); });
+  pop.addEventListener('click', e => {
+    const item = e.target.closest('[data-v]');
+    if (!item) return;
+    selectEl.value = item.dataset.v;
+    pop.classList.add('hidden');
+  });
+
+  // 劫持 .value setter —— 让 JS 代码直接改 select.value 时按钮文字也自动刷新
+  // select.options[i] 的变化（innerHTML 重设）后也手动调一次 sync
+  try {
+    const origDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    Object.defineProperty(selectEl, 'value', {
+      configurable: true,
+      enumerable: origDesc.enumerable,
+      get: origDesc.get,
+      set: function(v) { origDesc.set.call(this, v); sync(); }
+    });
+  } catch (_) { /* 某些环境无法劫持，忽略 */ }
+
+  sync();
+  selectEl._pickified = true;
+  selectEl._sync = sync;
+  return { wrapper, btn, pop, label, sync };
+}
+
 function initCustPick(cfg) {
   const sel = $(cfg.select), btn = $(cfg.btn), pop = $(cfg.pop), label = $(cfg.label);
   if (!sel || !btn) return;
@@ -1193,6 +1271,8 @@ $('#ledger-list').addEventListener('click', e => {
       : '')
     + '<div class="modal-foot"><button class="ghost danger" id="btn-ledger-del">删除这条记录</button></div>';
   $('#modal-mask').classList.remove('hidden');
+  pickifySelect($('#le-driver'), { placeholder: '不关联' });
+  pickifySelect($('#le-employee'), { placeholder: '不关联' });
 });
 
 // FAB 打开新增表单
@@ -2005,6 +2085,8 @@ function openBillEditModal(billId) {
     + '<label class="edit-line">备注<input type="text" id="edit-bill-note" value="' + esc(b.note || '') + '"></label>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
+  pickifySelect($('#edit-bill-status'), { placeholder: '待收' });
+  pickifySelect($('#edit-bill-inv'), { placeholder: '自动' });
   $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
   ['#edit-bill-amount', '#edit-bill-paid', '#edit-bill-remaining'].forEach(s => {
     const el = $(s);
@@ -2099,6 +2181,7 @@ async function saveBillEdit() {
 
 /* ---------- 员工工资 ---------- */
 function renderWages() {
+  pickifySelect($('#wage-filter-status'), { placeholder: '全部状态' });
   renderEmpList(); // 弹窗未打开时 #emp-list 不存在，内部安全返回
   renderWageList();
 }
@@ -2371,10 +2454,11 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
 function renderExportCustSelect() {
   const sel = $('#export-cust-select');
   if (!sel) return;
+  pickifySelect(sel, { placeholder: '选择客户' });
   const prev = sel.value;
   sel.innerHTML = S.customers.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh'))
     .map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
-  if (prev && S.customers.some(c => c.id === prev)) sel.value = prev;
+  sel.value = prev; // 劫持 setter 自动 sync
 }
 
 // 按客户导出全部月账单 + 记一笔日收入（含备注）
