@@ -914,9 +914,11 @@ function initTxForm() {
   const lastInc = S.settings.lastIncCustomer;
   if (lastInc && S.customers.some(c => c.id === lastInc)) $('#inc-customer').value = lastInc;
   setTxTab('expense');
-  // 滚动到 modal 顶部
+  // 滚动到顶部（抽屉页的滚动容器是 #modal）
   const mask = $('#modal-mask');
   if (mask) mask.scrollTop = 0;
+  const panel = $('#modal');
+  if (panel) panel.scrollTop = 0;
 }
 
 let txTab = 'expense';
@@ -942,8 +944,13 @@ function setTxTab(t) {
 
 function openTxForm() {
   const tpl = $('#tx-form-modal');
+  const mask = $('#modal-mask');
   $('#modal').innerHTML = tpl.innerHTML;
-  $('#modal-mask').classList.remove('hidden');
+  // 以右侧滑出的抽屉页展示，而不是居中弹窗
+  mask.classList.add('drawer-mode');
+  mask.classList.remove('hidden');
+  void mask.offsetWidth; // 触发一次重排，让滑入动画生效
+  mask.classList.add('open');
   $('#inc-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   initTxForm();
   bindTxFormEvents();
@@ -1293,7 +1300,17 @@ function openBillModal(billId) {
   $('#modal-mask').classList.remove('hidden');
 }
 
-function closeModal() { $('#modal-mask').classList.add('hidden'); currentBillId = null; currentWageId = null; }
+function closeModal() {
+  const mask = $('#modal-mask');
+  currentBillId = null; currentWageId = null;
+  if (mask.classList.contains('drawer-mode')) {
+    // 抽屉页先滑出再隐藏
+    mask.classList.remove('open');
+    setTimeout(() => { mask.classList.add('hidden'); mask.classList.remove('drawer-mode'); }, 240);
+    return;
+  }
+  mask.classList.add('hidden');
+}
 $('#modal-mask').addEventListener('click', e => { if (e.target.id === 'modal-mask') closeModal(); });
 
 const handleModalClick = async e => {
