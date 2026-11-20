@@ -2090,6 +2090,11 @@ function openBillEditModal(billId) {
     + '<label class="edit-cell">应收<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (billBase(b) || '') + '"></label>'
     + '<label class="edit-cell">实收<input type="number" id="edit-bill-paid" step="1" min="0" inputmode="numeric" value="' + paidOf(b.id) + '"></label>'
     + '</div>'
+    + '<label class="edit-line">收款状态<select id="edit-bill-status">'
+    + '<option value="unpaid"' + (st.key === 'unpaid' ? ' selected' : '') + '>待收</option>'
+    + '<option value="partial"' + (st.key === 'partial' ? ' selected' : '') + '>部分收款</option>'
+    + '<option value="settled"' + (st.key === 'settled' ? ' selected' : '') + '>已结清</option>'
+    + '</select></label>'
     + '<label class="edit-line">待收<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '"></label>'
     + '<label class="edit-line">结账日期<input type="date" id="edit-bill-settledate" value="' + esc(lastPayDate(b.id)) + '"' + (hasPays ? '' : ' disabled') + '></label>'
     + (hasPays ? '' : '<div class="muted" style="font-size:12px;margin:-4px 0 10px">该账单暂无收款记录，结账日期来自「登记收款」</div>')
@@ -2108,12 +2113,21 @@ function openBillEditModal(billId) {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
   });
   // 待收 = 应收 − 实收，随输入实时联动
+  // 待收 = 应收 − 实收，随输入实时联动；收款状态随之同步
   const syncRemaining = () => {
     const rec = round2($('#edit-bill-amount').value);
     const paid = round2($('#edit-bill-paid').value);
-    $('#edit-bill-remaining').value = Math.max(0, round2(rec - paid));
+    const rem = Math.max(0, round2(rec - paid));
+    $('#edit-bill-remaining').value = rem;
+    $('#edit-bill-status').value = rem <= 0 ? 'settled' : (paid <= 0 ? 'unpaid' : 'partial');
   };
   ['#edit-bill-amount', '#edit-bill-paid'].forEach(s => $(s).addEventListener('input', syncRemaining));
+  // 选「已结清」待收清零；选「待收 / 部分收款」按差额回填
+  $('#edit-bill-status').addEventListener('change', e => {
+    const rec = round2($('#edit-bill-amount').value);
+    const paid = round2($('#edit-bill-paid').value);
+    $('#edit-bill-remaining').value = e.target.value === 'settled' ? 0 : Math.max(0, round2(rec - paid));
+  });
 }
 async function saveBillEdit() {
   const b = S.bills.find(x => x.id === editingBillId);
