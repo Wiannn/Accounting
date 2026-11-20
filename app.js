@@ -1200,8 +1200,13 @@ function renderBills() {
       + '</div>';
   };
   // 默认展示所有客户，无待收账单的客户显示「全部已结清」
-  const order = [];
-  S.customers.forEach(c => order.push(c.id));
+  // 客户排序：最近添加过月账单的客户在前，其余按创建顺序
+  const lastBillAt = {};
+  S.bills.forEach(b => { lastBillAt[b.customerId] = Math.max(lastBillAt[b.customerId] || 0, Number(b.createdAt) || 0); });
+  const order = S.customers
+    .map((c, i) => ({ id: c.id, at: lastBillAt[c.id] || 0, i }))
+    .sort((a, b) => (b.at - a.at) || (a.i - b.i))
+    .map(c => c.id);
   list.forEach(b => { if (!order.includes(b.customerId)) order.push(b.customerId); });
   const yearReceived = {};
   yearIncomeRows().forEach(r => { yearReceived[r.cid] = r.amount; });
