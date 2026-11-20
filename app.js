@@ -1034,15 +1034,15 @@ function openBillForm() {
 // 把一个已存在的原生 <select> 改造成 cust-pick 风格的下拉
 function pickifySelect(selectEl, opts) {
   if (!selectEl || selectEl._pickified) return null;
+  // 如果 select 已经在 cust-pick wrapper 里（比如 initCustPick 处理过的），跳过
+  if (selectEl.closest('.cust-pick')) return null;
   opts = opts || {};
   const placeholder = opts.placeholder || '选择';
-  const btnExtra = opts.btnExtra || ''; // 按钮右侧可附加元素，比如「+」按钮
 
   const id = selectEl.id || ('sel_' + Math.random().toString(36).slice(2, 8));
   selectEl.id = id;
 
   // 把原 select 从文档流中拿出来，放在 wrapper 里隐藏（保留兄弟元素在父级）
-  const parent = selectEl.parentNode;
   const wrapper = document.createElement('span');
   wrapper.className = 'cust-pick cust-pick-enhanced';
   selectEl.parentNode.replaceChild(wrapper, selectEl);
@@ -1054,7 +1054,14 @@ function pickifySelect(selectEl, opts) {
   btn.type = 'button';
   btn.className = 'cust-pick-btn';
   btn.id = id + '_btn';
-  btn.innerHTML = '<span id="' + id + '_label"></span><span class="cust-pick-caret">▾</span>' + btnExtra;
+
+  const label = document.createElement('span');
+  label.id = id + '_label';
+  const caret = document.createElement('span');
+  caret.className = 'cust-pick-caret';
+  caret.textContent = '▾';
+  btn.appendChild(label);
+  btn.appendChild(caret);
 
   const pop = document.createElement('div');
   pop.className = 'cust-pick-pop hidden';
@@ -1063,7 +1070,6 @@ function pickifySelect(selectEl, opts) {
   wrapper.insertBefore(btn, selectEl);
   wrapper.appendChild(pop);
 
-  const label = $('#' + id + '_label');
   const sync = () => {
     const o = selectEl.options[selectEl.selectedIndex];
     label.textContent = (o && o.value) ? o.textContent : placeholder;
@@ -1073,16 +1079,22 @@ function pickifySelect(selectEl, opts) {
       '<div class="cust-pick-item' + (o.value === selectEl.value ? ' active' : '') + '" data-v="' + esc(o.value) + '">' + esc(o.textContent) + '</div>'
     ).join('') || '<div class="cust-pick-empty">—</div>';
   };
-  btn.addEventListener('click', e => { e.stopPropagation(); renderPop(); pop.classList.toggle('hidden'); });
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    renderPop();
+    pop.classList.toggle('hidden');
+  });
+
   pop.addEventListener('click', e => {
     const item = e.target.closest('[data-v]');
     if (!item) return;
+    e.stopPropagation();
     selectEl.value = item.dataset.v;
     pop.classList.add('hidden');
   });
 
   // 劫持 .value setter —— 让 JS 代码直接改 select.value 时按钮文字也自动刷新
-  // select.options[i] 的变化（innerHTML 重设）后也手动调一次 sync
   try {
     const origDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
     Object.defineProperty(selectEl, 'value', {
@@ -1112,10 +1124,11 @@ function initCustPick(cfg) {
       '<div class="cust-pick-item' + (o.value === sel.value ? ' active' : '') + '" data-v="' + esc(o.value) + '">' + esc(o.textContent) + '</div>'
     ).join('') || '<div class="cust-pick-empty">暂无客户</div>';
   };
-  btn.addEventListener('click', () => { renderPop(); pop.classList.toggle('hidden'); });
+  btn.addEventListener('click', e => { e.stopPropagation(); renderPop(); pop.classList.toggle('hidden'); });
   pop.addEventListener('click', e => {
     const item = e.target.closest('[data-v]');
     if (!item) return;
+    e.stopPropagation();
     sel.value = item.dataset.v;
     sync();
     pop.classList.add('hidden');
