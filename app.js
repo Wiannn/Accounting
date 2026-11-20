@@ -2107,6 +2107,13 @@ function openBillEditModal(billId) {
     const el = $(s);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
   });
+  // 待收 = 应收 − 实收，随输入实时联动
+  const syncRemaining = () => {
+    const rec = round2($('#edit-bill-amount').value);
+    const paid = round2($('#edit-bill-paid').value);
+    $('#edit-bill-remaining').value = Math.max(0, round2(rec - paid));
+  };
+  ['#edit-bill-amount', '#edit-bill-paid'].forEach(s => $(s).addEventListener('input', syncRemaining));
 }
 async function saveBillEdit() {
   const b = S.bills.find(x => x.id === editingBillId);
