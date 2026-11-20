@@ -265,6 +265,8 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   .nav-btn{flex:1;width:auto;margin:0;padding:10px 2px;text-align:center;font-size:12px;border-radius:var(--radius-m)}
   #main{padding:14px 12px calc(78px + env(safe-area-inset-bottom))}
   .page-head{flex-direction:column;align-items:flex-start;gap:10px}
+  .cust-detail-head{flex-direction:row;align-items:center;gap:10px;flex-wrap:nowrap;margin-bottom:16px}
+  .cust-detail-head h1{font-size:17px;max-width:calc(100% - 56px);overflow:hidden;text-overflow:ellipsis}
   .cards{grid-template-columns:repeat(2,1fr)}
   .card-num{font-size:17px}
   .form-grid{grid-template-columns:1fr}
@@ -291,6 +293,12 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   .link-btn{padding:6px 8px}
   #modal{max-width:none}
   #toast{bottom:calc(76px + env(safe-area-inset-bottom))}
+  /* 手机上：弹窗编辑行改成上下布局，标签在上输入框在下 */
+  .edit-line{flex-direction:column;align-items:flex-start;gap:6px}
+  .edit-line input,.edit-line select,.edit-line > .cust-pick{flex:1;width:100%;max-width:none}
+  /* cust-pick 按钮加大点击区 */
+  .cust-pick-btn{padding:11px 12px;font-size:16px}
+  .cust-pick-item{padding:12px 12px;font-size:15px}
 }
 
 /* ---------- 统一统计页面 ---------- */
