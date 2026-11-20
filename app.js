@@ -1389,6 +1389,7 @@ function openBillModal(billId) {
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>账单金额</span><b>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<span class="muted">（原 ' + fmtInt(b.amount) + '，减免 ' + fmtInt(b.writeOff) + '）</span>' : '') + '</b></div>'
     + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(st.paid) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
+    + (round2(st.paid - billBase(b)) > 0 ? '<div class="kv"><span>多收</span><b class="muted">' + fmtInt(round2(st.paid - billBase(b))) + '（超出应收）</b></div>' : '')
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
     + '<div class="kv"><span>开票状态</span><b><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></b></div>'
     + '<div class="kv"><span>已开票 / 待开</span><b>' + fmtInt(ist.invoiced) + ' / <span class="strong">' + fmtInt(ist.remaining) + '</span></b></div>'
@@ -1952,7 +1953,8 @@ function openCustDetail(cid) {
         const ist = invState(b);
         const bf = billFileOf(b.id);
         const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        const over = round2(st.paid - billBase(b));
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + (over > 0 ? '<div class="muted">多收 ' + fmtInt(over) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
