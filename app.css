@@ -28,6 +28,10 @@ body{font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino 
 .page.active{display:block}
 .page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
 .page-head h1{font-size:19px}
+/* 账单明细页标题居中：返回按钮在最左，标题相对父容器水平居中 */
+.cust-detail-head{position:relative;justify-content:flex-start}
+.cust-detail-head .back-btn{position:relative;z-index:10}
+.cust-detail-head h1{position:absolute;left:50%;transform:translateX(-50%);margin:0;font-size:19px;white-space:nowrap}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-m);padding:16px}
 .card.warn-card{border-color:rgba(252,136,0,.45)}
