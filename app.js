@@ -2088,8 +2088,10 @@ $('#page-emp-manage').addEventListener('click', e => {
   handleModalClick(e);
 });
 $('#btn-emp-manage-back').addEventListener('click', () => {
+  $('#page-emp-manage').classList.remove('active');
   $('#page-emp-manage').classList.add('hidden');
   $('#page-wages').classList.remove('hidden');
+  $('#page-wages').classList.add('active');
   renderWageList();
 });
 
@@ -2444,8 +2446,10 @@ function renderEmpList() {
 }
 
 function openEmpManage() {
+  $('#page-wages').classList.remove('active');
   $('#page-wages').classList.add('hidden');
   $('#page-emp-manage').classList.remove('hidden');
+  $('#page-emp-manage').classList.add('active');
   renderEmpList();
   const nameInput = $('#emp-name');
   if (nameInput) nameInput.value = '';
