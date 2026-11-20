@@ -114,6 +114,12 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 #subcat-modal{background:#fff;border-radius:var(--radius-l);padding:20px 22px;width:100%;max-width:360px;box-shadow:var(--shadow-elevated)}
 .sub-pick{display:flex;gap:6px;align-items:center}
 .sub-pick select{flex:1;min-width:0}
+/* 修改账单弹窗：标签左、输入右，同一行 */
+.edit-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:13px;color:var(--muted)}
+.edit-line input,.edit-line select{flex:0 1 55%;min-width:0;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius-m);font-size:14px;color:var(--text);background:#fff}
+.edit-row{display:flex;gap:12px;margin-bottom:10px}
+.edit-cell{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
+.edit-cell input{width:96px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius-m);font-size:14px;color:var(--text)}
 /* 顾客选择：限高滚动的下拉面板 */
 .cust-pick{position:relative;display:block}
 .cust-pick-btn{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-m);background:#fff;color:var(--text);font-size:14px;cursor:pointer;text-align:left}

@@ -2085,42 +2085,71 @@ function openBillEditModal(billId) {
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
-    + '<div class="kv"><span>已收（账单金额 − 待收金额）</span><b>' + fmtInt(st.paid) + '</b></div>'
-    + '<label style="display:block;margin-bottom:10px">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '" style="width:100%;margin-top:6px"></label>'
-    + '<label style="display:block;margin-bottom:10px">账单金额（元）<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (Number(b.amount) || '') + '" style="width:100%;margin-top:6px"></label>'
-    + '<label style="display:block;margin-bottom:10px">待收金额（元）<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '" style="width:100%;margin-top:6px"></label>'
-    + '<label style="display:block;margin-bottom:10px">结账日期<input type="date" id="edit-bill-settledate" value="' + esc(lastPayDate(b.id)) + '"' + (hasPays ? '' : ' disabled') + ' style="width:100%;margin-top:6px"></label>'
+    + '<label class="edit-line">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '"></label>'
+    + '<div class="edit-row">'
+    + '<label class="edit-cell">应收<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (billBase(b) || '') + '"></label>'
+    + '<label class="edit-cell">实收<input type="number" id="edit-bill-paid" step="1" min="0" inputmode="numeric" value="' + paidOf(b.id) + '"></label>'
+    + '</div>'
+    + '<label class="edit-line">待收<input type="number" id="edit-bill-remaining" step="1" min="0" inputmode="numeric" value="' + (st.remaining || 0) + '"></label>'
+    + '<label class="edit-line">结账日期<input type="date" id="edit-bill-settledate" value="' + esc(lastPayDate(b.id)) + '"' + (hasPays ? '' : ' disabled') + '></label>'
     + (hasPays ? '' : '<div class="muted" style="font-size:12px;margin:-4px 0 10px">该账单暂无收款记录，结账日期来自「登记收款」</div>')
-    + '<label style="display:block;margin-bottom:10px">开票状态<select id="edit-bill-inv" style="width:100%;margin-top:6px;padding:6px">'
+    + '<label class="edit-line">开票状态<select id="edit-bill-inv">'
     + '<option value="auto"' + (!b.invOverride ? ' selected' : '') + '>自动（按开票记录）</option>'
     + '<option value="none"' + (b.invOverride === 'none' ? ' selected' : '') + '>待开票</option>'
     + '<option value="partial"' + (b.invOverride === 'partial' ? ' selected' : '') + '>部分开票</option>'
     + '<option value="done"' + (b.invOverride === 'done' ? ' selected' : '') + '>已开票</option>'
     + '</select></label>'
-    + '<label style="display:block;margin-bottom:10px">备注 <input type="text" id="edit-bill-note" value="' + esc(b.note || '') + '" style="width:100%;margin-top:6px"></label>'
-    + '<div class="muted" style="font-size:12px;margin-bottom:10px">账单金额与待收金额分别保存，互不影响。</div>'
+    + '<label class="edit-line">备注<input type="text" id="edit-bill-note" value="' + esc(b.note || '') + '"></label>'
     + '<div class="modal-foot"><button class="ghost" data-close>取消</button><button class="primary" id="btn-edit-bill-save">保存</button></div>';
   $('#modal-mask').classList.remove('hidden');
   $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
-  const amtEl = $('#edit-bill-amount');
-  const remEl = $('#edit-bill-remaining');
-  [amtEl, remEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } }));
+  ['#edit-bill-amount', '#edit-bill-paid', '#edit-bill-remaining'].forEach(s => {
+    const el = $(s);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
+  });
 }
 async function saveBillEdit() {
   const b = S.bills.find(x => x.id === editingBillId);
   if (!b) return;
   const period = $('#edit-bill-period').value;
-  const amount = round2($('#edit-bill-amount').value);
+  const receivable = round2($('#edit-bill-amount').value);
+  const paidInput = Math.max(0, round2($('#edit-bill-paid').value));
   const remainingInput = Math.max(0, round2($('#edit-bill-remaining').value));
   if (!period) { toast('请选择账期'); return; }
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  if (!receivable || receivable <= 0) { toast('请输入正确金额'); return; }
   const cid = b.customerId;
-  const paid = paidOf(b.id);
+  const oldPaid = paidOf(b.id);
+  // 应收 = 账单金额 − 减免；改动应收时保留已登记的减免
   b.period = period;
-  b.amount = amount;
-  // 待收金额独立保存；与「账单金额 − 已收」一致时不保留覆盖值，恢复自动计算
-  const naturalRemaining = Math.max(0, round2(amount - paid));
-  if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(amount, Math.max(0, remainingInput));
+  b.amount = round2(receivable + Number(b.writeOff || 0));
+  // 实收：差额通过补登/削减收款记录调整，保证收入流水与收款明细一致
+  const diff = round2(paidInput - oldPaid);
+  if (diff > 0) {
+    const date = $('#edit-bill-settledate').value || todayStr();
+    const pay = { id: uid(), billId: b.id, date: date, amount: diff, note: '手工调整', createdAt: Date.now() };
+    await dbPut('payments', pay);
+    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: cid, amount: diff, note: '手工调整', billId: b.id, paymentId: pay.id, createdAt: Date.now() });
+  } else if (diff < 0) {
+    let cut = -diff;
+    const pays = S.payments.filter(p => p.billId === b.id)
+      .sort((x, y) => (x.receiptId ? 1 : 0) - (y.receiptId ? 1 : 0) || (y.date || '').localeCompare(x.date || ''));
+    for (const p of pays) {
+      if (cut <= 0) break;
+      const use = Math.min(Number(p.amount), cut);
+      cut = round2(cut - use);
+      for (const inc of S.incomes.filter(i => i.paymentId === p.id)) await dbDel('incomes', inc.id);
+      if (use >= Number(p.amount)) {
+        await dbDel('payments', p.id);
+      } else {
+        p.amount = round2(Number(p.amount) - use);
+        await dbPut('payments', p);
+        await dbPut('incomes', { id: uid(), date: p.date || todayStr(), type: '账单收款', customerId: cid, amount: p.amount, note: p.note || '', billId: b.id, paymentId: p.id, createdAt: Date.now() });
+      }
+    }
+  }
+  // 待收金额独立保存；与「应收 − 实收」一致时不保留覆盖值，恢复自动计算
+  const naturalRemaining = Math.max(0, round2(receivable - paidInput));
+  if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(receivable, Math.max(0, remainingInput));
   else delete b.remainingOverride;
   // 开票状态：auto 表示按开票记录自动计算，否则手动覆盖
   const invSel = $('#edit-bill-inv').value;
