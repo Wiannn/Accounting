@@ -178,26 +178,31 @@ async function migrateCategories() {
 const custName = id => { const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
 const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2 ? e2.name : '(已删除员工)'; };
 const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
+// 记一笔的"现结收入"：没有挂账单、也不是账单收款（含客户级整笔收款）的收入
+const isCashIncome = i => !i.billId && !i.receiptId;
 // 结账日期：取该账单最近一次登记收款的日期
 const lastPayDate = billId => S.payments.filter(p => p.billId === billId).map(p => p.date || '').filter(Boolean).sort().pop() || '';
+// 账单应收净额：账单金额扣除减免（抹零 / 差额核销）
+const billBase = b => Math.max(0, round2(Number(b.amount) - Number(b.writeOff || 0)));
 function billState(b) {
+  const base = billBase(b);
   const paidRecords = paidOf(b.id);
   const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
-  // 待收金额永远不超过账单金额；手动设置的 override 封顶为账单金额，避免删除收款时翻倍
+  // 待收金额永远不超过账单净额；手动设置的 override 封顶为账单净额，避免删除收款时翻倍
   let remaining = hasOverride
-    ? Math.min(round2(Number(b.amount)), Math.max(0, round2(Number(b.remainingOverride))))
-    : Math.max(0, round2(Number(b.amount) - paidRecords));
+    ? Math.min(round2(base), Math.max(0, round2(Number(b.remainingOverride))))
+    : Math.max(0, round2(base - paidRecords));
   if (remaining <= 0) remaining = 0;
-  // 已收 = 账单金额 − 待收金额；未手动设置待收时等同于收款记录合计
-  const paid = hasOverride ? Math.max(0, round2(Number(b.amount) - remaining)) : paidRecords;
+  // 已收 = 账单净额 − 待收金额；未手动设置待收时等同于收款记录合计
+  const paid = hasOverride ? Math.max(0, round2(base - remaining)) : paidRecords;
   let key = 'unpaid', label = '待收';
   if (remaining <= 0) { key = 'settled'; label = '已结清'; }
   else if (paid > 0)  { key = 'partial'; label = '部分收款'; }
   return { paid, remaining, key, label };
 }
 function invState(b) {
-  const invoiced = round2(S.invoices.filter(i => i.billId === b.id).reduce((s, i) => s + (Number(i.amount) > 0 ? Number(i.amount) : Number(b.amount)), 0));
-  const remaining = Math.max(0, round2(Number(b.amount) - invoiced));
+  const invoiced = round2(S.invoices.filter(i => i.billId === b.id).reduce((s, i) => s + (Number(i.amount) > 0 ? Number(i.amount) : billBase(b)), 0));
+  const remaining = Math.max(0, round2(billBase(b) - invoiced));
   let key = 'none', label = '待开票';
   // 手动覆盖开票状态：待开票/部分开票/已开票
   if (b.invOverride === 'done' || b.invOverride === 'partial' || b.invOverride === 'none') {
@@ -367,11 +372,11 @@ function renderCustIncomeTable(period) {
     if (!(b.period || '').startsWith(period)) return;
     const st = billState(b);
     const r = row(b.customerId);
-    r.receivable += Number(b.amount || 0);
+    r.receivable += billBase(b);
     r.received += st.paid;
   });
   S.incomes.forEach(i => {
-    if (i.billId) return;
+    if (!isCashIncome(i)) return;
     if (!(i.date || '').startsWith(period)) return;
     row(i.customerId).cash += Number(i.amount || 0);
   });
@@ -610,7 +615,7 @@ function renderYearTrend(year) {
     const mm = String(m).padStart(2, '0');
     const key = year + '-' + mm;
     let income = 0, expense = 0;
-    S.incomes.forEach(i => { if (!i.billId && (i.date || '').startsWith(key)) income += Number(i.amount || 0); });
+    S.incomes.forEach(i => { if (isCashIncome(i) && (i.date || '').startsWith(key)) income += Number(i.amount || 0); });
     S.expenses.forEach(e => {
       if ((e.date || '').startsWith(key) && e.status !== 'pending') expense += Number(e.amount || 0);
     });
@@ -722,7 +727,7 @@ function renderLedger() {
   $('#ledger-year').textContent = y + '年';
   // 当月收支（挂账支出不计入统计）
   // 当月收入：仅现结收入，账单收款（客户页已结清）不计入记一笔
-  const income = round2(S.incomes.filter(i => !i.billId && (i.date || '').startsWith(period)).reduce((s, i) => s + Number(i.amount || 0), 0));
+  const income = round2(S.incomes.filter(i => isCashIncome(i) && (i.date || '').startsWith(period)).reduce((s, i) => s + Number(i.amount || 0), 0));
   let expense = 0, reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
@@ -737,7 +742,7 @@ function renderLedger() {
   if (!$('#ledger-month').value) $('#ledger-month').value = period;
   // 月流水列表（按日期分组）；有搜索词时搜索全部月份
   // 账单收款（客户页已结清）不计入记一笔流水
-  const all = S.incomes.filter(i => !i.billId).map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
+  const all = S.incomes.filter(isCashIncome).map(i => ({ id: i.id, store: 'incomes', date: i.date, type: 'income', cat: i.type || '其他收入', who: custName(i.customerId), amount: Number(i.amount), note: i.note }))
     .concat(S.expenses.map(e => ({ id: e.id, store: 'expenses', date: e.date, type: 'expense', cat: catLabel(e), who: e.driverId ? empName(e.driverId) : '', amount: Number(e.amount), note: e.note, pending: e.status === 'pending', kind: e.pendingKind === 'payable' ? 'payable' : 'reimb' })))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
   // 搜索过滤：匹配分类、客户、备注、金额、日期（全部月份）
@@ -1005,12 +1010,22 @@ async function saveBill3() {
   if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
   if (dup && !confirm('该顾客这个月份已有账单，确定再添加一张吗？')) return;
-  await dbPut('bills', { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, note: note, billDate: '', createdAt: Date.now() });
+  const bill = { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, note: note, billDate: '', createdAt: Date.now() };
+  await dbPut('bills', bill);
   await saveSetting('lastBillCustomer', cid);
+  // 有预收余额时自动抵扣这张新账单（钱已在收款时计入收入，这里不再生成收入）
+  const c = S.customers.find(x => x.id === cid);
+  let usedPrepaid = 0;
+  if (c && Number(c.prepaid || 0) > 0) {
+    usedPrepaid = Math.min(round2(c.prepaid), amount);
+    await addBillPayment(bill, usedPrepaid, todayStr(), '预收余额抵扣', { fromPrepaid: true });
+    c.prepaid = round2(Number(c.prepaid) - usedPrepaid);
+    await dbPut('customers', c);
+  }
   await loadState();
   closeModal();
   renderBills();
-  toast('月账单已添加（待收）');
+  toast(usedPrepaid > 0 ? ('月账单已添加，预收抵扣 ' + fmtInt(usedPrepaid)) : '月账单已添加（待收）');
 }
 
 // 弹窗内容是动态注入的，事件必须在注入后再绑定
@@ -1220,7 +1235,7 @@ function renderBills() {
       + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
       + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(st.paid) + '</div>'
       + '</div>'
-      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(billBase(b)) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
       + '</div>';
   };
   // 默认展示所有客户，无待收账单的客户显示「全部已结清」
@@ -1273,6 +1288,94 @@ $('#bills-list').addEventListener('click', e => {
 
 /* ---------- 账单详情弹窗 ---------- */
 let currentBillId = null;
+let currentReceiptCid = null;
+
+// 给账单登记一笔收款，并同步手动设置的待收金额（override）
+async function addBillPayment(bill, amount, date, note, extra) {
+  const amt = round2(amount);
+  if (!(amt > 0)) return null;
+  const pay = Object.assign({ id: uid(), billId: bill.id, date: date, amount: amt, note: note || '', createdAt: Date.now() }, extra || {});
+  await dbPut('payments', pay);
+  if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
+    bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amt));
+    const naturalAfter = Math.max(0, round2(billBase(bill) - (paidOf(bill.id) + amt)));
+    if (bill.remainingOverride <= 0 || round2(bill.remainingOverride) === naturalAfter) delete bill.remainingOverride;
+    await dbPut('bills', bill);
+  }
+  return pay;
+}
+
+// 整笔收款：按账期从早到晚自动核销，多出部分转为客户预收余额
+function openReceiptModal(cid) {
+  const c = S.customers.find(x => x.id === cid);
+  if (!c) return;
+  currentReceiptCid = cid;
+  const remTotal = round2(S.bills.filter(b => b.customerId === cid)
+    .reduce((s, b) => s + billState(b).remaining, 0));
+  $('#modal').innerHTML =
+    '<div class="modal-head"><h2>' + esc(c.name) + ' · 登记收款</h2><button class="modal-x" data-close>&times;</button></div>'
+    + '<div class="kv"><span>待收合计</span><b>' + fmtInt(remTotal) + '</b></div>'
+    + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
+    + '<div class="form-grid">'
+    + '<label>收款日期 <input type="date" id="rc-date" value="' + todayStr() + '"></label>'
+    + '<label>收款金额（元） <input type="number" id="rc-amount" min="0.01" step="0.01" inputmode="decimal" value="' + (remTotal > 0 ? remTotal : '') + '"></label>'
+    + '<label class="span2">备注 <input type="text" id="rc-note" autocomplete="off"></label>'
+    + '</div>'
+    + '<p class="muted" id="rc-preview" style="margin:6px 0 12px"></p>'
+    + '<button class="primary" id="btn-save-receipt">确认收款</button>';
+  $('#modal-mask').classList.remove('hidden');
+  const open = S.bills.filter(b => b.customerId === cid && billState(b).remaining > 0)
+    .sort((a, b2) => (a.period || '').localeCompare(b2.period || '') || (a.createdAt || 0) - (b2.createdAt || 0));
+  const upd = () => {
+    const amt = round2($('#rc-amount').value);
+    let left = amt;
+    const parts = [];
+    for (const b of open) {
+      if (left <= 0) break;
+      const a = Math.min(billState(b).remaining, left);
+      if (a <= 0) continue;
+      parts.push(b.period + ' ' + fmtInt(a));
+      left = round2(left - a);
+    }
+    $('#rc-preview').textContent = amt > 0
+      ? '自动核销：' + (parts.join('、') || '暂无待收账单') + (left > 0 ? '；剩余 ' + fmtInt(left) + ' 转为预收余额' : '')
+      : '';
+  };
+  $('#rc-amount').addEventListener('input', upd);
+  upd();
+}
+
+async function saveReceipt(cid) {
+  const c = S.customers.find(x => x.id === cid);
+  if (!c) return;
+  const amount = round2($('#rc-amount').value);
+  const date = $('#rc-date').value || todayStr();
+  const note = $('#rc-note').value.trim();
+  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
+  const rid = uid();
+  const open = S.bills.filter(b => b.customerId === cid && billState(b).remaining > 0)
+    .sort((a, b2) => (a.period || '').localeCompare(b2.period || '') || (a.createdAt || 0) - (b2.createdAt || 0));
+  let left = amount;
+  for (const b of open) {
+    if (left <= 0) break;
+    const alloc = Math.min(billState(b).remaining, left);
+    if (alloc <= 0) continue;
+    await addBillPayment(b, alloc, date, note, { receiptId: rid });
+    left = round2(left - alloc);
+  }
+  // 一整笔收款只生成一条收入流水，便于与银行到账对应
+  await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: cid, amount: amount, note: note, receiptId: rid, prepaidPart: left, createdAt: Date.now() });
+  if (left > 0) {
+    c.prepaid = round2(Number(c.prepaid || 0) + left);
+    await dbPut('customers', c);
+  }
+  await loadState();
+  closeModal();
+  openCustDetail(cid);
+  renderBills();
+  toast(left > 0 ? ('收款已登记，' + fmtInt(left) + ' 转为预收余额') : '收款已登记，收入已计入记一笔');
+}
+
 function openBillModal(billId) {
   const b = S.bills.find(x => x.id === billId);
   if (!b) return;
@@ -1284,7 +1387,7 @@ function openBillModal(billId) {
 
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>账单金额</span><b>' + fmtInt(b.amount) + '</b></div>'
+    + '<div class="kv"><span>账单金额</span><b>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<span class="muted">（原 ' + fmtInt(b.amount) + '，减免 ' + fmtInt(b.writeOff) + '）</span>' : '') + '</b></div>'
     + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(st.paid) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
     + '<div class="kv"><span>开票状态</span><b><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></b></div>'
@@ -1292,7 +1395,9 @@ function openBillModal(billId) {
     + '<div class="sub-title">收款记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>金额</th><th>备注</th><th></th></tr></thead><tbody>'
     + (pays.map(p => '<tr><td>' + (p.date || '—') + '</td><td>' + fmtInt(p.amount) + '</td><td>' + esc(p.note || '') + '</td>'
-        + '<td><button class="link-btn danger" data-delpay="' + p.id + '">删除</button></td></tr>').join('')
+        + '<td>' + (p.receiptId
+          ? '<button class="link-btn danger" data-delreceipt="' + p.receiptId + '" title="撤销这笔整笔收款">撤销</button>'
+          : '<button class="link-btn danger" data-delpay="' + p.id + '">删除</button>') + '</td></tr>').join('')
       || '<tr><td colspan="4" class="empty">还没有收款</td></tr>')
     + '</tbody></table>'
     + (st.key !== 'settled'
@@ -1305,7 +1410,7 @@ function openBillModal(billId) {
       : '<p class="muted" style="margin-top:8px">账单已结清</p>')
     + '<div class="sub-title">开票记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>开票金额</th><th></th></tr></thead><tbody>'
-    + (invs.map(v => '<tr><td>' + (v.date || '—') + '</td><td>' + fmtInt(Number(v.amount) > 0 ? v.amount : b.amount) + '</td>'
+    + (invs.map(v => '<tr><td>' + (v.date || '—') + '</td><td>' + fmtInt(Number(v.amount) > 0 ? v.amount : billBase(b)) + '</td>'
         + '<td><button class="link-btn danger" data-delinv="' + v.id + '">删除</button></td></tr>').join('')
       || '<tr><td colspan="3" class="empty">还没有开票</td></tr>')
     + '</tbody></table>'
@@ -1315,13 +1420,15 @@ function openBillModal(billId) {
         + '<input type="date" id="inv-date" value="' + todayStr() + '">'
         + '<button class="primary small" id="btn-add-inv">登记开票</button></div>'
       : '<p class="muted" style="margin-top:8px">发票已全部开完</p>')
-    + '<div class="modal-foot"><button class="ghost danger" id="btn-del-bill">删除整张账单</button></div>';
+    + '<div class="modal-foot">'
+    + (st.remaining > 0 ? '<button class="ghost" id="btn-writeoff">差额核销 ' + fmtInt(st.remaining) + '</button>' : '')
+    + '<button class="ghost danger" id="btn-del-bill">删除整张账单</button></div>';
   $('#modal-mask').classList.remove('hidden');
 }
 
 function closeModal() {
   const mask = $('#modal-mask');
-  currentBillId = null; currentWageId = null;
+  currentBillId = null; currentWageId = null; currentReceiptCid = null;
   if (mask.classList.contains('drawer-mode')) {
     // 抽屉页先滑出再隐藏
     mask.classList.remove('open');
@@ -1440,21 +1547,60 @@ const handleModalClick = async e => {
     if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
     const bill = S.bills.find(x => x.id === currentBillId);
     if (!bill) return;
-    const pid = uid();
-    await dbPut('payments', { id: pid, billId: currentBillId, date: date, amount: amount, note: note, createdAt: Date.now() });
-    // 若账单被手动设置过待收金额，登记收款后同步扣减该待收金额；归零或等于自然值时清除覆盖
-    if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
-      bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amount));
-      const naturalAfter = Math.max(0, round2(Number(bill.amount) - (paidOf(bill.id) + amount)));
-      if (bill.remainingOverride <= 0 || round2(bill.remainingOverride) === naturalAfter) delete bill.remainingOverride;
-      await dbPut('bills', bill);
-    }
+    const pay = await addBillPayment(bill, amount, date, note);
     // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）；月账单收款固定记为「账单收款」，不混入现结收入
-    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pid, createdAt: Date.now() });
+    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pay.id, createdAt: Date.now() });
     await loadState();
     openBillModal(currentBillId);
     renderBills();
     toast('收款已登记，收入已计入记一笔');
+    return;
+  }
+  // 整笔收款（客户级）：按账期自动核销
+  if (t.id === 'btn-save-receipt') {
+    await saveReceipt(currentReceiptCid);
+    return;
+  }
+  // 撤销一笔整笔收款：删除所有核销记录、收入流水并回补预收余额
+  if (t.dataset.delreceipt) {
+    if (!confirm('撤销这笔整笔收款？将同时删除它在所有账期上的核销记录和对应收入。')) return;
+    const rid = t.dataset.delreceipt;
+    const pays = S.payments.filter(p => p.receiptId === rid);
+    const incs = S.incomes.filter(i => i.receiptId === rid);
+    let prepaidBack = 0;
+    for (const i of incs) { prepaidBack += Number(i.prepaidPart || 0); await dbDel('incomes', i.id); }
+    for (const b of S.bills) {
+      if (!pays.some(p => p.billId === b.id)) continue;
+      if (b.remainingOverride !== undefined) { delete b.remainingOverride; await dbPut('bills', b); }
+    }
+    for (const p of pays) await dbDel('payments', p.id);
+    const cid = incs[0] && incs[0].customerId;
+    if (cid && prepaidBack > 0) {
+      const c = S.customers.find(x => x.id === cid);
+      if (c) { c.prepaid = Math.max(0, round2(Number(c.prepaid || 0) - prepaidBack)); await dbPut('customers', c); }
+    }
+    await loadState();
+    openBillModal(currentBillId);
+    renderBills();
+    if (document.getElementById('cust-detail') && !document.getElementById('cust-detail').classList.contains('hidden') && cid) openCustDetail(cid);
+    toast('该笔收款已撤销');
+    return;
+  }
+  // 差额核销（抹零）：把剩余待收记为减免，账单置为已结清
+  if (t.id === 'btn-writeoff') {
+    const bill = S.bills.find(x => x.id === currentBillId);
+    if (!bill) return;
+    const st = billState(bill);
+    const rem = st.remaining;
+    if (!(rem > 0)) return;
+    if (!confirm('把待收 ' + fmtInt(rem) + ' 记为减免（抹零），这张账单将置为已结清？')) return;
+    bill.writeOff = round2(Number(bill.amount) - st.paid);
+    delete bill.remainingOverride;
+    await dbPut('bills', bill);
+    await loadState();
+    openBillModal(currentBillId);
+    renderBills();
+    toast('已核销 ' + fmtInt(rem));
     return;
   }
   if (t.dataset.delpay) {
@@ -1466,10 +1612,10 @@ const handleModalClick = async e => {
     // 若账单被手动设置过待收金额，删除收款后同步回补该待收金额；封顶为账单金额，避免翻倍
     if (delPay && delBill && delBill.remainingOverride !== undefined && delBill.remainingOverride !== null && isFinite(Number(delBill.remainingOverride))) {
       delBill.remainingOverride = Math.min(
-        round2(Number(delBill.amount)),
+        round2(billBase(delBill)),
         round2(Number(delBill.remainingOverride) + Number(delPay.amount))
       );
-      const naturalAfter = Math.max(0, round2(Number(delBill.amount) - (paidOf(delBill.id) - Number(delPay.amount))));
+      const naturalAfter = Math.max(0, round2(billBase(delBill) - (paidOf(delBill.id) - Number(delPay.amount))));
       if (round2(delBill.remainingOverride) === naturalAfter) delete delBill.remainingOverride;
       await dbPut('bills', delBill);
     }
@@ -1782,13 +1928,13 @@ function openCustDetail(cid) {
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   const incs = S.incomes.filter(i => i.customerId === cid).sort((a, b) => b.date.localeCompare(a.date));
-  const cashIncs = incs.filter(i => !i.billId);
+  const cashIncs = incs.filter(isCashIncome);
   const bills = S.bills.filter(b => b.customerId === cid).sort((a, b) => b.period.localeCompare(a.period));
   const owed = round2(bills.reduce((s, b) => s + billState(b).remaining, 0));
-  const settledTotal = round2(bills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + Number(b.amount), 0));
+  const settledTotal = round2(bills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + billBase(b), 0));
   const yearPrefix = String(new Date().getFullYear());
   const incTotal = round2(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).reduce((s, i) => s + Number(i.amount), 0));
-  const yearReceivable = round2(bills.filter(b => (b.period || '').startsWith(yearPrefix)).reduce((s, b) => s + Number(b.amount), 0));
+  const yearReceivable = round2(bills.filter(b => (b.period || '').startsWith(yearPrefix)).reduce((s, b) => s + billBase(b), 0));
 
   $('#cust-detail-name').textContent = c.name;
   $('#cust-detail-body').innerHTML =
@@ -1797,6 +1943,8 @@ function openCustDetail(cid) {
     + '<div class="kv"><span>本年应收</span><b>' + fmtInt(yearReceivable) + '</b></div>'
     + '<div class="kv"><span>已收</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
+    + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
+    + '<div style="margin:6px 0 12px"><button class="primary small" data-receipt="' + c.id + '">登记收款</button></div>'
     + '<div class="sub-title">应收账单</div>'
     + '<table class="mini-table"><thead><tr><th>账期</th><th>金额</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th><th>账单</th></tr></thead><tbody>'
     + (bills.map(b => {
@@ -1804,7 +1952,7 @@ function openCustDetail(cid) {
         const ist = invState(b);
         const bf = billFileOf(b.id);
         const btn = 'font-size:11px;padding:2px 5px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;line-height:1.4';
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
@@ -1846,6 +1994,8 @@ function billFileOf(billId) {
 }
 let pendingBillFileId = null;
 $('#cust-detail-body').addEventListener('click', e => {
+  const rc = e.target.closest('[data-receipt]');
+  if (rc) { openReceiptModal(rc.dataset.receipt); return; }
   const up = e.target.closest('[data-billfile-upload]');
   const open = e.target.closest('[data-billfile-open]');
   const del = e.target.closest('[data-billfile-del]');
@@ -2204,7 +2354,7 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
   const r2 = [['客户', '账期', '账单金额(元)', '已收(元)', '未收(元)', '收款状态', '开票状态']];
   S.bills.filter(billInMonth).sort((a, b) => custName(a.customerId).localeCompare(custName(b.customerId), 'zh') || (a.period || '').localeCompare(b.period || '')).forEach(b => {
     const st = billState(b);
-    r2.push([custName(b.customerId), b.period, Number(b.amount), st.paid, st.remaining, st.label, invState(b).label]);
+    r2.push([custName(b.customerId), b.period, billBase(b), st.paid, st.remaining, st.label, invState(b).label]);
   });
   const ws2 = XLSX.utils.aoa_to_sheet(r2);
   ws2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
@@ -2224,7 +2374,7 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
   const r4 = [['开票日期', '客户', '账期', '开票金额(元)', '账单金额(元)']];
   S.invoices.filter(i => inMonth(i.date)).sort((a, b) => a.date.localeCompare(b.date)).forEach(i => {
     const b = S.bills.find(x => x.id === i.billId);
-    r4.push([i.date || '', b ? custName(b.customerId) : '', b ? b.period : '', Number(i.amount) > 0 ? Number(i.amount) : (b ? Number(b.amount) : ''), b ? Number(b.amount) : '']);
+    r4.push([i.date || '', b ? custName(b.customerId) : '', b ? b.period : '', Number(i.amount) > 0 ? Number(i.amount) : (b ? billBase(b) : ''), b ? billBase(b) : '']);
   });
   const ws4 = XLSX.utils.aoa_to_sheet(r4);
   ws4['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }];
@@ -2272,7 +2422,7 @@ $('#btn-export-cust').addEventListener('click', async () => {
     .sort((a, b) => (a.period || '').localeCompare(b.period || ''))
     .forEach(b => {
       const st = billState(b);
-      r1.push([custName(cid), b.period || '', Number(b.amount) || 0, st.paid, st.remaining, st.label, invState(b).label, b.note || '']);
+      r1.push([custName(cid), b.period || '', billBase(b) || 0, st.paid, st.remaining, st.label, invState(b).label, b.note || '']);
     });
   const ws1 = XLSX.utils.aoa_to_sheet(r1);
   ws1['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 28 }];
@@ -2280,7 +2430,7 @@ $('#btn-export-cust').addEventListener('click', async () => {
 
   // 记一笔日收入（现结收入，不含账单收款）
   const r2 = [['日期', '费用类型', '金额(元)', '备注']];
-  S.incomes.filter(i => i.customerId === cid && !i.billId)
+  S.incomes.filter(i => i.customerId === cid && isCashIncome(i))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     .forEach(i => r2.push([i.date || '', i.type || '进仓费', Number(i.amount) || 0, i.note || '']));
   const ws2 = XLSX.utils.aoa_to_sheet(r2);
