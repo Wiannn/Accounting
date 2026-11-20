@@ -642,15 +642,8 @@ function renderYearTrend(year) {
 
 const DONUT_PALETTE = ['#0064FA', '#3BB346', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6', '#F97316', '#84CC16', '#6366F1', '#8B949E'];
 function renderDonutCard(title, items, total) {
-  // 极小子分类合并：占比 < 2% 的并入"其他"，避免出现极细弧段
-  const THRESHOLD = 0.02;
-  const merged = [];
-  let otherAmt = 0;
-  items.forEach(it => {
-    if (total > 0 && it.amt / total < THRESHOLD) otherAmt += it.amt;
-    else merged.push(it);
-  });
-  if (otherAmt > 0) merged.push({ k: '其他', amt: round2(otherAmt) });
+  // 明细不再合并小项，所有子分类都原样列出
+  const merged = items;
 
   // 用实心扇形路径（而非 stroke-dasharray）绘制，填充图形抗锯齿更平滑，不会再出现锯齿
   const size = 120, stroke = 26, cx = size / 2, cy = size / 2;
@@ -666,16 +659,15 @@ function renderDonutCard(title, items, total) {
       + 'A' + rIn + ' ' + rIn + ' 0 ' + large + ' 0 ' + i1[0] + ' ' + i1[1] + 'Z';
   };
   const GAP = 0.02; // 相邻扇区间留约 1° 缝隙
-  // 过滤掉弧长小于缝隙的扇区（渲染出来只有不到 1px，必然粗糙），保证图与图例一致
-  let list = merged.filter(it => ((total > 0 ? it.amt / total : 0) * Math.PI * 2) > GAP + 0.004);
-  if (!list.length) list = [merged[0]];
+  // 不再丢弃细小扇区：全部按真实占比绘制，极细处不留缝，保证与下方明细一致
+  const list = merged;
   const multi = list.length > 1;
   let angle = -Math.PI / 2;
   const segs = list.map((it, i) => {
     const sweep = (total > 0 ? it.amt / total : 0) * Math.PI * 2;
-    const a0 = angle + (multi ? GAP / 2 : 0);
-    const a1 = angle + sweep - (multi ? GAP / 2 : 0);
-    angle += sweep;
+    const a0 = angle;
+    const a1 = angle + sweep;
+    angle = a1;
     // 只剩一块时画完整圆环，避免首尾接缝
     if (!multi) {
       const ring = 'M' + n(cx) + ' ' + n(cy - rOut) + 'A' + rOut + ' ' + rOut + ' 0 1 1 ' + n(cx) + ' ' + n(cy + rOut)
@@ -684,7 +676,8 @@ function renderDonutCard(title, items, total) {
         + 'A' + rIn + ' ' + rIn + ' 0 1 0 ' + n(cx) + ' ' + n(cy - rIn) + 'Z';
       return '<path d="' + ring + '" fill="' + DONUT_PALETTE[0] + '" fill-rule="evenodd" />';
     }
-    return '<path d="' + sector(a0, a1) + '" fill="' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '" />';
+    const d = sweep > GAP + 0.004 ? sector(a0 + GAP / 2, a1 - GAP / 2) : sector(a0, a1);
+    return '<path d="' + d + '" fill="' + DONUT_PALETTE[i % DONUT_PALETTE.length] + '" />';
   }).join('');
   const legend = list.map((it, i) => {
     const pct = total > 0 ? (it.amt / total * 100).toFixed(1) : '0.0';

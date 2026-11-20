@@ -285,9 +285,9 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 /* 子分类：环形图卡片 */
 .donut-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-m);padding:16px;margin-bottom:14px}
 .donut-title{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--text)}
-.donut-body{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.donut-body{display:flex;flex-direction:column;gap:14px;align-items:center}
 .donut-body svg{flex-shrink:0}
-.donut-legend{flex:1;min-width:120px}
+.donut-legend{width:100%}
 .donut-legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
 .donut-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .donut-legend-name{flex:1;color:var(--text)}
