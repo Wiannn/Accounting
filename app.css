@@ -32,6 +32,9 @@ body{font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino 
 .cust-detail-head{position:relative;justify-content:flex-start}
 .cust-detail-head .back-btn{position:relative;z-index:10}
 .cust-detail-head h1{position:absolute;left:50%;transform:translateX(-50%);margin:0;font-size:19px;white-space:nowrap}
+.cust-detail-year-picker{position:absolute;right:0;display:flex;align-items:center;gap:2px;z-index:10}
+.cust-detail-year-picker .year-nav{width:28px;height:28px;padding:0;font-size:16px;line-height:1}
+.cust-detail-year-picker span{min-width:52px;text-align:center;font-size:13px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-m);padding:16px}
 .card.warn-card{border-color:rgba(252,136,0,.45)}
@@ -265,8 +268,12 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
   .nav-btn{flex:1;width:auto;margin:0;padding:10px 2px;text-align:center;font-size:12px;border-radius:var(--radius-m)}
   #main{padding:14px 12px calc(78px + env(safe-area-inset-bottom))}
   .page-head{flex-direction:column;align-items:flex-start;gap:10px}
-  .cust-detail-head{flex-direction:row;align-items:center;gap:10px;flex-wrap:nowrap;margin-bottom:16px}
-  .cust-detail-head h1{font-size:17px;max-width:calc(100% - 56px);overflow:hidden;text-overflow:ellipsis}
+  .cust-detail-head{flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;margin-bottom:16px;position:relative}
+  .cust-detail-head .back-btn{position:relative;z-index:10;flex-shrink:0}
+  .cust-detail-head h1{position:static;transform:none;font-size:17px;flex:1;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cust-detail-year-picker{position:static;flex-shrink:0}
+  .cust-detail-year-picker .year-nav{width:26px;height:26px;font-size:14px}
+  .cust-detail-year-picker span{min-width:44px;font-size:12px}
   .cards{grid-template-columns:repeat(2,1fr)}
   .card-num{font-size:17px}
   .form-grid{grid-template-columns:1fr}

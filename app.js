@@ -2100,19 +2100,26 @@ function customerInfoHtml(c) {
 }
 
 // 账单明细：完整页面（非弹窗）
+let custDetailYear = String(new Date().getFullYear());
+let custDetailCid = null;
 function openCustDetail(cid) {
+  custDetailCid = cid;
   const c = S.customers.find(x => x.id === cid);
   if (!c) return;
   const incs = S.incomes.filter(i => i.customerId === cid).sort((a, b) => b.date.localeCompare(a.date));
   const cashIncs = incs.filter(isCashIncome);
   const bills = S.bills.filter(b => b.customerId === cid).sort((a, b) => b.period.localeCompare(a.period));
-  const owed = round2(bills.reduce((s, b) => s + billState(b).remaining, 0));
-  const settledTotal = round2(bills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + billBase(b), 0));
-  const yearPrefix = String(new Date().getFullYear());
+  const yearPrefix = custDetailYear;
+  // 四行合计统一按选择年份计算
+  const yearBills = bills.filter(b => (b.period || '').startsWith(yearPrefix));
+  const owed = round2(yearBills.reduce((s, b) => s + billState(b).remaining, 0));
+  const settledTotal = round2(yearBills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + billBase(b), 0));
   const incTotal = round2(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).reduce((s, i) => s + Number(i.amount), 0));
-  const yearReceivable = round2(bills.filter(b => (b.period || '').startsWith(yearPrefix)).reduce((s, b) => s + billBase(b), 0));
+  const yearReceivable = round2(yearBills.reduce((s, b) => s + billBase(b), 0));
 
   $('#cust-detail-name').textContent = c.name;
+  const yearLabel = $('#cust-detail-year-label');
+  if (yearLabel) yearLabel.textContent = yearPrefix + '年';
   $('#cust-detail-body').innerHTML =
     '<div class="panel">'
     + '<div class="kv"><span>现结合计</span><b>' + fmtInt(incTotal) + '</b></div>'
@@ -2151,6 +2158,15 @@ $('#btn-cust-detail-back').addEventListener('click', () => {
   $('#bills-main').classList.remove('hidden');
   renderBills();
   syncMobileNav();
+});
+// 客户详情页年份切换
+$('#btn-cust-year-prev').addEventListener('click', () => {
+  custDetailYear = String(Number(custDetailYear) - 1);
+  if (custDetailCid) openCustDetail(custDetailCid);
+});
+$('#btn-cust-year-next').addEventListener('click', () => {
+  custDetailYear = String(Number(custDetailYear) + 1);
+  if (custDetailCid) openCustDetail(custDetailCid);
 });
 // 双击应收账单明细行：修改账期与金额
 $('#cust-detail-body').addEventListener('dblclick', e => {
