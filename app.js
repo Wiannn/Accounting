@@ -590,6 +590,7 @@ function renderExpenseMain(period) {
 function renderExpenseSub(period) {
   const buckets = {};
   const driverBuckets = {}; // 车队支出按司机汇总
+  const empBuckets = {};    // 工资支出按员工汇总
   let reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
@@ -607,6 +608,11 @@ function renderExpenseSub(period) {
       const dn = e.driverId ? empName(e.driverId) : '未指定司机';
       driverBuckets[dn] = (driverBuckets[dn] || 0) + Number(e.amount || 0);
     }
+    // 工资支出按员工归集
+    if (g === '工资') {
+      const en = e.employeeId ? empName(e.employeeId) : '未关联员工';
+      empBuckets[en] = (empBuckets[en] || 0) + Number(e.amount || 0);
+    }
   });
   // 主分类固定为仓库、车队、工资；历史数据里的其他分类仍然展示，避免金额凭空消失
   const ORDER = ['仓库', '车队', '工资'];
@@ -622,10 +628,17 @@ function renderExpenseSub(period) {
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
     const total = round2(items.reduce((s, r) => s + r.amt, 0));
     const card = renderDonutCard(cat + '支出', items, total);
-    if (cat !== '车队') return card;
-    const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
-    const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
-    return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal) : '');
+    if (cat === '车队') {
+      const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
+      const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
+      return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal) : '');
+    }
+    if (cat === '工资') {
+      const wItems = Object.keys(empBuckets).map(k => ({ k, amt: round2(empBuckets[k]) })).sort((a, b) => b.amt - a.amt);
+      const wTotal = round2(wItems.reduce((s, r) => s + r.amt, 0));
+      return card + (wItems.length ? renderDonutCard('按员工支出', wItems, wTotal) : '');
+    }
+    return card;
   }).join('')
   + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px">另有（未计入支出）：' + [reimbSum > 0 ? '待报销 ' + fmt(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt(payableSum) : ''].filter(Boolean).join('、') + '</p>' : '');
 }
