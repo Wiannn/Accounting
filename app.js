@@ -832,7 +832,7 @@ function showDonutDetail(cat, dim, period, key) {
   }
 
   $('#modal').innerHTML = '<div class="panel donut-detail-panel">'
-    + '<div class="panel-title">' + esc(cat) + '支出 · ' + esc(catLabel) + '「' + esc(key) + '」</div>'
+    + '<div class="panel-title">' + esc(cat) + '支出 · ' + esc(key) + '</div>'
     + '<div class="panel-desc">' + esc(periodLabel(period)) + ' · 共 ' + rows.length + ' 条 · 合计 ' + fmt(total) + '</div>'
     + html
     + '</div>';
