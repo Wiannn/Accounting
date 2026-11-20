@@ -980,12 +980,15 @@ let txTab = 'expense';
 function setTxTab(t) {
   txTab = t;
   const inc = t === 'income';
+  const g = $('#tx-group').value;
   $('#seg-expense').classList.toggle('active', !inc);
   $('#seg-income').classList.toggle('active', inc);
   $('#wrap-tx-group').classList.toggle('hidden', inc);
-  $('#wrap-subcategory').classList.toggle('hidden', inc);
-  $('#wrap-tx-driver').classList.toggle('hidden', inc || $('#tx-group').value !== '车队');
-  $('#wrap-tx-employee').classList.toggle('hidden', inc || $('#tx-group').value !== '工资');
+  // 子分类：收入 tab 隐藏；支出 tab 只有仓库/车队才显示（工资无子分类）
+  const needSub = !inc && (g === '仓库' || g === '车队');
+  $('#wrap-subcategory').classList.toggle('hidden', !needSub);
+  $('#wrap-tx-driver').classList.toggle('hidden', inc || g !== '车队');
+  $('#wrap-tx-employee').classList.toggle('hidden', inc || g !== '工资');
   $('#wrap-inc-customer').classList.toggle('hidden', !inc);
   $('#wrap-inc-type').classList.toggle('hidden', !inc);
   if (inc) renderIncTypes();
