@@ -928,7 +928,6 @@ let txTab = 'expense';
 function setTxTab(t) {
   txTab = t;
   const inc = t === 'income';
-  $('#tx-title').textContent = inc ? '记一笔收入' : '记一笔支出';
   $('#seg-expense').classList.toggle('active', !inc);
   $('#seg-income').classList.toggle('active', inc);
   $('#wrap-tx-group').classList.toggle('hidden', inc);
