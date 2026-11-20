@@ -826,12 +826,12 @@ function renderTxSubs() {
   const keptAmount = amountEl ? amountEl.value : '';
   const wrap = $('#wrap-subcategory');
   const subs = S.settings.catGroups[g] || [];
-  if (subs.length) {
+  if (g === '工资' || !subs.length) {
+    wrap.classList.add('hidden');
+  } else {
     wrap.classList.remove('hidden');
     $('#tx-category').innerHTML = subs.map(s => '<option>' + esc(s) + '</option>').join('');
     $('#tx-category')._sync && $('#tx-category')._sync();
-  } else {
-    wrap.classList.add('hidden');
   }
   // 车队支出可关联司机
   const drvWrap = $('#wrap-tx-driver');
@@ -1209,7 +1209,7 @@ async function saveTx() {
     if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
   const group = $('#tx-group').value;
-  const needSub = (group === '仓库' || group === '车队' || group === '工资');
+  const needSub = (group === '仓库' || group === '车队');
   const sub = needSub ? ($('#tx-category').value || '') : '';
   const newId = uid();
   const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
