@@ -1880,20 +1880,18 @@ function openCustDetail(cid) {
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
     + '<div class="sub-title">应收账单</div>'
-    + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>开票日期</th><th>备注</th></tr></thead><tbody>'
+    + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>备注</th></tr></thead><tbody>'
     + (bills.map(b => {
         const st = billState(b);
         const ist = invState(b);
-        const invDate = S.invoices.filter(i => i.billId === b.id && i.date).map(i => i.date).sort().pop() || '';
         const realPaid = paidOf(b.id);
         return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (round2(realPaid - billBase(b)) > 0 ? '<div class="muted">多收 ' + fmtInt(round2(realPaid - billBase(b))) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
-          + '<td>' + (invDate || '—') + '</td>'
           + '<td>' + esc(b.note || '') + '</td>'
           + '</tr>';
-      }).join('') || '<tr><td colspan="9" class="empty">暂无账单</td></tr>')
+      }).join('') || '<tr><td colspan="8" class="empty">暂无账单</td></tr>')
     + '</tbody></table>'
     + '<div class="sub-title">现结收入记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>备注</th></tr></thead><tbody>'
