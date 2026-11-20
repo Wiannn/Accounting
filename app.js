@@ -655,30 +655,51 @@ function renderYearTrend(year) {
     months.push({ label: mm + '月', income: round2(income), expense: round2(expense) });
   }
   const max = Math.max(1, ...months.map(m => Math.max(m.income, m.expense)));
-  const W = 320, H = 140, padL = 36, padR = 8, padT = 14, padB = 22;
+  const W = 320, H = 150, padL = 40, padR = 8, padT = 14, padB = 22;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const barW = plotW / 12 * 0.35, gap = plotW / 12;
-  let bars = '';
+  const gap = plotW / 12;
+  // 生成两条折线：收入（绿）、支出（红）
+  let incomePts = [], expensePts = [], labels = '';
   months.forEach((m, i) => {
     const cx = padL + i * gap + gap / 2;
-    const hi = (m.income / max) * plotH;
-    const he = (m.expense / max) * plotH;
-    const xi = cx - barW - 1;
-    const xe = cx + 1;
-    const yi = padT + plotH - hi;
-    const ye = padT + plotH - he;
-    bars += '<rect x="' + xi + '" y="' + yi + '" width="' + barW + '" height="' + hi + '" fill="#3BB346" rx="2"></rect>'
-      + '<rect x="' + xe + '" y="' + ye + '" width="' + barW + '" height="' + he + '" fill="#CE3A3A" rx="2"></rect>'
-      + '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + m.label + '</text>';
+    const yi = padT + plotH - (m.income / max) * plotH;
+    const ye = padT + plotH - (m.expense / max) * plotH;
+    incomePts.push(cx + ',' + yi);
+    expensePts.push(cx + ',' + ye);
+    labels += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + m.label + '</text>';
   });
-  bars += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
-    + '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '" stroke="#e5e7eb" stroke-width="1"></line>'
-    + '<text x="' + (padL - 4) + '" y="' + (padT + 4) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + (max >= 10000 ? (max / 10000).toFixed(0) + 'w' : Math.round(max)) + '</text>';
+  let svg = '';
+  // Y 轴参考线（3 条：顶、中、底）
+  [0, 0.5, 1].forEach(ratio => {
+    const y = padT + plotH * (1 - ratio);
+    const val = round2(max * ratio);
+    const label = val >= 10000 ? (val / 10000).toFixed(1) + 'w' : Math.round(val);
+    svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#eef0f4" stroke-width="1"></line>'
+      + '<text x="' + (padL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + label + '</text>';
+  });
+  // 折线（先画阴影填充区域，再画折线，再画点）
+  const incomePath = incomePts.join(' ');
+  const expensePath = expensePts.join(' ');
+  // 收入区域填充（从折线到底边）
+  svg += '<polygon points="' + padL + ',' + (padT + plotH) + ' ' + incomePath + ' ' + (W - padR) + ',' + (padT + plotH) + '" fill="#3BB346" opacity="0.12"></polygon>'
+    + '<polyline points="' + incomePath + '" fill="none" stroke="#3BB346" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>';
+  // 支出区域填充
+  svg += '<polygon points="' + padL + ',' + (padT + plotH) + ' ' + expensePath + ' ' + (W - padR) + ',' + (padT + plotH) + '" fill="#CE3A3A" opacity="0.12"></polygon>'
+    + '<polyline points="' + expensePath + '" fill="none" stroke="#CE3A3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>';
+  // 数据点圆点
+  months.forEach((m, i) => {
+    const cx = padL + i * gap + gap / 2;
+    const yi = padT + plotH - (m.income / max) * plotH;
+    const ye = padT + plotH - (m.expense / max) * plotH;
+    svg += '<circle cx="' + cx + '" cy="' + yi + '" r="2.5" fill="#3BB346" stroke="#fff" stroke-width="1.2"></circle>'
+      + '<circle cx="' + cx + '" cy="' + ye + '" r="2.5" fill="#CE3A3A" stroke="#fff" stroke-width="1.2"></circle>';
+  });
+  svg += labels;
   const totalIncome = round2(months.reduce((s, m) => s + m.income, 0));
   const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
   return '<div class="year-trend-card">'
     + '<div class="donut-title">' + year + '年 · 月度收支趋势</div>'
-    + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>'
+    + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + svg + '</svg>'
     + '<div class="trend-legend"><span class="trend-dot" style="background:#3BB346"></span>收入合计 ' + fmt(totalIncome) + ' &nbsp; <span class="trend-dot" style="background:#CE3A3A"></span>支出合计 ' + fmt(totalExpense) + '</div>'
   + '</div>';
 }
