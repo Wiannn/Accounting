@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=53">
+<link rel="stylesheet" href="app.css?v=54">
 </head>
 <body>
 <div id="app">
@@ -89,7 +89,7 @@
       <div class="ledger-search"><input type="search" id="ledger-search" placeholder="搜索客户、分类、备注、金额" autocomplete="off"></div>
       <div class="ledger-list" id="ledger-list"></div>
       <div id="stats-page" class="hidden">
-        <div class="page-head"><button class="ghost" id="btn-stats-back">‹ 返回</button></div>
+        <div class="page-head"><button class="ghost back-btn" id="btn-stats-back" title="返回">‹</button></div>
         <div class="seg seg-full">
           <button class="seg-btn active" data-stats-mode="month">月</button>
           <button class="seg-btn" data-stats-mode="year">年</button>
@@ -157,7 +157,7 @@
       </div>
       </div>
       <div id="cust-admin" class="hidden">
-        <div class="page-head"><h1>客户管理</h1><button class="ghost" id="btn-cust-back">‹ 返回</button></div>
+        <div class="page-head"><h1>客户管理</h1><button class="ghost back-btn" id="btn-cust-back" title="返回">‹</button></div>
         <div class="panel">
           <div class="panel-title">客户列表 <span class="muted" id="cust-admin-count"></span>
             <button class="primary small" id="btn-open-add-cust">＋ 添加客户</button>
@@ -167,7 +167,7 @@
         </div>
       </div>
       <div id="cust-edit" class="hidden">
-        <div class="page-head"><h1>编辑客户</h1><button class="ghost" id="btn-cust-edit-back">‹ 返回</button></div>
+        <div class="page-head"><h1>编辑客户</h1><button class="ghost back-btn" id="btn-cust-edit-back" title="返回">‹</button></div>
         <div class="panel">
           <div class="form-grid">
             <label class="span2">客户名称 <input type="text" id="cust-rename" autocomplete="off"></label>
@@ -180,11 +180,11 @@
         </div>
       </div>
       <div id="cust-detail" class="hidden">
-        <div class="page-head"><h1>账单明细 · <span id="cust-detail-name"></span></h1><button class="ghost" id="btn-cust-detail-back">‹ 返回</button></div>
+        <div class="page-head"><h1>账单明细 · <span id="cust-detail-name"></span></h1><button class="ghost back-btn" id="btn-cust-detail-back" title="返回">‹</button></div>
         <div id="cust-detail-body"></div>
       </div>
       <div id="cust-stats-page" class="hidden">
-        <div class="page-head"><h1 id="cust-stats-title">客户统计</h1><button class="ghost" id="btn-cust-stats-back">‹ 返回</button></div>
+        <div class="page-head"><h1 id="cust-stats-title">客户统计</h1><button class="ghost back-btn" id="btn-cust-stats-back" title="返回">‹</button></div>
         <div class="seg seg-full">
           <button class="seg-btn active" data-cust-stats-mode="month">月</button>
           <button class="seg-btn" data-cust-stats-mode="year">年</button>
