@@ -674,8 +674,8 @@ function renderYearTrend(year) {
   months.forEach((m, i) => {
     const cx = padL + i * gap + gap / 2;
     const ye = padT + plotH - (m.expense / max) * plotH;
-    svg += '<circle cx="' + cx + '" cy="' + ye + '" r="4" fill="#CE3A3A" stroke="#fff" stroke-width="1.5" style="cursor:pointer">'
-      + '<title>' + m.label + ' 支出 ' + fmt(m.expense) + '</title></circle>';
+    svg += '<circle cx="' + cx + '" cy="' + ye + '" r="6" fill="transparent" data-month="' + m.label + '" data-expense="' + fmt(m.expense) + '"></circle>'
+      + '<circle cx="' + cx + '" cy="' + ye + '" r="3.5" fill="#CE3A3A" stroke="#fff" stroke-width="1.2"></circle>';
   });
   svg += labels;
   const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
@@ -851,6 +851,43 @@ function periodLabel(period) {
   if (period.length === 7) return period.replace('-', '年') + '月';
   return period;
 }
+
+// 折线图圆点点击 → 浮层显示月份+支出（兼容手机触屏）
+document.addEventListener('click', e => {
+  const c = e.target.closest('.year-trend-card svg circle[data-month]');
+  if (!c) { // 点别处 → 关闭浮层
+    const tip = $('#trend-tip');
+    if (tip) tip.remove();
+    return;
+  }
+  // 用 SVG viewBox → 屏幕坐标换算：先取 SVG 的 getBoundingClientRect，再按 viewBox 比例
+  const svg = c.ownerSVGElement;
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  // circle 的 cx/cy 是 viewBox 坐标 → 屏幕坐标
+  const cx = Number(c.getAttribute('cx'));
+  const cy = Number(c.getAttribute('cy'));
+  const sx = rect.left + (cx / vb.width) * rect.width;
+  const sy = rect.top + (cy / vb.height) * rect.height;
+  const month = c.dataset.month;
+  const expense = c.dataset.expense;
+  // 关旧的
+  const old = $('#trend-tip');
+  if (old) old.remove();
+  const tip = document.createElement('div');
+  tip.id = 'trend-tip';
+  tip.textContent = month + ' ' + expense;
+  document.body.appendChild(tip);
+  // 定位（默认圆点上方，屏幕边缘时翻转）
+  const tipW = tip.offsetWidth, tipH = tip.offsetHeight;
+  let left = sx - tipW / 2;
+  let top = sy - tipH - 8;
+  if (left < 6) left = 6;
+  if (left + tipW > window.innerWidth - 6) left = window.innerWidth - tipW - 6;
+  if (top < 6) top = sy + 14; // 上方不够空间 → 显示下方
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+});
 
 // === 事件绑定 ===
 $('#btn-stats-back').addEventListener('click', exitStatsPage);
