@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公司记账</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M7 10c6 0 10 1.8 14 1.8S29 10 35 10v28c-6 0-10 1.8-14 1.8S13 38 7 38V10z' fill='%232E8B57'/%3E%3Cpath d='M24 11v29' stroke='%23fff' stroke-width='2' fill='none'/%3E%3Cpath d='M10 18h11M10 24h11M10 30h11M27 18h11M27 24h11M27 30h11' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="app.css?v=56">
+<link rel="stylesheet" href="app.css?v=57">
 </head>
 <body>
 <div id="app">
@@ -133,7 +133,11 @@
     <template id="bill-form-modal">
       <div class="modal-head"><h2>添加月账单</h2><button class="modal-x" data-close>&times;</button></div>
       <div class="form-grid">
-        <label>顾客 <select id="bill3-customer"></select></label>
+        <label>顾客 <span class="cust-pick">
+          <button type="button" class="cust-pick-btn" id="bill3-cust-btn"><span id="bill3-cust-label">选择客户</span><span class="cust-pick-caret">▾</span></button>
+          <div class="cust-pick-pop hidden" id="bill3-cust-pop"></div>
+          <select id="bill3-customer" class="hidden"></select>
+        </span></label>
         <label>月份 <input type="month" id="bill3-period"></label>
         <label class="span2">金额（元） <input type="number" id="bill3-amount" min="0.01" step="0.01" inputmode="decimal"></label>
         <label class="span2">备注 <input type="text" id="bill3-note" placeholder="选填"></label>
@@ -238,6 +242,6 @@
 <div id="toast" class="hidden"></div>
 <input type="file" id="bill-file-input" accept=".xlsx,.xls" class="hidden">
 
-<script src="app.js?v=84"></script>
+<script src="app.js?v=85"></script>
 </body>
 </html>

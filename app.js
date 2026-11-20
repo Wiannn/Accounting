@@ -960,12 +960,40 @@ function openBillForm() {
   $('#bill3-customer').innerHTML = S.customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   const lastC = prev || S.settings.lastBillCustomer;
   if (lastC && S.customers.some(c => c.id === lastC)) $('#bill3-customer').value = lastC;
+  initBillCustPick();
   $('#bill3-period').value = monthStr();
   $('#bill3-amount').value = '';
   $('#bill3-note').value = '';
   $('#btn-save-bill3').addEventListener('click', saveBill3);
   $('#bill3-amount').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBill3(); } });
 }
+
+// 顾客选择：改用限高的可滚动下拉面板，避免客户多时弹层过长
+function initBillCustPick() {
+  const sel = $('#bill3-customer'), btn = $('#bill3-cust-btn'), pop = $('#bill3-cust-pop'), label = $('#bill3-cust-label');
+  if (!sel || !btn) return;
+  const sync = () => {
+    const o = sel.options[sel.selectedIndex];
+    label.textContent = o ? o.textContent : '选择客户';
+  };
+  const renderPop = () => {
+    pop.innerHTML = Array.from(sel.options).map(o =>
+      '<div class="cust-pick-item' + (o.value === sel.value ? ' active' : '') + '" data-v="' + esc(o.value) + '">' + esc(o.textContent) + '</div>'
+    ).join('') || '<div class="cust-pick-empty">暂无客户</div>';
+  };
+  btn.addEventListener('click', () => { renderPop(); pop.classList.toggle('hidden'); });
+  pop.addEventListener('click', e => {
+    const item = e.target.closest('[data-v]');
+    if (!item) return;
+    sel.value = item.dataset.v;
+    sync();
+    pop.classList.add('hidden');
+  });
+  sync();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.cust-pick')) $$('.cust-pick-pop').forEach(p => p.classList.add('hidden'));
+});
 
 async function saveBill3() {
   const cid = $('#bill3-customer').value;
