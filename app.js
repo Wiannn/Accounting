@@ -1295,7 +1295,6 @@ $('#bills-list').addEventListener('click', e => {
 
 /* ---------- 账单详情弹窗 ---------- */
 let currentBillId = null;
-let currentReceiptCid = null;
 
 // 给账单登记一笔收款，并同步手动设置的待收金额（override）
 async function addBillPayment(bill, amount, date, note, extra) {
@@ -1315,77 +1314,6 @@ async function addBillPayment(bill, amount, date, note, extra) {
   return pay;
 }
 
-// 整笔收款：按账期从早到晚自动核销，多出部分转为客户预收余额
-function openReceiptModal(cid) {
-  const c = S.customers.find(x => x.id === cid);
-  if (!c) return;
-  currentReceiptCid = cid;
-  const remTotal = round2(S.bills.filter(b => b.customerId === cid)
-    .reduce((s, b) => s + billState(b).remaining, 0));
-  $('#modal').innerHTML =
-    '<div class="modal-head"><h2>' + esc(c.name) + ' · 登记收款</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>待收合计</span><b>' + fmtInt(remTotal) + '</b></div>'
-    + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
-    + '<div class="form-grid">'
-    + '<label>收款日期 <input type="date" id="rc-date" value="' + todayStr() + '"></label>'
-    + '<label>收款金额（元） <input type="number" id="rc-amount" min="0.01" step="0.01" inputmode="decimal" value="' + (remTotal > 0 ? remTotal : '') + '"></label>'
-    + '<label class="span2">备注 <input type="text" id="rc-note" autocomplete="off"></label>'
-    + '</div>'
-    + '<p class="muted" id="rc-preview" style="margin:6px 0 12px"></p>'
-    + '<button class="primary" id="btn-save-receipt">确认收款</button>';
-  $('#modal-mask').classList.remove('hidden');
-  const open = S.bills.filter(b => b.customerId === cid && billState(b).remaining > 0)
-    .sort((a, b2) => (a.period || '').localeCompare(b2.period || '') || (a.createdAt || 0) - (b2.createdAt || 0));
-  const upd = () => {
-    const amt = round2($('#rc-amount').value);
-    let left = amt;
-    const parts = [];
-    for (const b of open) {
-      if (left <= 0) break;
-      const a = Math.min(billState(b).remaining, left);
-      if (a <= 0) continue;
-      parts.push(b.period + ' ' + fmtInt(a));
-      left = round2(left - a);
-    }
-    $('#rc-preview').textContent = amt > 0
-      ? '自动核销：' + (parts.join('、') || '暂无待收账单') + (left > 0 ? '；剩余 ' + fmtInt(left) + ' 转为预收余额' : '')
-      : '';
-  };
-  $('#rc-amount').addEventListener('input', upd);
-  upd();
-}
-
-async function saveReceipt(cid) {
-  const c = S.customers.find(x => x.id === cid);
-  if (!c) return;
-  const amount = round2($('#rc-amount').value);
-  const date = $('#rc-date').value || todayStr();
-  const note = $('#rc-note').value.trim();
-  if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
-  const rid = uid();
-  const open = S.bills.filter(b => b.customerId === cid && billState(b).remaining > 0)
-    .sort((a, b2) => (a.period || '').localeCompare(b2.period || '') || (a.createdAt || 0) - (b2.createdAt || 0));
-  let left = amount;
-  for (const b of open) {
-    if (left <= 0) break;
-    const alloc = Math.min(billState(b).remaining, left);
-    if (alloc <= 0) continue;
-    await addBillPayment(b, alloc, date, note, { receiptId: rid });
-    left = round2(left - alloc);
-  }
-  // 一整笔收款只生成一条收入流水，便于与银行到账对应
-  await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: cid, amount: amount, note: note, receiptId: rid, prepaidPart: left, createdAt: Date.now() });
-  if (left > 0) {
-    c.prepaid = round2(Number(c.prepaid || 0) + left);
-  }
-  c.lastActiveAt = Date.now();
-  await dbPut('customers', c);
-  await loadState();
-  closeModal();
-  openCustDetail(cid);
-  renderBills();
-  toast(left > 0 ? ('收款已登记，' + fmtInt(left) + ' 转为预收余额') : '收款已登记，收入已计入记一笔');
-}
 
 function openBillModal(billId) {
   const b = S.bills.find(x => x.id === billId);
@@ -1440,7 +1368,7 @@ function openBillModal(billId) {
 
 function closeModal() {
   const mask = $('#modal-mask');
-  currentBillId = null; currentWageId = null; currentReceiptCid = null;
+  currentBillId = null; currentWageId = null;
   if (mask.classList.contains('drawer-mode')) {
     // 抽屉页先滑出再隐藏
     mask.classList.remove('open');
@@ -1566,11 +1494,6 @@ const handleModalClick = async e => {
     openBillModal(currentBillId);
     renderBills();
     toast('收款已登记，收入已计入记一笔');
-    return;
-  }
-  // 整笔收款（客户级）：按账期自动核销
-  if (t.id === 'btn-save-receipt') {
-    await saveReceipt(currentReceiptCid);
     return;
   }
   // 撤销一笔整笔收款：删除所有核销记录、收入流水并回补预收余额
@@ -1956,7 +1879,6 @@ function openCustDetail(cid) {
     + '<div class="kv"><span>已收</span><b>' + fmtInt(settledTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
-    + '<div style="margin:6px 0 12px"><button class="primary small" data-receipt="' + c.id + '">登记收款</button></div>'
     + '<div class="sub-title">应收账单</div>'
     + '<table class="mini-table"><thead><tr><th>账期</th><th>应收</th><th>实收</th><th>待收</th><th>收款状态</th><th>结账日期</th><th>开票状态</th><th>开票日期</th><th>备注</th></tr></thead><tbody>'
     + (bills.map(b => {
@@ -1998,10 +1920,6 @@ $('#cust-detail-body').addEventListener('dblclick', e => {
 });
 
 /* ---------- 应收账单交互 ---------- */
-$('#cust-detail-body').addEventListener('click', e => {
-  const rc = e.target.closest('[data-receipt]');
-  if (rc) { openReceiptModal(rc.dataset.receipt); return; }
-});
 let editingBillId = null;
 function openBillEditModal(billId) {
   const b = S.bills.find(x => x.id === billId);
