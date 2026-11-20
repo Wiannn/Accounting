@@ -2095,12 +2095,17 @@ function openWageGen() {
     '<div class="modal-head"><h2>生成月工资单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="form-grid">'
     + '<label>工资月份 <input type="month" id="wage-period"></label>'
-    + '<label>员工 <select id="wage-emp-select"></select></label>'
+    + '<div class="field">员工 <span class="cust-pick">'
+    + '<button type="button" class="cust-pick-btn" id="wage-emp-btn"><span id="wage-emp-label">选择员工</span><span class="cust-pick-caret">▾</span></button>'
+    + '<div class="cust-pick-pop hidden" id="wage-emp-pop"></div>'
+    + '<select id="wage-emp-select" class="hidden"></select>'
+    + '</span></div>'
     + '<label>工资金额（元） <input type="number" min="0" step="1" inputmode="numeric" id="wage-amount" placeholder="留空可生成后再填"></label>'
     + '<label>缺勤（天） <input type="number" min="0" step="1" inputmode="numeric" id="wage-absence" placeholder="无则留空"></label>'
     + '</div>'
     + '<button class="primary" id="btn-gen-wages">生成工资单</button>';
   renderWageGen();
+  initCustPick({ select: '#wage-emp-select', btn: '#wage-emp-btn', pop: '#wage-emp-pop', label: '#wage-emp-label', placeholder: '选择员工' });
   $('#modal-mask').classList.remove('hidden');
 }
 
@@ -2116,6 +2121,17 @@ function renderWageGen() {
     ? pending.map(e2 => '<option value="' + e2.id + '">' + esc(e2.name) + '</option>').join('')
     : '<option value="">' + (actives.length ? '本月工资已全部生成' : '暂无在职员工') + '</option>';
   sel.disabled = !pending.length;
+  $('#wage-emp-pop') && $('#wage-emp-pop').classList.add('hidden');
+  const btn = $('#wage-emp-btn');
+  if (btn) {
+    btn.disabled = !pending.length;
+    btn.classList.toggle('is-disabled', !pending.length);
+  }
+  const label = $('#wage-emp-label');
+  if (label) {
+    const o = sel.options[sel.selectedIndex];
+    label.textContent = (o && o.value) ? o.textContent : '选择员工';
+  }
   $('#wage-amount').disabled = !pending.length;
 }
 

@@ -127,6 +127,7 @@ label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6
 .cust-pick-item:hover{background:var(--bg)}
 .cust-pick-item.active{color:var(--primary);background:var(--info-bg)}
 .cust-pick-empty{padding:12px 10px;font-size:13px;color:var(--muted);text-align:center}
+.cust-pick-btn.is-disabled,.cust-pick-btn:disabled{background:var(--gray-bg);color:var(--muted);cursor:not-allowed;border-color:var(--border)}
 .mini-plus{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--border);border-radius:var(--radius-m);background:#fff;color:var(--primary);font-size:18px;line-height:1;cursor:pointer}
 #modal{background:#fff;border-radius:var(--radius-l);padding:20px 22px;width:100%;max-width:560px;max-height:85vh;overflow:auto;box-shadow:var(--shadow-elevated)}
 /* 记一笔：右侧滑出抽屉 */
