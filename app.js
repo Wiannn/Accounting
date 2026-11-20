@@ -674,7 +674,8 @@ function renderYearTrend(year) {
   months.forEach((m, i) => {
     const cx = padL + i * gap + gap / 2;
     const ye = padT + plotH - (m.expense / max) * plotH;
-    svg += '<circle cx="' + cx + '" cy="' + ye + '" r="2.5" fill="#CE3A3A" stroke="#fff" stroke-width="1.2"></circle>';
+    svg += '<circle cx="' + cx + '" cy="' + ye + '" r="4" fill="#CE3A3A" stroke="#fff" stroke-width="1.5" style="cursor:pointer">'
+      + '<title>' + m.label + ' 支出 ' + fmt(m.expense) + '</title></circle>';
   });
   svg += labels;
   const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
