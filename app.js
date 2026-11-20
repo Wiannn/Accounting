@@ -370,9 +370,6 @@ function setCustStatsPeriod() {
 }
 function renderCustStatsPage() {
   const period = custStatsPeriod();
-  const modeLabel = custStatsMode === 'month' ? '' : period + '年 ';
-  const tabLabel = { 'income': '收入 · 按客户', 'unpaid': '待收 · 排名' }[custStatsTab];
-  $('#cust-stats-title').textContent = modeLabel + tabLabel;
   $$('[data-cust-stats-mode]').forEach(b => b.classList.toggle('active', b.dataset.custStatsMode === custStatsMode));
   $$('[data-cust-stats-tab]').forEach(b => b.classList.toggle('active', b.dataset.custStatsTab === custStatsTab));
   syncCustStatsPeriodPicker();
