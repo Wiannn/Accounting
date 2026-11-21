@@ -1,0 +1,8 @@
+{
+  "appId": "com.wiannn.accounting",
+  "appName": "公司记账",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

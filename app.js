@@ -38,6 +38,33 @@ function toast(msg) {
   t._tm = setTimeout(() => { t.classList.remove('show'); t.classList.add('hidden'); }, 2200);
 }
 
+const isNativeApp = () => Boolean(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('文件编码失败'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function shareNativeFile(filename, base64) {
+  const plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!plugins || !plugins.Filesystem || !plugins.Share) throw new Error('系统分享组件不可用');
+  const file = await plugins.Filesystem.writeFile({ path: filename, data: base64, directory: 'CACHE' });
+  await plugins.Share.share({ title: filename, url: file.uri, dialogTitle: '保存或分享文件' });
+}
+
+async function exportWorkbook(wb, filename) {
+  if (!isNativeApp()) {
+    XLSX.writeFile(wb, filename);
+    return;
+  }
+  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  await shareNativeFile(filename, base64);
+}
+
 /* ---------- 数据层（IndexedDB） ---------- */
 // 全局错误兜底：任何静默失败都以提示浮出，便于定位
 window.addEventListener('error', e => { try { toast('出错了：' + (e.message || '未知错误')); } catch (_) {} });
@@ -2675,8 +2702,12 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
   ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
   XLSX.utils.book_append_sheet(wb, ws5, '工资表');
 
-  XLSX.writeFile(wb, '账本报表_' + label + '.xlsx');
-  toast('Excel 已导出');
+  try {
+    await exportWorkbook(wb, '账本报表_' + label + '.xlsx');
+    toast(isNativeApp() ? 'Excel 已生成，可保存或分享' : 'Excel 已导出');
+  } catch (err) {
+    alert('Excel 导出失败：' + err.message);
+  }
 });
 
 // 客户选择下拉：进入设置页时按客户名重新填充
@@ -2721,12 +2752,16 @@ $('#btn-export-cust').addEventListener('click', async () => {
   ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, ws2, '日收入');
 
-  XLSX.writeFile(wb, '客户账单_' + custName(cid) + '_' + todayStr() + '.xlsx');
-  toast('客户账单已导出');
+  try {
+    await exportWorkbook(wb, '客户账单_' + custName(cid) + '_' + todayStr() + '.xlsx');
+    toast(isNativeApp() ? '客户账单已生成，可保存或分享' : '客户账单已导出');
+  } catch (err) {
+    alert('客户账单导出失败：' + err.message);
+  }
 });
 
 /* ---------- 备份与恢复 ---------- */
-$('#btn-backup').addEventListener('click', () => {
+$('#btn-backup').addEventListener('click', async () => {
   const data = {
     app: 'company-ledger', version: 1, exportedAt: new Date().toISOString(),
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
@@ -2735,12 +2770,21 @@ $('#btn-backup').addEventListener('click', () => {
     settings: S.settings
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '账本备份_' + todayStr() + '.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('备份文件已下载');
+  const filename = '账本备份_' + todayStr() + '.json';
+  try {
+    if (isNativeApp()) {
+      await shareNativeFile(filename, await blobToBase64(blob));
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    toast(isNativeApp() ? '备份已生成，可保存或分享' : '备份文件已下载');
+  } catch (err) {
+    alert('备份导出失败：' + err.message);
+  }
 });
 
 /* ---------- Excel 导入现结收入 ---------- */
@@ -2940,7 +2984,7 @@ async function importBackup(file) {
 })();
 
 // PWA：注册离线缓存，安装到手机桌面后可全屏、离线打开。
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+if (!isNativeApp() && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
