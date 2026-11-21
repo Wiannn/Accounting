@@ -6,6 +6,7 @@ const CORE_ASSETS = [
   './app.css?v=72',
   './app.js?v=133',
   './manifest.webmanifest',
+  './xlsx.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
