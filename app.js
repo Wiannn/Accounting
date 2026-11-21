@@ -2938,3 +2938,10 @@ async function importBackup(file) {
   renderPage(currentPage); // 打开网页即渲染当前页（默认记一笔），避免首屏空白需切页才出数据
   renderUnpaid();
 })();
+
+// PWA：注册离线缓存，安装到手机桌面后可全屏、离线打开。
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}

@@ -1,4 +1,4 @@
-﻿*{box-sizing:border-box;margin:0;padding:0}
+﻿﻿*{box-sizing:border-box;margin:0;padding:0}
 /* 视觉令牌对齐 Semi Design 默认主题（蓝 #0064FA / 灰阶 text-0~2 / 细边框 / 小圆角） */
 :root{
   --primary:#0064FA; --primary-d:#0062D6;
