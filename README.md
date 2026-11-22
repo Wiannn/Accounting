@@ -76,11 +76,11 @@
 2. 创建带更新明细的附注标签，再推送标签触发构建：
 
    ```bash
-   git tag -a v1.0.3 -m "公司记账 v1.0.3" -m "## 更新明细
+   git tag -a --cleanup=verbatim v1.0.4 -m "公司记账 v1.0.4" -m "## 更新明细
    - 新增或修复内容一
    - 新增或修复内容二
    - 数据与升级注意事项"
-   git push origin v1.0.3
+   git push origin v1.0.4
    ```
 
 标签正文会原样写入 GitHub Release。没有更新正文的标签会在构建前停止发布；正式发布默认设为 Latest，不再标记 Pre-release。
