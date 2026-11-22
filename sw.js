@@ -1,14 +1,14 @@
 'use strict';
 
-const CACHE_NAME = 'accounting-pwa-v6';
+const CACHE_NAME = 'accounting-pwa-v8';
 const CORE_ASSETS = [
   './index.html',
-  './app.css?v=73',
+  './app.css?v=74',
   './app.js?v=136',
-  './manifest.webmanifest',
+  './manifest.webmanifest?v=20261122',
   './xlsx.min.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-192.png?v=20261122',
+  './icons/icon-512.png?v=20261122'
 ];
 
 self.addEventListener('install', event => {
