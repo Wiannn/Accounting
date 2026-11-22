@@ -2885,6 +2885,13 @@ function parseExcelDate(v) {
   return null;
 }
 
+// 新版导入显式保存业务编号；历史导入记录从备注中恢复编号用于判重
+function incomeBusinessNo(i) {
+  const explicit = String(i.bizNo || '').trim();
+  if (explicit) return explicit;
+  return i.type === '进仓费' && i.note && i.note !== 'Excel导入' ? String(i.note).trim() : '';
+}
+
 // 从二维数组识别表头并解析为收入行（纯函数，便于测试）
 // fallbackName：无客户列时用文件名作为客户名（一个文件一个客户）
 function parseIncomeAOA(aoa, fallbackName) {
@@ -2912,14 +2919,22 @@ function parseIncomeAOA(aoa, fallbackName) {
     const name = cCust >= 0 ? rawName : fallbackName;
     const date = parseExcelDate(rawDate);
     const amount = Number(String(rawAmt == null ? '' : rawAmt).replace(/[¥￥,\s元]/g, ''));
-    const rec = { name, date, amount, ok: false, reason: '', dup: false, newCust: false, no: cNo >= 0 ? String(row[cNo] == null ? '' : row[cNo]).trim() : '' };
+    const rec = { name, date, amount, ok: false, reason: '', dup: false, fileDup: false, possibleDup: false, selected: false, newCust: false, no: cNo >= 0 ? String(row[cNo] == null ? '' : row[cNo]).trim() : '' };
     if (!name) rec.reason = '缺客户名';
     else if (!date) rec.reason = '日期无法识别';
     else if (!isFinite(amount) || amount <= 0) rec.reason = '金额无效';
     else {
       rec.ok = true;
       rec.newCust = !existNames.has(name);
-      rec.dup = S.incomes.some(i => i.type === '进仓费' && i.date === date && Number(i.amount) === amount && custName(i.customerId) === name);
+      const sameCustomer = i => i.type === '进仓费' && custName(i.customerId) === name;
+      if (rec.no) {
+        // 有业务编号：以「客户 + 编号」判重，同日期同金额的不同业务不再误跳过
+        rec.dup = S.incomes.some(i => sameCustomer(i) && incomeBusinessNo(i) === rec.no);
+      } else {
+        // 无业务编号：只能标记疑似重复，默认不勾选，由用户在预览中决定
+        rec.possibleDup = S.incomes.some(i => sameCustomer(i) && i.date === date && Number(i.amount) === amount);
+      }
+      rec.selected = !rec.dup && !rec.possibleDup;
     }
     rows.push(rec);
   }
@@ -2936,6 +2951,19 @@ function collectIncomeRows(wb, fileCust) {
     if (r.error) { skippedSheets.push(sn); return; }
     r.rows.forEach(row => { row.sheet = sn; allRows.push(row); });
   });
+  // 同一文件、不同工作表之间也按「客户 + 业务编号」去重
+  const seenBusinessNos = new Set();
+  allRows.forEach(row => {
+    if (!row.ok || row.dup || !row.no) return;
+    const key = row.name + '\0' + row.no;
+    if (seenBusinessNos.has(key)) {
+      row.dup = true;
+      row.fileDup = true;
+      row.selected = false;
+    } else {
+      seenBusinessNos.add(key);
+    }
+  });
   return { rows: allRows, skippedSheets };
 }
 
@@ -2943,46 +2971,68 @@ function collectIncomeRows(wb, fileCust) {
 function openImportPreview(result) {
   if (result.error) { alert(result.error); return; }
   const rows = result.rows;
-  const valid = rows.filter(r => r.ok && !r.dup);
+  const selectedRows = () => rows.filter(r => r.ok && !r.dup && r.selected);
   const dupCount = rows.filter(r => r.ok && r.dup).length;
+  const possibleDupCount = rows.filter(r => r.ok && r.possibleDup).length;
   const badRows = rows.filter(r => !r.ok);
-  const newCusts = [...new Set(valid.filter(r => r.newCust).map(r => r.name))];
-  const total = round2(valid.reduce((s, r) => s + r.amount, 0));
 
-  const rowHtml = r => {
+  const updateSummary = () => {
+    const selected = selectedRows();
+    const newCusts = [...new Set(selected.filter(r => r.newCust).map(r => r.name))];
+    const total = round2(selected.reduce((s, r) => s + r.amount, 0));
+    $('#import-count').textContent = selected.length;
+    $('#import-total').textContent = fmt(total);
+    $('#import-newcust-count').textContent = newCusts.length;
+    const btn = $('#btn-do-import');
+    btn.disabled = !selected.length;
+    btn.textContent = '确认导入 ' + selected.length + ' 条';
+  };
+  const rowHtml = (r, index) => {
     if (!r.ok) return '<div class="kv"><span>' + esc(r.name || '(空行)') + ' · ' + esc(r.reason) + '</span><span class="badge badge-danger">跳过</span></div>';
-    if (r.dup) return '<div class="kv" style="opacity:.55"><span>' + esc(r.name) + ' · ' + r.date + '</span><span>' + fmt(r.amount) + ' <span class="badge badge-gray">重复跳过</span></span></div>';
-    return '<div class="kv"><span>' + esc(r.name) + (r.newCust ? ' <span class="badge badge-info">新客户</span>' : '') + '<br>' + r.date + (r.no ? ' · ' + esc(r.no) : '') + '</span><span class="pos strong">' + fmt(r.amount) + '</span></div>';
+    if (r.dup) return '<div class="kv" style="opacity:.55"><span>' + esc(r.name) + ' · ' + r.date + (r.no ? ' · ' + esc(r.no) : '') + '</span><span>' + fmt(r.amount) + ' <span class="badge badge-gray">' + (r.fileDup ? '文件内编号重复' : '编号重复') + '</span></span></div>';
+    return '<div class="kv"><span><label class="check"><input type="checkbox" data-import-index="' + index + '"' + (r.selected ? ' checked' : '') + '><span>'
+      + esc(r.name) + (r.newCust ? ' <span class="badge badge-info">新客户</span>' : '') + (r.possibleDup ? ' <span class="badge badge-warn">无编号疑似重复</span>' : '')
+      + '<br>' + r.date + (r.no ? ' · ' + esc(r.no) : '') + '</span></label></span><span class="pos strong">' + fmt(r.amount) + '</span></div>';
   };
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>导入预览</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<p class="muted" style="margin-bottom:10px">将导入 <b>' + valid.length + '</b> 条现结收入（进仓费），合计 <b>' + fmt(total) + '</b>；'
-    + '新建客户 ' + newCusts.length + ' 个；重复跳过 ' + dupCount + ' 条；无效跳过 ' + badRows.length + ' 条。'
+    + '<p class="muted" style="margin-bottom:10px">当前勾选 <b id="import-count">0</b> 条现结收入（进仓费），合计 <b id="import-total">¥0.00</b>；新建客户 <b id="import-newcust-count">0</b> 个。'
+    + '<br>编号重复跳过 ' + dupCount + ' 条；无编号疑似重复 ' + possibleDupCount + ' 条（默认不勾选，可手动选择）；无效跳过 ' + badRows.length + ' 条。'
     + (result.skippedSheets && result.skippedSheets.length ? '<br>未识别、已跳过的工作表：' + result.skippedSheets.map(esc).join('、') : '')
     + '<br>已识别工作表：' + [...new Set(rows.map(r => r.sheet).filter(Boolean))].map(esc).join('、') + '</p>'
-    + '<div style="max-height:45vh;overflow:auto;margin-bottom:12px">' + rows.map(rowHtml).join('') + '</div>'
-    + '<button class="primary" id="btn-do-import"' + (valid.length ? '' : ' disabled') + '>确认导入 ' + valid.length + ' 条</button>';
+    + '<div id="import-rows" style="max-height:45vh;overflow:auto;margin-bottom:12px">' + rows.map(rowHtml).join('') + '</div>'
+    + '<button class="primary" id="btn-do-import" disabled>确认导入 0 条</button>';
   $('#modal-mask').classList.remove('hidden');
+  updateSummary();
+  $('#import-rows').addEventListener('change', e => {
+    if (!e.target.matches('[data-import-index]')) return;
+    rows[Number(e.target.getAttribute('data-import-index'))].selected = e.target.checked;
+    updateSummary();
+  });
   $('#btn-do-import').addEventListener('click', async () => {
+    const toImport = selectedRows();
+    if (!toImport.length) return;
     const btn = $('#btn-do-import');
     btn.disabled = true; btn.textContent = '导入中…';
+    $$('#import-rows input[type="checkbox"]').forEach(input => { input.disabled = true; });
     try {
       const nameToId = {};
       S.customers.forEach(c => { nameToId[c.name.trim()] = c.id; });
-      for (const r of valid) {
+      for (const r of toImport) {
         if (!nameToId[r.name]) {
           const id = uid();
           await dbPut('customers', { id, name: r.name, createdAt: Date.now() });
           nameToId[r.name] = id;
         }
-        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, note: r.no || 'Excel导入', createdAt: Date.now() });
+        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, bizNo: r.no || '', note: r.no || 'Excel导入', createdAt: Date.now() });
       }
       await loadState();
       closeModal();
       renderAdd(); renderBills(); renderUnpaid();
-      toast('已导入 ' + valid.length + ' 条收入');
+      toast('已导入 ' + toImport.length + ' 条收入');
     } catch (err) {
       btn.disabled = false; btn.textContent = '重试导入';
+      $$('#import-rows input[type="checkbox"]').forEach(input => { input.disabled = false; });
       alert('导入失败：' + err.message);
     }
   });

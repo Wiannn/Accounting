@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, rmSync } from 'node:fs';
 
 const assets = [
   'index.html',
+  'favicon.ico',
   'app.css',
   'app.js',
   'xlsx.min.js',

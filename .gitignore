@@ -6,3 +6,7 @@ android/app/build/
 android/build/
 *.keystore
 *.jks
+*.apk
+.trae/
+.trae-html-share-packages/
+.screenshots/

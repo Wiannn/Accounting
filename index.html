@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0064FA">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,8 +11,8 @@
 <link rel="manifest" href="manifest.webmanifest?v=20261122">
 <link rel="apple-touch-icon" href="icons/icon-192.png?v=20261122">
 <title>公司记账</title>
-  <link rel="icon" type="image/png" href="icons/icon-192.png?v=20261122">
-<link rel="stylesheet" href="app.css?v=74">
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=20260521">
+<link rel="stylesheet" href="app.css?v=75">
 </head>
 <body>
 <div id="app">
@@ -57,7 +57,7 @@
         <div class="settings-group-title">数据导入</div>
         <div class="panel">
           <div class="panel-title">导入现结收入</div>
-          <p class="panel-desc">表头含「日期」与「进仓费」或「金额」即可；无客户列时用文件名作为客户名；备注取「委托编号 / 进仓编号 / 编号」列，没有该列时记为「Excel导入」。</p>
+          <p class="panel-desc">表头含「日期」与「进仓费」或「金额」即可；无客户列时用文件名作为客户名。有「委托编号 / 进仓编号 / 编号」时按客户与编号判重；无编号的疑似重复记录可在预览中勾选是否导入。</p>
           <button class="primary block" id="btn-import-xlsx">上传 Excel 导入</button>
           <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" class="hidden">
         </div>
@@ -271,6 +271,6 @@
 <div id="subcat-mask" class="hidden"><div id="subcat-modal"></div></div>
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=136"></script>
+<script src="app.js?v=137"></script>
 </body>
 </html>
