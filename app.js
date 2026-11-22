@@ -2251,7 +2251,7 @@ function openCustDetail(cid) {
   // 四行合计统一按选择年份计算
   const yearBills = bills.filter(b => (b.period || '').startsWith(yearPrefix));
   const owed = round2(yearBills.reduce((s, b) => s + billState(b).remaining, 0));
-  const settledTotal = round2(yearBills.filter(b => billState(b).key === 'settled').reduce((s, b) => s + billBase(b), 0));
+  const receivedTotal = round2(yearBills.reduce((s, b) => s + paidOf(b.id), 0));
   const incTotal = round2(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).reduce((s, i) => s + Number(i.amount), 0));
   const yearReceivable = round2(yearBills.reduce((s, b) => s + billBase(b), 0));
 
@@ -2262,7 +2262,7 @@ function openCustDetail(cid) {
     '<div class="panel">'
     + '<div class="kv"><span>现结合计</span><b>' + fmtInt(incTotal) + '</b></div>'
     + '<div class="kv"><span>应收合计</span><b>' + fmtInt(yearReceivable) + '</b></div>'
-    + '<div class="kv"><span>已收合计</span><b>' + fmtInt(settledTotal) + '</b></div>'
+    + '<div class="kv"><span>已收合计</span><b>' + fmtInt(receivedTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
     + '<div class="sub-title">应收账单</div>'
@@ -2761,26 +2761,105 @@ $('#btn-export-cust').addEventListener('click', async () => {
 });
 
 /* ---------- 备份与恢复 ---------- */
-$('#btn-backup').addEventListener('click', async () => {
-  const data = {
+const BACKUP_STORES = ['customers', 'incomes', 'expenses', 'bills', 'payments', 'invoices', 'employees', 'wages', 'billFiles'];
+const BACKUP_TEXT_FIELDS = {
+  customers: ['name'], incomes: ['date'], expenses: ['date'], bills: ['period'], payments: ['date'],
+  invoices: ['date'], employees: ['name'], wages: ['period'], billFiles: []
+};
+const BACKUP_AMOUNT_REQUIRED = new Set(['incomes', 'expenses', 'bills', 'payments', 'wages']);
+
+function backupData() {
+  return {
     app: 'company-ledger', version: 1, exportedAt: new Date().toISOString(),
     customers: S.customers, incomes: S.incomes, expenses: S.expenses,
     bills: S.bills, payments: S.payments, invoices: S.invoices,
     employees: S.employees, wages: S.wages, billFiles: S.billFiles,
     settings: S.settings
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const filename = '账本备份_' + todayStr() + '.json';
-  try {
-    if (isNativeApp()) {
-      await shareNativeFile(filename, await blobToBase64(blob));
-    } else {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
+}
+
+async function exportBackupFile(filename) {
+  const blob = new Blob([JSON.stringify(backupData(), null, 2)], { type: 'application/json' });
+  if (isNativeApp()) {
+    await shareNativeFile(filename, await blobToBase64(blob));
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function validateBackup(data) {
+  const invalid = message => new Error('备份文件无效：' + message);
+  if (!data || data.app !== 'company-ledger' || !Array.isArray(data.customers)) throw invalid('这不是本软件的备份文件');
+  if (data.version !== 1) throw invalid('不支持此备份版本，请使用当前版本软件重新导出');
+  if (data.settings !== undefined && (!data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings))) {
+    throw invalid('settings 必须是对象');
+  }
+  const settings = data.settings || {};
+  if (settings.incomeFees !== undefined && (!Array.isArray(settings.incomeFees) || settings.incomeFees.some(x => typeof x !== 'string'))) {
+    throw invalid('收入费用类型格式不正确');
+  }
+  if (settings.catGroups !== undefined) {
+    if (!settings.catGroups || typeof settings.catGroups !== 'object' || Array.isArray(settings.catGroups)) throw invalid('支出分类格式不正确');
+    for (const values of Object.values(settings.catGroups)) {
+      if (!Array.isArray(values) || values.some(x => typeof x !== 'string')) throw invalid('支出子分类格式不正确');
     }
+  }
+  for (const store of BACKUP_STORES) {
+    const rows = data[store] === undefined ? [] : data[store];
+    if (!Array.isArray(rows)) throw invalid(store + ' 必须是数组');
+    const ids = new Set();
+    rows.forEach((r, index) => {
+      const where = store + ' 第 ' + (index + 1) + ' 条';
+      if (!r || typeof r !== 'object' || Array.isArray(r)) throw invalid(where + '不是有效记录');
+      if (typeof r.id !== 'string' || !r.id.trim()) throw invalid(where + '缺少有效 id');
+      if (ids.has(r.id)) throw invalid(where + '存在重复 id');
+      ids.add(r.id);
+      for (const field of BACKUP_TEXT_FIELDS[store]) {
+        if (typeof r[field] !== 'string') throw invalid(where + '的 ' + field + ' 格式不正确');
+      }
+      if ((BACKUP_AMOUNT_REQUIRED.has(store) || r.amount !== undefined) && (typeof r.amount !== 'number' || !isFinite(r.amount))) {
+        throw invalid(where + '的 amount 必须是有效数字');
+      }
+      if (r.createdAt !== undefined && (typeof r.createdAt !== 'number' || !isFinite(r.createdAt))) throw invalid(where + '的 createdAt 格式不正确');
+      if (store === 'wages') {
+        if (r.payments !== undefined && !Array.isArray(r.payments)) throw invalid(where + '的发放记录必须是数组');
+        (r.payments || []).forEach((p, payIndex) => {
+          if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !p.id.trim() || typeof p.date !== 'string' || typeof p.amount !== 'number' || !isFinite(p.amount)) {
+            throw invalid(where + '的第 ' + (payIndex + 1) + ' 条发放记录格式不正确');
+          }
+        });
+        if (r.absenceDates !== undefined && (!Array.isArray(r.absenceDates) || r.absenceDates.some(d => typeof d !== 'string'))) throw invalid(where + '的缺勤日期格式不正确');
+      }
+    });
+  }
+}
+
+function dbRestore(data) {
+  return new Promise((resolve, reject) => {
+    let failure = null;
+    let tx;
+    try { tx = _db.transaction(STORES, 'readwrite'); } catch (err) { reject(err); return; }
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(failure || tx.error || new Error('数据库写入已回滚'));
+    try {
+      STORES.forEach(store => tx.objectStore(store).clear());
+      BACKUP_STORES.forEach(store => (data[store] || []).forEach(record => tx.objectStore(store).put(record)));
+      const settings = data.settings || {};
+      Object.keys(settings).forEach(key => tx.objectStore('meta').put({ id: key, value: settings[key] }));
+    } catch (err) {
+      failure = err;
+      tx.abort();
+    }
+  });
+}
+
+$('#btn-backup').addEventListener('click', async () => {
+  try {
+    await exportBackupFile('账本备份_' + todayStr() + '.json');
     toast(isNativeApp() ? '备份已生成，可保存或分享' : '备份文件已下载');
   } catch (err) {
     alert('备份导出失败：' + err.message);
@@ -2939,26 +3018,29 @@ $('#restore-file').addEventListener('change', e => {
 });
 async function importBackup(file) {
   let data;
-  try { data = JSON.parse(await file.text()); } catch (err) { alert('备份文件格式不对'); return; }
-  if (!data || data.app !== 'company-ledger' || !Array.isArray(data.customers)) { alert('这不是本软件的备份文件'); return; }
-  if (!confirm('导入备份将覆盖当前浏览器中的全部账本数据，确定继续吗？')) return;
-  for (const s of STORES) await dbClear(s);
-  for (const c of data.customers || []) await dbPut('customers', c);
-  for (const i of data.incomes || []) await dbPut('incomes', i);
-  for (const e2 of data.expenses || []) await dbPut('expenses', e2);
-  for (const b of data.bills || []) await dbPut('bills', b);
-  for (const p of data.payments || []) await dbPut('payments', p);
-  for (const iv of data.invoices || []) await dbPut('invoices', iv);
-  for (const em of data.employees || []) await dbPut('employees', em);
-  for (const wg of data.wages || []) await dbPut('wages', wg);
-  for (const bf of data.billFiles || []) await dbPut('billFiles', bf);
-  for (const p of data.purchases || []) { /* 采购功能已删除 */ }
-  // 报销功能已并入支出（车队分类），旧报销数据不再导入
-  const st = data.settings || {};
-  for (const k of Object.keys(st)) await dbPut('meta', { id: k, value: st[k] });
-  await loadState();
-  renderPage(currentPage);
-  toast('备份已恢复');
+  try { data = JSON.parse(await file.text()); } catch (_) { alert('无法解析备份文件，请确认是本软件导出的 JSON'); return; }
+  try { validateBackup(data); } catch (err) { alert(err.message + '\n\n当前数据未做任何修改。'); return; }
+  if (!confirm('导入备份会覆盖当前全部数据。\n\n软件会先生成一份当前数据的恢复前备份，确定继续吗？')) return;
+  try {
+    await loadState();
+    await exportBackupFile('恢复前备份_' + todayStr() + '.json');
+  } catch (err) {
+    alert('恢复前备份失败，已取消恢复：' + err.message + '\n\n当前数据未做任何修改。');
+    return;
+  }
+  try {
+    await dbRestore(data);
+  } catch (err) {
+    alert('恢复失败，数据库已回滚，原数据未改变：' + (err.message || err));
+    return;
+  }
+  try {
+    await loadState();
+    renderPage(currentPage);
+    toast('备份已恢复，原数据已生成恢复前备份');
+  } catch (err) {
+    alert('数据已恢复，但页面刷新失败，请重新打开软件：' + (err.message || err));
+  }
 }
 
 /* ---------- 初始化 ---------- */

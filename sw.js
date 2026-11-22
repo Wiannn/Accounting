@@ -1,10 +1,10 @@
 'use strict';
 
-const CACHE_NAME = 'accounting-pwa-v3';
+const CACHE_NAME = 'accounting-pwa-v6';
 const CORE_ASSETS = [
   './index.html',
   './app.css?v=73',
-  './app.js?v=134',
+  './app.js?v=136',
   './manifest.webmanifest',
   './xlsx.min.js',
   './icons/icon-192.png',
