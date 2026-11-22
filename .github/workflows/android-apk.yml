@@ -22,6 +22,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         id: tag_notes
         run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
           BODY="$(git tag -l --format='%(body)' "${GITHUB_REF_NAME}")"
           if [ -z "$(printf '%s' "$BODY" | tr -d '[:space:]')" ]; then
             echo "标签 ${GITHUB_REF_NAME} 没有更新明细，已停止发布。请使用带正文的附注标签。" >&2

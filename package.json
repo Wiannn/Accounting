@@ -1,6 +1,6 @@
 {
   "name": "company-ledger",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "公司记账离线安卓应用",
   "scripts": {
