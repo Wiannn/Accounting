@@ -1,11 +1,12 @@
 {
   "name": "company-ledger",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "公司记账离线安卓应用",
   "scripts": {
     "sync:web": "node scripts/sync-web.mjs",
-    "cap:sync": "npm run sync:web && cap sync android"
+    "cap:sync": "npm run sync:web && cap sync android",
+    "test": "node --test tests/ledger-core.test.js"
   },
   "dependencies": {
     "@capacitor/android": "7.6.10",

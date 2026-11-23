@@ -53,11 +53,12 @@
 - 备份与恢复：导出 / 导入 JSON 备份文件；恢复覆盖当前数据前会自动生成安全备份
 
 ## 技术说明
-- 纯前端静态应用，无需构建：`index.html`（页面结构）、`app.css`（样式）、`app.js`（逻辑），引用带版本号参数避免旧缓存
-- Excel 导出 / 导入依赖 `xlsx.min.js`（SheetJS），与 `index.html` 同目录，按需加载，不影响页面打开速度
+- 纯前端静态应用，无需构建：`index.html`（页面结构）、`assets/css/app.css`（样式）、`assets/js/app.js`（逻辑），引用带版本号参数避免旧缓存
+- Excel 导出 / 导入依赖 `assets/vendor/xlsx.min.js`（SheetJS），按需加载，不影响页面打开速度
 - 数据存储：浏览器 IndexedDB（库名 `company-ledger`），各设备、各浏览器数据独立，不跨设备同步
-- 部署：GitHub Pages，正式网页入口保留在仓库根目录
-- 图标：`icons/` 存放 PWA PNG 图标，根目录 `favicon.ico` 用于浏览器标签页；同步脚本会一并复制到 `www/` 和安卓资源
+- 部署：GitHub Pages，正式网页入口 `index.html` 保留在仓库根目录
+- 资源目录：`assets/css/`、`assets/js/`、`assets/vendor/` 分别存放样式、业务逻辑和第三方库；`assets/icons/` 存放 PWA 图标，`assets/favicon.ico` 用于浏览器标签页
+- 同步脚本会将入口文件、离线配置和 `assets/` 一并复制到 `www/` 和安卓资源
 - 安卓：Capacitor 7，启用系统栏自动边距；主页面、记账抽屉和弹窗同时适配顶部与底部安全区
 
 ## 数据安全

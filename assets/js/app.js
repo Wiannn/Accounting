@@ -9,19 +9,20 @@ const todayStr = () => {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 };
 const monthStr = () => todayStr().slice(0, 7);
-const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const { sumMoney, addMoney, subtractMoney, compareMoney } = LedgerCore;
+const round2 = LedgerCore.round2;
 const fmt = n => '¥' + round2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt2 = n => round2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = n => '¥' + round2(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 const fmtInt = n => '¥' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
 const fmtWage = n => (Number(n) > 0) ? fmtInt(n) : '<span class="muted">未设定</span>';
-const wagePaid = w => (w.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+const wagePaid = w => sumMoney((w.payments || []).map(p => p.amount));
 function wageStatus(w) {
   const total = Number(w.amount) || 0;
   const paid = wagePaid(w);
-  if (total <= 0) return paid > 0 ? 'partial' : 'pending';
-  if (paid <= 0) return 'pending';
-  if (paid >= total) return 'paid';
+  if (compareMoney(total, 0) <= 0) return compareMoney(paid, 0) > 0 ? 'partial' : 'pending';
+  if (compareMoney(paid, 0) <= 0) return 'pending';
+  if (compareMoney(paid, total) >= 0) return 'paid';
   return 'partial';
 }
 const absCount = w => (w.absenceDates && w.absenceDates.length) || (w.absence || 0);
@@ -117,6 +118,23 @@ const dbClear = store => new Promise((resolve, reject) => {
   tx.oncomplete = resolve;
   tx.onerror = () => reject(tx.error);
 });
+// 同一笔业务的所有请求必须同步登记；任一步失败都会中止并回滚整个事务。
+function dbAtomicWrite(stores, write) {
+  return new Promise((resolve, reject) => {
+    let failure = null;
+    let result;
+    let tx;
+    try { tx = _db.transaction(stores, 'readwrite'); } catch (err) { reject(err); return; }
+    tx.oncomplete = () => resolve(result);
+    tx.onabort = () => reject(failure || tx.error || new Error('数据库写入已回滚'));
+    try {
+      result = write(tx);
+    } catch (err) {
+      failure = err;
+      tx.abort();
+    }
+  });
+}
 
 const DEFAULTS = {
   overdueDays: 30,
@@ -224,32 +242,19 @@ async function migrateCategories() {
 /* ---------- 派生状态 ---------- */
 const custName = id => { if (!id) return ''; const c = S.customers.find(c => c.id === id); return c ? c.name : '(已删除客户)'; };
 const empName = id => { const e2 = S.employees.find(x => x.id === id); return e2 ? e2.name : '(已删除员工)'; };
-const paidOf = billId => round2(S.payments.filter(p => p.billId === billId).reduce((s, p) => s + Number(p.amount), 0));
+const paidOf = billId => sumMoney(S.payments.filter(p => p.billId === billId).map(p => p.amount));
 // 记一笔的"现结收入"：没有挂账单、也不是账单收款（含客户级整笔收款）的收入
 const isCashIncome = i => !i.billId && !i.receiptId;
 // 结账日期：取该账单最近一次登记收款的日期
 const lastPayDate = billId => S.payments.filter(p => p.billId === billId).map(p => p.date || '').filter(Boolean).sort().pop() || '';
 // 账单应收净额：账单金额扣除减免（抹零 / 差额核销）
-const billBase = b => Math.max(0, round2(Number(b.amount) - Number(b.writeOff || 0)));
+const billBase = b => Math.max(0, subtractMoney(b.amount, b.writeOff || 0));
 function billState(b) {
-  const base = billBase(b);
-  const paidRecords = paidOf(b.id);
-  const hasOverride = b.remainingOverride !== undefined && b.remainingOverride !== null && isFinite(Number(b.remainingOverride));
-  // 待收金额永远不超过账单净额；手动设置的 override 封顶为账单净额，避免删除收款时翻倍
-  let remaining = hasOverride
-    ? Math.min(round2(base), Math.max(0, round2(Number(b.remainingOverride))))
-    : Math.max(0, round2(base - paidRecords));
-  if (remaining <= 0) remaining = 0;
-  // 已收 = 账单净额 − 待收金额；未手动设置待收时等同于收款记录合计
-  const paid = hasOverride ? Math.max(0, round2(base - remaining)) : paidRecords;
-  let key = 'unpaid', label = '待收';
-  if (remaining <= 0) { key = 'settled'; label = '已结清'; }
-  else if (paid > 0)  { key = 'partial'; label = '部分收款'; }
-  return { paid, remaining, key, label };
+  return LedgerCore.getBillMetrics(b, S.payments);
 }
 function invState(b) {
-  const invoiced = round2(S.invoices.filter(i => i.billId === b.id).reduce((s, i) => s + (Number(i.amount) > 0 ? Number(i.amount) : billBase(b)), 0));
-  const remaining = Math.max(0, round2(billBase(b) - invoiced));
+  const invoiced = sumMoney(S.invoices.filter(i => i.billId === b.id).map(i => Number(i.amount) > 0 ? i.amount : billBase(b)));
+  const remaining = Math.max(0, subtractMoney(billBase(b), invoiced));
   let key = 'none', label = '待开票';
   // 手动覆盖开票状态：待开票/部分开票/已开票
   if (b.invOverride === 'done' || b.invOverride === 'partial' || b.invOverride === 'none') {
@@ -311,7 +316,7 @@ function incomeRowsByPrefix(prefix) {
   const covered = new Set(); // 已计入的收入对应的收款，避免漏计
   S.incomes.forEach(i => {
     if (!keyOf(i.date, i.createdAt).startsWith(prefix)) return;
-    sums[i.customerId] = (sums[i.customerId] || 0) + Number(i.amount || 0);
+    sums[i.customerId] = addMoney(sums[i.customerId], i.amount);
     if (i.paymentId) covered.add(i.paymentId);
   });
   S.payments.forEach(p => {
@@ -319,7 +324,7 @@ function incomeRowsByPrefix(prefix) {
     const b = S.bills.find(x => x.id === p.billId);
     if (!b) return;
     if (!keyOf(p.date, p.createdAt, b.period).startsWith(prefix)) return;
-    sums[b.customerId] = (sums[b.customerId] || 0) + Number(p.amount || 0);
+    sums[b.customerId] = addMoney(sums[b.customerId], p.amount);
   });
   return Object.keys(sums)
     .map(cid => ({ cid, amount: round2(sums[cid]) }))
@@ -332,11 +337,11 @@ function yearIncomeRows() {
 
 function renderUnpaid() {
   const unsettled = S.bills.map(b => ({ b, st: billState(b) })).filter(x => x.st.key !== 'settled');
-  $('#stat-unpaid').textContent = fmtInt(unsettled.reduce((s, x) => s + x.st.remaining, 0));
+  $('#stat-unpaid').textContent = fmtInt(sumMoney(unsettled.map(x => x.st.remaining)));
   // 本年收入：本年度全部收入（含记一笔现结收入、账单收款及历史收款）
   const rows = yearIncomeRows();
   $('#year-income-label').textContent = new Date().getFullYear() + '年收入';
-  $('#stat-year-income').textContent = fmtInt(rows.reduce((s, r) => s + r.amount, 0));
+  $('#stat-year-income').textContent = fmtInt(sumMoney(rows.map(r => r.amount)));
 }
 
 // === 客户统计次页面（收入按客户 + 待收排名）===
@@ -416,13 +421,13 @@ function renderCustIncomeTable(period) {
     if (!(b.period || '').startsWith(period)) return;
     const st = billState(b);
     const r = row(b.customerId);
-    r.receivable += billBase(b);
-    r.received += st.paid;
+    r.receivable = addMoney(r.receivable, billBase(b));
+    r.received = addMoney(r.received, st.paid);
   });
   S.incomes.forEach(i => {
     if (!isCashIncome(i)) return;
     if (!(i.date || '').startsWith(period)) return;
-    row(i.customerId).cash += Number(i.amount || 0);
+    row(i.customerId).cash = addMoney(row(i.customerId).cash, i.amount);
   });
   const rows = Object.keys(agg).map(cid => ({
     cid,
@@ -434,9 +439,9 @@ function renderCustIncomeTable(period) {
     return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无收入</div>';
   }
   const tot = rows.reduce((t, r) => ({
-    receivable: round2(t.receivable + r.receivable),
-    received: round2(t.received + r.received),
-    cash: round2(t.cash + r.cash),
+    receivable: addMoney(t.receivable, r.receivable),
+    received: addMoney(t.received, r.received),
+    cash: addMoney(t.cash, r.cash),
   }), { receivable: 0, received: 0, cash: 0 });
   const label = period.length === 4 ? '当年' : '当月';
   const head = '<table class="mini-table cust-income-table"><thead><tr>'
@@ -453,7 +458,7 @@ function renderCustIncomeTable(period) {
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.received) + '</th>'
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.cash) + '</th></tr></tfoot>';
   return head + bodyRows + foot + '</table>'
-    + '<p class="muted">实际到手＝已收 ' + fmtInt(tot.received) + ' ＋ 现结 ' + fmtInt(tot.cash) + ' ＝ <b class="pos">' + fmtInt(round2(tot.received + tot.cash)) + '</b></p>';
+    + '<p class="muted">实际到手＝已收 ' + fmtInt(tot.received) + ' ＋ 现结 ' + fmtInt(tot.cash) + ' ＝ <b class="pos">' + fmtInt(addMoney(tot.received, tot.cash)) + '</b></p>';
 }
 // 待收排名：按账期归属过滤（月=当月账期，年=当年账期），仅统计当前仍未收清的账单
 function renderUnpaidByCustomer(period) {
@@ -462,12 +467,12 @@ function renderUnpaidByCustomer(period) {
     if (!(b.period || '').startsWith(period)) return;
     const remain = billState(b).remaining;
     if (remain <= 0) return;
-    sums[b.customerId] = (sums[b.customerId] || 0) + remain;
+    sums[b.customerId] = addMoney(sums[b.customerId], remain);
   });
   const rows = Object.keys(sums)
     .map(cid => ({ cid, amount: round2(sums[cid]) }))
     .sort((a, b) => b.amount - a.amount);
-  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
+  const total = sumMoney(rows.map(r => r.amount));
   if (!rows.length) {
     return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (period.length === 4 ? '本年' : '本月') + '暂无待收账款</div>';
   }
@@ -587,15 +592,15 @@ function renderExpenseMain(period) {
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
     if (e.status === 'pending') {
-      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
-      else reimbSum += Number(e.amount || 0);
+      if (e.pendingKind === 'payable') payableSum = addMoney(payableSum, e.amount);
+      else reimbSum = addMoney(reimbSum, e.amount);
       return;
     }
     const g = e.category || '其他';
-    sums[g] = (sums[g] || 0) + Number(e.amount || 0);
+    sums[g] = addMoney(sums[g], e.amount);
   });
   const rows = Object.keys(sums).map(k => ({ k, amt: round2(sums[k]) })).sort((a, b) => b.amt - a.amt);
-  const total = round2(rows.reduce((s, r) => s + r.amt, 0));
+  const total = sumMoney(rows.map(r => r.amt));
   if (!rows.length) {
     return '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">' + (statsMode === 'month' ? '本月' : '本年') + '暂无支出</div>'
       + (reimbSum || payableSum ? '<p class="muted" style="margin-top:10px;text-align:center">挂账 ' + fmt(payableSum) + ' · 待报销 ' + fmt(reimbSum) + '（未计入）</p>' : '');
@@ -618,23 +623,23 @@ function renderExpenseSub(period) {
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
     if (e.status === 'pending') {
-      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
-      else reimbSum += Number(e.amount || 0);
+      if (e.pendingKind === 'payable') payableSum = addMoney(payableSum, e.amount);
+      else reimbSum = addMoney(reimbSum, e.amount);
       return;
     }
     const g = e.category || '其他';
     const s = e.sub || '(无)';
     if (!buckets[g]) buckets[g] = {};
-    buckets[g][s] = (buckets[g][s] || 0) + Number(e.amount || 0);
+    buckets[g][s] = addMoney(buckets[g][s], e.amount);
     // 车队支出额外按司机归集，未指定司机单独成块
     if (g === '车队') {
       const dn = e.driverId ? empName(e.driverId) : '未指定司机';
-      driverBuckets[dn] = (driverBuckets[dn] || 0) + Number(e.amount || 0);
+      driverBuckets[dn] = addMoney(driverBuckets[dn], e.amount);
     }
     // 工资支出按员工归集
     if (g === '工资') {
       const en = e.employeeId ? empName(e.employeeId) : '未关联员工';
-      empBuckets[en] = (empBuckets[en] || 0) + Number(e.amount || 0);
+      empBuckets[en] = addMoney(empBuckets[en], e.amount);
     }
   });
   // 主分类固定为仓库、车队、工资；历史数据里的其他分类仍然展示，避免金额凭空消失
@@ -649,16 +654,16 @@ function renderExpenseSub(period) {
   return cats.map(cat => {
     const map = buckets[cat];
     const items = Object.keys(map).map(k => ({ k, amt: round2(map[k]) })).sort((a, b) => b.amt - a.amt);
-    const total = round2(items.reduce((s, r) => s + r.amt, 0));
+    const total = sumMoney(items.map(r => r.amt));
     const card = renderDonutCard(cat + '支出', items, total, { cat: cat, dim: 'sub', period: period });
     if (cat === '车队') {
       const dItems = Object.keys(driverBuckets).map(k => ({ k, amt: round2(driverBuckets[k]) })).sort((a, b) => b.amt - a.amt);
-      const dTotal = round2(dItems.reduce((s, r) => s + r.amt, 0));
+      const dTotal = sumMoney(dItems.map(r => r.amt));
       return card + (dItems.length ? renderDonutCard('按司机支出', dItems, dTotal, { cat: '车队', dim: 'driver', period: period }) : '');
     }
     if (cat === '工资') {
       const wItems = Object.keys(empBuckets).map(k => ({ k, amt: round2(empBuckets[k]) })).sort((a, b) => b.amt - a.amt);
-      const wTotal = round2(wItems.reduce((s, r) => s + r.amt, 0));
+      const wTotal = sumMoney(wItems.map(r => r.amt));
       return card + (wItems.length ? renderDonutCard('按员工支出', wItems, wTotal, { cat: '工资', dim: 'employee', period: period }) : '');
     }
     return card;
@@ -672,7 +677,7 @@ function renderYearTrend(year) {
     const key = year + '-' + mm;
     let expense = 0;
     S.expenses.forEach(e => {
-      if ((e.date || '').startsWith(key) && e.status !== 'pending') expense += Number(e.amount || 0);
+      if ((e.date || '').startsWith(key) && e.status !== 'pending') expense = addMoney(expense, e.amount);
     });
     months.push({ label: mm + '月', expense: round2(expense) });
   }
@@ -707,7 +712,7 @@ function renderYearTrend(year) {
       + '<circle class="dot" cx="' + cx + '" cy="' + ye + '" r="5" fill="#CE3A3A" stroke="#fff" stroke-width="1.8" data-month="' + m.label + '" data-expense="' + fmt(m.expense) + '"></circle>';
   });
   svg += labels;
-  const totalExpense = round2(months.reduce((s, m) => s + m.expense, 0));
+  const totalExpense = sumMoney(months.map(m => m.expense));
   return '<div class="year-trend-card">'
     + '<div class="donut-title">' + year + '年 · 支出趋势</div>'
     + '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + svg + '</svg>'
@@ -806,7 +811,7 @@ function showDonutDetail(cat, dim, period, key) {
     return false;
   }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-  const total = round2(rows.reduce((s, r) => s + Number(r.amount || 0), 0));
+  const total = sumMoney(rows.map(r => r.amount));
   const catLabel = { 'sub': '子分类', 'driver': '司机', 'employee': '员工' }[dim] || '';
 
   if (!rows.length) {
@@ -831,7 +836,7 @@ function showDonutDetail(cat, dim, period, key) {
     const sortedMonths = Object.keys(groups).sort().reverse();
     sortedMonths.forEach(m => {
       const g = groups[m];
-      const mSum = round2(g.reduce((s, r) => s + Number(r.amount || 0), 0));
+      const mSum = sumMoney(g.map(r => r.amount));
       const mLabel = m.slice(5) + '月';
       const gid = 'md-' + m;
       const detailRows = g.map(r => {
@@ -960,14 +965,14 @@ function renderLedger() {
   $('#ledger-year').textContent = y + '年';
   // 当月收支（挂账支出不计入统计）
   // 当月收入：仅现结收入，账单收款（客户页已结清）不计入记一笔
-  const income = round2(S.incomes.filter(i => isCashIncome(i) && (i.date || '').startsWith(period)).reduce((s, i) => s + Number(i.amount || 0), 0));
+  const income = sumMoney(S.incomes.filter(i => isCashIncome(i) && (i.date || '').startsWith(period)).map(i => i.amount));
   let expense = 0, reimbSum = 0, payableSum = 0;
   S.expenses.forEach(e => {
     if (!(e.date || '').startsWith(period)) return;
     if (e.status === 'pending') {
-      if (e.pendingKind === 'payable') payableSum += Number(e.amount || 0);
-      else reimbSum += Number(e.amount || 0);
-    } else expense += Number(e.amount || 0);
+      if (e.pendingKind === 'payable') payableSum = addMoney(payableSum, e.amount);
+      else reimbSum = addMoney(reimbSum, e.amount);
+    } else expense = addMoney(expense, e.amount);
   });
   const pendNote = [reimbSum > 0 ? '待报销 ' + fmt2(reimbSum) : '', payableSum > 0 ? '挂账 ' + fmt2(payableSum) : ''].filter(Boolean).join('、');
   $('#ledger-income').textContent = '+' + fmt2(income);
@@ -1009,8 +1014,8 @@ function renderLedger() {
     if (r.date !== lastDate) {
       if (lastDate) html += '</div>';
       html += '<div class="ledger-day-group"><div class="ledger-day-head"><span class="ledger-day-date">' + r.date.slice(5) + '</span><span class="muted">' + weekday(r.date) + '</span><span style="flex:1"></span>';
-      const dayInc = filtered.filter(x => x.date === r.date && x.type === 'income').reduce((s, x) => s + x.amount, 0);
-      const dayExp = filtered.filter(x => x.date === r.date && x.type === 'expense').reduce((s, x) => s + x.amount, 0);
+      const dayInc = sumMoney(filtered.filter(x => x.date === r.date && x.type === 'income').map(x => x.amount));
+      const dayExp = sumMoney(filtered.filter(x => x.date === r.date && x.type === 'expense').map(x => x.amount));
       if (dayInc) html += '<span class="pos" style="font-size:12px;margin-left:8px">收 +' + fmt2(dayInc) + '</span>';
       if (dayExp) html += '<span style="font-size:12px;margin-left:6px;color:var(--danger)">支 −' + fmt2(dayExp) + '</span>';
       html += '</div>';
@@ -1371,17 +1376,21 @@ async function saveBill3() {
   const dup = S.bills.some(b => b.customerId === cid && b.period === period);
   if (dup && !confirm('该顾客这个月份已有账单，确定再添加一张吗？')) return;
   const bill = { id: uid(), customerId: cid, feeType: '进仓费', period: period, amount: amount, note: note, billDate: '', createdAt: Date.now() };
-  await dbPut('bills', bill);
-  await saveSetting('lastBillCustomer', cid);
   // 有预收余额时自动抵扣这张新账单（钱已在收款时计入收入，这里不再生成收入）
   const c = S.customers.find(x => x.id === cid);
   let usedPrepaid = 0;
-  if (c && Number(c.prepaid || 0) > 0) {
-    usedPrepaid = Math.min(round2(c.prepaid), amount);
-    await addBillPayment(bill, usedPrepaid, todayStr(), '预收余额抵扣', { fromPrepaid: true });
-    c.prepaid = round2(Number(c.prepaid) - usedPrepaid);
-  }
-  if (c) { c.lastActiveAt = Date.now(); await dbPut('customers', c); }
+  if (c && Number(c.prepaid || 0) > 0) usedPrepaid = Math.min(round2(c.prepaid), amount);
+  const nextCustomer = c ? Object.assign({}, c, { lastActiveAt: Date.now() }) : null;
+  if (nextCustomer && usedPrepaid > 0) nextCustomer.prepaid = Math.max(0, subtractMoney(nextCustomer.prepaid, usedPrepaid));
+  const prepaidPay = usedPrepaid > 0
+    ? { id: uid(), billId: bill.id, date: todayStr(), amount: usedPrepaid, note: '预收余额抵扣', createdAt: Date.now(), fromPrepaid: true }
+    : null;
+  await dbAtomicWrite(['bills', 'customers', 'payments', 'meta'], tx => {
+    tx.objectStore('bills').put(bill);
+    if (nextCustomer) tx.objectStore('customers').put(nextCustomer);
+    if (prepaidPay) tx.objectStore('payments').put(prepaidPay);
+    tx.objectStore('meta').put({ id: 'lastBillCustomer', value: cid });
+  });
   await loadState();
   closeModal();
   renderBills();
@@ -1425,9 +1434,13 @@ async function saveTx() {
     const date = $('#tx-date').value;
     if (!date) { toast('请选择日期'); return; }
     const newId = uid();
-    await dbPut('incomes', { id: newId, date: date, type: $('#inc-type').value, customerId: cid || '', amount: amount, note: note, createdAt: Date.now() });
-    await saveSetting('lastIncCustomer', cid || '');
-    await saveSetting('lastTx', Object.assign({}, S.settings.lastTx || {}, { date: date }));
+    const income = { id: newId, date: date, type: $('#inc-type').value, customerId: cid || '', amount: amount, note: note, createdAt: Date.now() };
+    const lastTx = Object.assign({}, S.settings.lastTx || {}, { date: date });
+    await dbAtomicWrite(['incomes', 'meta'], tx => {
+      tx.objectStore('incomes').put(income);
+      tx.objectStore('meta').put({ id: 'lastIncCustomer', value: cid || '' });
+      tx.objectStore('meta').put({ id: 'lastTx', value: lastTx });
+    });
     await loadState();
     closeModal();
     revealLedgerRecord('incomes', newId, date);
@@ -1436,7 +1449,7 @@ async function saveTx() {
   }
   const date = $('#tx-date').value;
   if (!date) { toast('请选择日期'); return; }
-  if (S.expenses.some(r => r.date === date && round2(Number(r.amount)) === amount)) {
+  if (S.expenses.some(r => r.date === date && compareMoney(r.amount, amount) === 0)) {
     if (!confirm(date + ' 已有一笔相同金额的支出，是否重复录入？')) return;
   }
   const group = $('#tx-group').value;
@@ -1445,8 +1458,11 @@ async function saveTx() {
   const newId = uid();
   const driverId = group === '车队' ? ($('#tx-driver').value || null) : null;
   const employeeId = group === '工资' ? ($('#tx-employee').value || null) : null;
-  await dbPut('expenses', { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, employeeId: employeeId, status: null, pendingKind: null, createdAt: Date.now() });
-  await saveSetting('lastTx', { group: group, category: sub, date: date });
+  const expense = { id: newId, date: date, category: group, sub: sub, amount: amount, note: note, driverId: driverId, employeeId: employeeId, status: null, pendingKind: null, createdAt: Date.now() };
+  await dbAtomicWrite(['expenses', 'meta'], tx => {
+    tx.objectStore('expenses').put(expense);
+    tx.objectStore('meta').put({ id: 'lastTx', value: { group: group, category: sub, date: date } });
+  });
   await loadState();
   closeModal();
   revealLedgerRecord('expenses', newId, date);
@@ -1625,7 +1641,7 @@ function renderBills() {
   yearIncomeRows().forEach(r => { yearReceived[r.cid] = r.amount; });
   const html = order.map(cid => {
     const bills = list.filter(b => b.customerId === cid);
-    const sum = bills.reduce((acc, b) => { acc.remaining += billState(b).remaining; return acc; }, { remaining: 0 });
+    const sum = { remaining: sumMoney(bills.map(b => billState(b).remaining)) };
     const isOpen = expandedBillGroups.has(cid);
     return '<div class="bill-group">'
       + '<div class="item-card bill-group-head" data-group="' + cid + '">'
@@ -1663,21 +1679,28 @@ $('#bills-list').addEventListener('click', e => {
 /* ---------- 账单详情弹窗 ---------- */
 let currentBillId = null;
 
-// 给账单登记一笔收款，并同步手动设置的待收金额（override）
-async function addBillPayment(bill, amount, date, note, extra) {
+// 收款、对应收入、客户活动时间和手动待收调整必须作为一个业务整体提交。
+async function addBillPayment(bill, amount, date, note) {
   const amt = round2(amount);
   if (!(amt > 0)) return null;
-  const pay = Object.assign({ id: uid(), billId: bill.id, date: date, amount: amt, note: note || '', createdAt: Date.now() }, extra || {});
-  await dbPut('payments', pay);
-  // 登记收款即视为该客户最近有动作，列表排序置顶
+  const pay = { id: uid(), billId: bill.id, date: date, amount: amt, note: note || '', createdAt: Date.now() };
+  const income = { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amt, note: note, billId: bill.id, paymentId: pay.id, createdAt: Date.now() };
   const rcust = S.customers.find(x => x.id === bill.customerId);
-  if (rcust) { rcust.lastActiveAt = Date.now(); await dbPut('customers', rcust); }
-  if (bill.remainingOverride !== undefined && bill.remainingOverride !== null && isFinite(Number(bill.remainingOverride))) {
-    bill.remainingOverride = Math.max(0, round2(Number(bill.remainingOverride) - amt));
-    const naturalAfter = Math.max(0, round2(billBase(bill) - (paidOf(bill.id) + amt)));
-    if (bill.remainingOverride <= 0 || round2(bill.remainingOverride) === naturalAfter) delete bill.remainingOverride;
-    await dbPut('bills', bill);
+  const nextCustomer = rcust ? Object.assign({}, rcust, { lastActiveAt: Date.now() }) : null;
+  const nextBill = Object.assign({}, bill);
+  let updateBill = false;
+  if (nextBill.remainingOverride !== undefined && nextBill.remainingOverride !== null && isFinite(Number(nextBill.remainingOverride))) {
+    nextBill.remainingOverride = Math.max(0, subtractMoney(nextBill.remainingOverride, amt));
+    const naturalAfter = Math.max(0, subtractMoney(billBase(nextBill), addMoney(paidOf(nextBill.id), amt)));
+    if (nextBill.remainingOverride <= 0 || compareMoney(nextBill.remainingOverride, naturalAfter) === 0) delete nextBill.remainingOverride;
+    updateBill = true;
   }
+  await dbAtomicWrite(['payments', 'incomes', 'bills', 'customers'], tx => {
+    tx.objectStore('payments').put(pay);
+    tx.objectStore('incomes').put(income);
+    if (updateBill) tx.objectStore('bills').put(nextBill);
+    if (nextCustomer) tx.objectStore('customers').put(nextCustomer);
+  });
   return pay;
 }
 
@@ -1695,7 +1718,7 @@ function openBillModal(billId) {
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>账单金额</span><b>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<span class="muted">（原 ' + fmtInt(b.amount) + '，减免 ' + fmtInt(b.writeOff) + '）</span>' : '') + '</b></div>'
     + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(paidOf(b.id)) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
-    + (round2(paidOf(b.id) - billBase(b)) > 0 ? '<div class="kv"><span>多收</span><b class="muted">' + fmtInt(round2(paidOf(b.id) - billBase(b))) + '（收款合计超出应收）</b></div>' : '')
+    + (st.overpaid > 0 ? '<div class="kv"><span>多收</span><b class="muted">' + fmtInt(st.overpaid) + '（收款合计超出应收）</b></div>' : '')
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
     + '<div class="kv"><span>开票状态</span><b><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></b></div>'
     + '<div class="kv"><span>已开票 / 待开</span><b>' + fmtInt(ist.invoiced) + ' / <span class="strong">' + fmtInt(ist.remaining) + '</span></b></div>'
@@ -1854,9 +1877,8 @@ const handleModalClick = async e => {
     if (!amount || amount <= 0) { toast('请输入正确金额'); return; }
     const bill = S.bills.find(x => x.id === currentBillId);
     if (!bill) return;
-    const pay = await addBillPayment(bill, amount, date, note);
-    // 收款自动生成收入流水（记一笔可见，删除收款时联动删除）；月账单收款固定记为「账单收款」，不混入现结收入
-    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: bill.customerId, amount: amount, note: note, billId: bill.id, paymentId: pay.id, createdAt: Date.now() });
+    // 收款与对应收入流水在同一事务中生成，删除收款时仍会联动删除。
+    await addBillPayment(bill, amount, date, note);
     await loadState();
     openBillModal(currentBillId);
     renderBills();
@@ -1869,18 +1891,25 @@ const handleModalClick = async e => {
     const rid = t.dataset.delreceipt;
     const pays = S.payments.filter(p => p.receiptId === rid);
     const incs = S.incomes.filter(i => i.receiptId === rid);
-    let prepaidBack = 0;
-    for (const i of incs) { prepaidBack += Number(i.prepaidPart || 0); await dbDel('incomes', i.id); }
+    const prepaidBack = sumMoney(incs.map(i => i.prepaidPart || 0));
+    const billsToUpdate = [];
     for (const b of S.bills) {
-      if (!pays.some(p => p.billId === b.id)) continue;
-      if (b.remainingOverride !== undefined) { delete b.remainingOverride; await dbPut('bills', b); }
+      if (!pays.some(p => p.billId === b.id) || b.remainingOverride === undefined) continue;
+      const nextBill = Object.assign({}, b);
+      delete nextBill.remainingOverride;
+      billsToUpdate.push(nextBill);
     }
-    for (const p of pays) await dbDel('payments', p.id);
     const cid = incs[0] && incs[0].customerId;
-    if (cid && prepaidBack > 0) {
-      const c = S.customers.find(x => x.id === cid);
-      if (c) { c.prepaid = Math.max(0, round2(Number(c.prepaid || 0) - prepaidBack)); await dbPut('customers', c); }
-    }
+    const c = cid ? S.customers.find(x => x.id === cid) : null;
+    const nextCustomer = c && prepaidBack > 0
+      ? Object.assign({}, c, { prepaid: Math.max(0, subtractMoney(c.prepaid || 0, prepaidBack)) })
+      : null;
+    await dbAtomicWrite(['incomes', 'bills', 'payments', 'customers'], tx => {
+      for (const i of incs) tx.objectStore('incomes').delete(i.id);
+      for (const b of billsToUpdate) tx.objectStore('bills').put(b);
+      for (const p of pays) tx.objectStore('payments').delete(p.id);
+      if (nextCustomer) tx.objectStore('customers').put(nextCustomer);
+    });
     await loadState();
     openBillModal(currentBillId);
     renderBills();
@@ -1896,7 +1925,7 @@ const handleModalClick = async e => {
     const rem = st.remaining;
     if (!(rem > 0)) return;
     if (!confirm('把待收 ' + fmtInt(rem) + ' 记为减免（抹零），这张账单将置为已结清？')) return;
-    bill.writeOff = round2(Number(bill.amount) - Math.min(paidOf(bill.id), Number(bill.amount)));
+    bill.writeOff = LedgerCore.getWriteOffAmount(bill, S.payments);
     delete bill.remainingOverride;
     await dbPut('bills', bill);
     await loadState();
@@ -1909,18 +1938,24 @@ const handleModalClick = async e => {
     if (!confirm('删除这笔收款？「记一笔」中对应的收入将一并删除。')) return;
     const delPay = S.payments.find(p => p.id === t.dataset.delpay);
     const delBill = S.bills.find(x => x.id === currentBillId);
-    for (const inc of S.incomes.filter(i => i.paymentId === t.dataset.delpay)) await dbDel('incomes', inc.id);
-    await dbDel('payments', t.dataset.delpay);
+    const relatedIncomes = S.incomes.filter(i => i.paymentId === t.dataset.delpay);
+    const nextBill = delBill ? Object.assign({}, delBill) : null;
+    let updateBill = false;
     // 若账单被手动设置过待收金额，删除收款后同步回补该待收金额；封顶为账单金额，避免翻倍
-    if (delPay && delBill && delBill.remainingOverride !== undefined && delBill.remainingOverride !== null && isFinite(Number(delBill.remainingOverride))) {
-      delBill.remainingOverride = Math.min(
-        round2(billBase(delBill)),
-        round2(Number(delBill.remainingOverride) + Number(delPay.amount))
+    if (delPay && nextBill && nextBill.remainingOverride !== undefined && nextBill.remainingOverride !== null && isFinite(Number(nextBill.remainingOverride))) {
+      nextBill.remainingOverride = Math.min(
+        billBase(nextBill),
+        addMoney(nextBill.remainingOverride, delPay.amount)
       );
-      const naturalAfter = Math.max(0, round2(billBase(delBill) - (paidOf(delBill.id) - Number(delPay.amount))));
-      if (round2(delBill.remainingOverride) === naturalAfter) delete delBill.remainingOverride;
-      await dbPut('bills', delBill);
+      const naturalAfter = Math.max(0, subtractMoney(billBase(nextBill), subtractMoney(paidOf(nextBill.id), delPay.amount)));
+      if (compareMoney(nextBill.remainingOverride, naturalAfter) === 0) delete nextBill.remainingOverride;
+      updateBill = true;
     }
+    await dbAtomicWrite(['incomes', 'payments', 'bills'], tx => {
+      for (const inc of relatedIncomes) tx.objectStore('incomes').delete(inc.id);
+      tx.objectStore('payments').delete(t.dataset.delpay);
+      if (updateBill) tx.objectStore('bills').put(nextBill);
+    });
     await loadState();
     openBillModal(currentBillId);
     renderBills();
@@ -1948,10 +1983,12 @@ const handleModalClick = async e => {
   if (t.id === 'btn-del-bill') {
     if (!confirm('删除账单将同时删除它的收款、发票记录及记一笔中生成的收入，确定吗？')) return;
     const bid = currentBillId;
-    for (const inc of S.incomes.filter(i => i.billId === bid)) await dbDel('incomes', inc.id);
-    for (const p of S.payments.filter(p => p.billId === bid)) await dbDel('payments', p.id);
-    for (const iv of S.invoices.filter(i => i.billId === bid)) await dbDel('invoices', iv.id);
-    await dbDel('bills', bid);
+    await dbAtomicWrite(['incomes', 'payments', 'invoices', 'bills'], tx => {
+      for (const inc of S.incomes.filter(i => i.billId === bid)) tx.objectStore('incomes').delete(inc.id);
+      for (const p of S.payments.filter(p => p.billId === bid)) tx.objectStore('payments').delete(p.id);
+      for (const iv of S.invoices.filter(i => i.billId === bid)) tx.objectStore('invoices').delete(iv.id);
+      tx.objectStore('bills').delete(bid);
+    });
     await loadState();
     closeModal();
     renderBills();
@@ -1976,7 +2013,7 @@ const handleModalClick = async e => {
     const total = Number(w.amount) || 0;
     if (total <= 0) { toast('请先填写工资金额'); return; }
     const paidBefore = wagePaid(w);
-    const remain = Math.max(0, total - paidBefore);
+    const remain = Math.max(0, subtractMoney(total, paidBefore));
     let amt = Math.round(Number($('#wage-pay-amount').value) || 0);
     if (!amt || amt <= 0) amt = remain; // 留空=全部剩余
     const date = $('#wage-pay-date').value;
@@ -1996,15 +2033,15 @@ const handleModalClick = async e => {
     return;
   }
   if (t.dataset.delWagePay) {
-    const w = S.wages.find(x => x.id === currentWageId);
-    if (!w) return;
+    const existingWage = S.wages.find(x => x.id === currentWageId);
+    if (!existingWage) return;
+    const w = Object.assign({}, existingWage);
     const pid = t.dataset.delWagePay;
     const pay = (w.payments || []).find(p => p.id === pid);
     if (!pay) return;
     if (!confirm('删除这条发放记录？')) return;
     // 清理历史上（改版前）登记发放时自动生成的 expense，新数据不会再产生 expense
     const oldEx = S.expenses.filter(x => x.wageId === w.id && (x.paymentId === pid || (!x.paymentId && x.amount == pay.amount)));
-    for (const ex of oldEx) await dbDel('expenses', ex.id);
     w.payments = (w.payments || []).filter(p => p.id !== pid);
     if (w.payments.length) {
       w.payments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -2012,7 +2049,10 @@ const handleModalClick = async e => {
     } else {
       w.paidDate = null;
     }
-    await dbPut('wages', w);
+    await dbAtomicWrite(['expenses', 'wages'], tx => {
+      for (const ex of oldEx) tx.objectStore('expenses').delete(ex.id);
+      tx.objectStore('wages').put(w);
+    });
     await loadState();
     openWageModal(currentWageId);
     renderWages();
@@ -2024,8 +2064,10 @@ const handleModalClick = async e => {
     const hasPay = (w.payments || []).length > 0;
     if (!confirm('删除这张工资单？' + (hasPay ? '所有发放记录将一并清除。' : ''))) return;
     // 清理历史 expense，新版工资单不再自动生成
-    for (const ex of S.expenses.filter(x => x.wageId === w.id)) await dbDel('expenses', ex.id);
-    await dbDel('wages', w.id);
+    await dbAtomicWrite(['expenses', 'wages'], tx => {
+      for (const ex of S.expenses.filter(x => x.wageId === w.id)) tx.objectStore('expenses').delete(ex.id);
+      tx.objectStore('wages').delete(w.id);
+    });
     await loadState();
     closeModal();
     renderWages();
@@ -2250,10 +2292,10 @@ function openCustDetail(cid) {
   const yearPrefix = custDetailYear;
   // 四行合计统一按选择年份计算
   const yearBills = bills.filter(b => (b.period || '').startsWith(yearPrefix));
-  const owed = round2(yearBills.reduce((s, b) => s + billState(b).remaining, 0));
-  const receivedTotal = round2(yearBills.reduce((s, b) => s + paidOf(b.id), 0));
-  const incTotal = round2(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).reduce((s, i) => s + Number(i.amount), 0));
-  const yearReceivable = round2(yearBills.reduce((s, b) => s + billBase(b), 0));
+  const owed = sumMoney(yearBills.map(b => billState(b).remaining));
+  const receivedTotal = sumMoney(yearBills.map(b => paidOf(b.id)));
+  const incTotal = sumMoney(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).map(i => i.amount));
+  const yearReceivable = sumMoney(yearBills.map(b => billBase(b)));
 
   $('#cust-detail-name').textContent = c.name;
   const yearLabel = $('#cust-detail-year-label');
@@ -2271,7 +2313,7 @@ function openCustDetail(cid) {
         const st = billState(b);
         const ist = invState(b);
         const realPaid = paidOf(b.id);
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (round2(realPaid - billBase(b)) > 0 ? '<div class="muted">多收 ' + fmtInt(round2(realPaid - billBase(b))) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (st.overpaid > 0 ? '<div class="muted">多收 ' + fmtInt(st.overpaid) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
@@ -2354,7 +2396,7 @@ function openBillEditModal(billId) {
   const syncRemaining = () => {
     const rec = round2($('#edit-bill-amount').value);
     const paid = round2($('#edit-bill-paid').value);
-    const rem = Math.max(0, round2(rec - paid));
+    const rem = Math.max(0, subtractMoney(rec, paid));
     $('#edit-bill-remaining').value = rem;
     $('#edit-bill-status').value = rem <= 0 ? 'settled' : (paid <= 0 ? 'unpaid' : 'partial');
   };
@@ -2363,12 +2405,13 @@ function openBillEditModal(billId) {
   $('#edit-bill-status').addEventListener('change', e => {
     const rec = round2($('#edit-bill-amount').value);
     const paid = round2($('#edit-bill-paid').value);
-    $('#edit-bill-remaining').value = e.target.value === 'settled' ? 0 : Math.max(0, round2(rec - paid));
+    $('#edit-bill-remaining').value = e.target.value === 'settled' ? 0 : Math.max(0, subtractMoney(rec, paid));
   });
 }
 async function saveBillEdit() {
-  const b = S.bills.find(x => x.id === editingBillId);
-  if (!b) return;
+  const originalBill = S.bills.find(x => x.id === editingBillId);
+  if (!originalBill) return;
+  const b = Object.assign({}, originalBill);
   const period = $('#edit-bill-period').value;
   const receivable = round2($('#edit-bill-amount').value);
   const paidInput = Math.max(0, round2($('#edit-bill-paid').value));
@@ -2376,38 +2419,29 @@ async function saveBillEdit() {
   if (!period) { toast('请选择账期'); return; }
   if (!receivable || receivable <= 0) { toast('请输入正确金额'); return; }
   const cid = b.customerId;
-  const oldPaid = paidOf(b.id);
   // 应收 = 账单金额 − 减免；改动应收时保留已登记的减免
   b.period = period;
-  b.amount = round2(receivable + Number(b.writeOff || 0));
+  b.amount = addMoney(receivable, b.writeOff || 0);
   // 实收：差额通过补登/削减收款记录调整，保证收入流水与收款明细一致
-  const diff = round2(paidInput - oldPaid);
-  if (diff > 0) {
-    const date = $('#edit-bill-settledate').value || todayStr();
-    const pay = { id: uid(), billId: b.id, date: date, amount: diff, note: '手工调整', createdAt: Date.now() };
-    await dbPut('payments', pay);
-    await dbPut('incomes', { id: uid(), date: date, type: '账单收款', customerId: cid, amount: diff, note: '手工调整', billId: b.id, paymentId: pay.id, createdAt: Date.now() });
-  } else if (diff < 0) {
-    let cut = -diff;
-    const pays = S.payments.filter(p => p.billId === b.id)
-      .sort((x, y) => (x.receiptId ? 1 : 0) - (y.receiptId ? 1 : 0) || (y.date || '').localeCompare(x.date || ''));
-    for (const p of pays) {
-      if (cut <= 0) break;
-      const use = Math.min(Number(p.amount), cut);
-      cut = round2(cut - use);
-      for (const inc of S.incomes.filter(i => i.paymentId === p.id)) await dbDel('incomes', inc.id);
-      if (use >= Number(p.amount)) {
-        await dbDel('payments', p.id);
-      } else {
-        p.amount = round2(Number(p.amount) - use);
-        await dbPut('payments', p);
-        await dbPut('incomes', { id: uid(), date: p.date || todayStr(), type: '账单收款', customerId: cid, amount: p.amount, note: p.note || '', billId: b.id, paymentId: p.id, createdAt: Date.now() });
-      }
-    }
-  }
+  const adjustment = LedgerCore.planPaymentAdjustment({
+    payments: S.payments,
+    incomes: S.incomes,
+    billId: b.id,
+    customerId: cid,
+    targetPaid: paidInput,
+    date: $('#edit-bill-settledate').value || todayStr(),
+    today: todayStr(),
+    createId: uid,
+    createdAt: Date.now()
+  });
+  const paymentPuts = new Map(adjustment.paymentPuts.map(p => [p.id, p]));
+  const paymentDeletes = new Set(adjustment.paymentDeletes);
+  const addedPayments = adjustment.addedPayments;
+  const incomePuts = new Map(adjustment.incomePuts.map(i => [i.id, i]));
+  const incomeDeletes = new Set(adjustment.incomeDeletes);
   // 待收金额独立保存；与「应收 − 实收」一致时不保留覆盖值，恢复自动计算
-  const naturalRemaining = Math.max(0, round2(receivable - paidInput));
-  if (remainingInput !== naturalRemaining) b.remainingOverride = Math.min(receivable, Math.max(0, remainingInput));
+  const naturalRemaining = Math.max(0, subtractMoney(receivable, paidInput));
+  if (compareMoney(remainingInput, naturalRemaining) !== 0) b.remainingOverride = Math.min(receivable, Math.max(0, remainingInput));
   else delete b.remainingOverride;
   // 开票状态：默认按 invoices 自动算，用户手动选不同的才存为覆盖值
   const invSel = $('#edit-bill-inv').value;
@@ -2415,21 +2449,36 @@ async function saveBillEdit() {
   if (invSel === autoInv) delete b.invOverride;
   else b.invOverride = invSel;
   b.note = $('#edit-bill-note').value.trim();
-  // 结账日期：回写到最近一次收款记录，并同步对应收入流水的日期；留空则不修改
+  // 基于调整后的收款集合回写结账日期，避免已删除记录被重新写入。
   const settleDate = $('#edit-bill-settledate').value;
   if (settleDate) {
-    const pays = S.payments.filter(p => p.billId === b.id).sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+    const pays = S.payments.filter(p => p.billId === b.id && !paymentDeletes.has(p.id))
+      .map(p => paymentPuts.get(p.id) || p)
+      .concat(addedPayments)
+      .sort((x, y) => (x.date || '').localeCompare(y.date || ''));
     const last = pays[pays.length - 1];
     if (last && last.date !== settleDate) {
-      last.date = settleDate;
-      await dbPut('payments', last);
-      const inc = S.incomes.find(i => i.paymentId === last.id);
-      if (inc) { inc.date = settleDate; await dbPut('incomes', inc); }
+      const nextLast = Object.assign({}, last, { date: settleDate });
+      paymentPuts.set(nextLast.id, nextLast);
+      const generatedIncome = Array.from(incomePuts.values()).find(i => i.paymentId === nextLast.id);
+      if (generatedIncome) {
+        incomePuts.set(generatedIncome.id, Object.assign({}, generatedIncome, { date: settleDate }));
+      } else {
+        const inc = S.incomes.find(i => i.paymentId === nextLast.id && !incomeDeletes.has(i.id));
+        if (inc) incomePuts.set(inc.id, Object.assign({}, inc, { date: settleDate }));
+      }
     }
   }
-  await dbPut('bills', b);
-  const ecust = S.customers.find(x => x.id === cid);
-  if (ecust) { ecust.lastActiveAt = Date.now(); await dbPut('customers', ecust); }
+  const existingCustomer = S.customers.find(x => x.id === cid);
+  const nextCustomer = existingCustomer ? Object.assign({}, existingCustomer, { lastActiveAt: Date.now() }) : null;
+  await dbAtomicWrite(['payments', 'incomes', 'bills', 'customers'], tx => {
+    for (const id of paymentDeletes) tx.objectStore('payments').delete(id);
+    for (const p of paymentPuts.values()) tx.objectStore('payments').put(p);
+    for (const id of incomeDeletes) tx.objectStore('incomes').delete(id);
+    for (const inc of incomePuts.values()) tx.objectStore('incomes').put(inc);
+    tx.objectStore('bills').put(b);
+    if (nextCustomer) tx.objectStore('customers').put(nextCustomer);
+  });
   await loadState();
   closeModal();
   renderBills();
@@ -2583,7 +2632,7 @@ function openWageModal(wid) {
   for (let i = 0; i < pad; i++) calCells += '<div class="cal-day empty"></div>';
   const total = Number(w.amount) || 0;
   const paid = wagePaid(w);
-  const remain = Math.max(0, total - paid);
+  const remain = Math.max(0, subtractMoney(total, paid));
   const st = wageStatus(w);
   const stBadge = st === 'paid' ? '<span class="badge badge-ok">已发</span>' : st === 'partial' ? '<span class="badge badge-info">部分发放</span>' : '<span class="badge badge-gray">待发</span>';
   // 发放记录列表
@@ -2631,7 +2680,7 @@ function ensureXLSX() {
   if (xlsxLoading) return xlsxLoading;
   xlsxLoading = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'xlsx.min.js';
+    s.src = 'assets/vendor/xlsx.min.js';
     s.onload = resolve;
     s.onerror = () => { xlsxLoading = null; reject(new Error('导出组件加载失败，请检查网络后重试')); };
     document.head.appendChild(s);
@@ -2696,7 +2745,7 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
     .sort((a, b) => a.period.localeCompare(b.period) || empName(a.employeeId).localeCompare(empName(b.employeeId), 'zh'))
     .forEach(w => {
       const st = wageStatus(w);
-      r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), Math.round(wagePaid(w)), Math.max(0, Math.round(Number(w.amount) || 0) - Math.round(wagePaid(w))), absCount(w), st === 'paid' ? '已发' : st === 'partial' ? '部分发放' : '待发']);
+      r5.push([w.period, empName(w.employeeId), Math.round(Number(w.amount) || 0), Math.round(wagePaid(w)), Math.max(0, subtractMoney(Math.round(Number(w.amount) || 0), Math.round(wagePaid(w)))), absCount(w), st === 'paid' ? '已发' : st === 'partial' ? '部分发放' : '待发']);
     });
   const ws5 = XLSX.utils.aoa_to_sheet(r5);
   ws5['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
@@ -2867,79 +2916,9 @@ $('#btn-backup').addEventListener('click', async () => {
 });
 
 /* ---------- Excel 导入现结收入 ---------- */
-// 解析各种日期格式为 YYYY-MM-DD，失败返回 null
-function parseExcelDate(v) {
-  if (v == null || v === '') return null;
-  const pad = n => String(n).padStart(2, '0');
-  // Date 对象（含跨上下文）：用 Object.prototype.toString 判定，避免 instanceof 失效
-  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
-    return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
-  }
-  if (typeof v === 'number' && isFinite(v) && v > 0) {
-    // Excel 序列号（1900 日期系统）
-    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
-  }
-  const m = String(v).trim().match(/(\d{4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/);
-  if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
-  return null;
-}
-
-// 新版导入显式保存业务编号；历史导入记录从备注中恢复编号用于判重
-function incomeBusinessNo(i) {
-  const explicit = String(i.bizNo || '').trim();
-  if (explicit) return explicit;
-  return i.type === '进仓费' && i.note && i.note !== 'Excel导入' ? String(i.note).trim() : '';
-}
-
-// 从二维数组识别表头并解析为收入行（纯函数，便于测试）
-// fallbackName：无客户列时用文件名作为客户名（一个文件一个客户）
+// 二维数组解析与判重由纯计算核心执行，页面和自动测试共用同一实现。
 function parseIncomeAOA(aoa, fallbackName) {
-  if (!aoa || !aoa.length) return { error: 'Excel 里没有内容' };
-  let headIdx = -1, cCust = -1, cDate = -1, cAmt = -1, cNo = -1;
-  for (let r = 0; r < Math.min(aoa.length, 10); r++) {
-    const row = (aoa[r] || []).map(x => String(x == null ? '' : x).trim());
-    const cust = row.findIndex(t => /客户|顾客|公司|单位/.test(t));
-    const date = row.findIndex(t => /日期|时间/.test(t));
-    let amt = row.findIndex(t => /进仓费/.test(t));
-    if (amt < 0) amt = row.findIndex(t => /金额|费用|收款|应收/.test(t));
-    const no = row.findIndex(t => /委托编号|委托号|进仓编号|进仓号|编号/.test(t));
-    if (date >= 0 && amt >= 0 && (cust >= 0 || fallbackName)) { headIdx = r; cCust = cust; cDate = date; cAmt = amt; cNo = no; break; }
-  }
-  if (headIdx < 0) return { error: '未识别到表头：需要包含「日期、进仓费（或金额）」列；客户列可选，没有客户列时用文件名作为客户名' };
-
-  const existNames = new Set(S.customers.map(c => c.name.trim()));
-  const rows = [];
-  for (let r = headIdx + 1; r < aoa.length; r++) {
-    const row = aoa[r] || [];
-    const rawName = cCust >= 0 ? String(row[cCust] == null ? '' : row[cCust]).trim() : '';
-    const rawDate = row[cDate], rawAmt = row[cAmt];
-    // 整行空白跳过
-    if (!rawName && (rawDate == null || rawDate === '') && (rawAmt == null || rawAmt === '')) continue;
-    const name = cCust >= 0 ? rawName : fallbackName;
-    const date = parseExcelDate(rawDate);
-    const amount = Number(String(rawAmt == null ? '' : rawAmt).replace(/[¥￥,\s元]/g, ''));
-    const rec = { name, date, amount, ok: false, reason: '', dup: false, fileDup: false, possibleDup: false, selected: false, newCust: false, no: cNo >= 0 ? String(row[cNo] == null ? '' : row[cNo]).trim() : '' };
-    if (!name) rec.reason = '缺客户名';
-    else if (!date) rec.reason = '日期无法识别';
-    else if (!isFinite(amount) || amount <= 0) rec.reason = '金额无效';
-    else {
-      rec.ok = true;
-      rec.newCust = !existNames.has(name);
-      const sameCustomer = i => i.type === '进仓费' && custName(i.customerId) === name;
-      if (rec.no) {
-        // 有业务编号：以「客户 + 编号」判重，同日期同金额的不同业务不再误跳过
-        rec.dup = S.incomes.some(i => sameCustomer(i) && incomeBusinessNo(i) === rec.no);
-      } else {
-        // 无业务编号：只能标记疑似重复，默认不勾选，由用户在预览中决定
-        rec.possibleDup = S.incomes.some(i => sameCustomer(i) && i.date === date && Number(i.amount) === amount);
-      }
-      rec.selected = !rec.dup && !rec.possibleDup;
-    }
-    rows.push(rec);
-  }
-  if (!rows.length) return { error: '表头以下没有数据行' };
-  return { rows };
+  return LedgerCore.parseIncomeAOA(aoa, fallbackName, S.incomes, S.customers);
 }
 
 // 遍历所有工作表收集收入行；识别不了表头的工作表跳过并记录
@@ -2952,18 +2931,7 @@ function collectIncomeRows(wb, fileCust) {
     r.rows.forEach(row => { row.sheet = sn; allRows.push(row); });
   });
   // 同一文件、不同工作表之间也按「客户 + 业务编号」去重
-  const seenBusinessNos = new Set();
-  allRows.forEach(row => {
-    if (!row.ok || row.dup || !row.no) return;
-    const key = row.name + '\0' + row.no;
-    if (seenBusinessNos.has(key)) {
-      row.dup = true;
-      row.fileDup = true;
-      row.selected = false;
-    } else {
-      seenBusinessNos.add(key);
-    }
-  });
+  LedgerCore.dedupeIncomeRows(allRows);
   return { rows: allRows, skippedSheets };
 }
 
@@ -2979,7 +2947,7 @@ function openImportPreview(result) {
   const updateSummary = () => {
     const selected = selectedRows();
     const newCusts = [...new Set(selected.filter(r => r.newCust).map(r => r.name))];
-    const total = round2(selected.reduce((s, r) => s + r.amount, 0));
+    const total = sumMoney(selected.map(r => r.amount));
     $('#import-count').textContent = selected.length;
     $('#import-total').textContent = fmt(total);
     $('#import-newcust-count').textContent = newCusts.length;
@@ -3018,14 +2986,16 @@ function openImportPreview(result) {
     try {
       const nameToId = {};
       S.customers.forEach(c => { nameToId[c.name.trim()] = c.id; });
-      for (const r of toImport) {
-        if (!nameToId[r.name]) {
-          const id = uid();
-          await dbPut('customers', { id, name: r.name, createdAt: Date.now() });
-          nameToId[r.name] = id;
+      await dbAtomicWrite(['customers', 'incomes'], tx => {
+        for (const r of toImport) {
+          if (!nameToId[r.name]) {
+            const id = uid();
+            tx.objectStore('customers').put({ id, name: r.name, createdAt: Date.now() });
+            nameToId[r.name] = id;
+          }
+          tx.objectStore('incomes').put({ id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, bizNo: r.no || '', note: r.no || 'Excel导入', createdAt: Date.now() });
         }
-        await dbPut('incomes', { id: uid(), date: r.date, type: '进仓费', customerId: nameToId[r.name], amount: r.amount, bizNo: r.no || '', note: r.no || 'Excel导入', createdAt: Date.now() });
-      }
+      });
       await loadState();
       closeModal();
       renderAdd(); renderBills(); renderUnpaid();
@@ -3103,10 +3073,12 @@ async function importBackup(file) {
   await loadState();
   await migrateCategories();
   if (!S.settings.seeded) {
-    for (const n of ['祺盾', '孙海洋', '陈武', '傲通']) {
-      await dbPut('customers', { id: uid(), name: n, createdAt: Date.now() });
-    }
-    await saveSetting('seeded', true);
+    await dbAtomicWrite(['customers', 'meta'], tx => {
+      for (const n of ['祺盾', '孙海洋', '陈武', '傲通']) {
+        tx.objectStore('customers').put({ id: uid(), name: n, createdAt: Date.now() });
+      }
+      tx.objectStore('meta').put({ id: 'seeded', value: true });
+    });
     await loadState();
   }
   $('#report-month').value = monthStr();
