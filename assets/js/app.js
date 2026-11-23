@@ -2911,7 +2911,8 @@ $('#btn-backup').addEventListener('click', async () => {
     await exportBackupFile('账本备份_' + todayStr() + '.json');
     toast(isNativeApp() ? '备份已生成，可保存或分享' : '备份文件已下载');
   } catch (err) {
-    alert('备份导出失败：' + err.message);
+    const msg = String((err && err.message) || err);
+    alert(/cancel/i.test(msg) ? '已取消导出，未生成备份文件' : '备份导出失败：' + msg);
   }
 });
 
@@ -3040,14 +3041,7 @@ async function importBackup(file) {
   let data;
   try { data = JSON.parse(await file.text()); } catch (_) { alert('无法解析备份文件，请确认是本软件导出的 JSON'); return; }
   try { validateBackup(data); } catch (err) { alert(err.message + '\n\n当前数据未做任何修改。'); return; }
-  if (!confirm('导入备份会覆盖当前全部数据。\n\n软件会先生成一份当前数据的恢复前备份，确定继续吗？')) return;
-  try {
-    await loadState();
-    await exportBackupFile('恢复前备份_' + todayStr() + '.json');
-  } catch (err) {
-    alert('恢复前备份失败，已取消恢复：' + err.message + '\n\n当前数据未做任何修改。');
-    return;
-  }
+  if (!confirm('导入备份会覆盖当前全部数据，确定继续吗？')) return;
   try {
     await dbRestore(data);
   } catch (err) {
@@ -3057,7 +3051,7 @@ async function importBackup(file) {
   try {
     await loadState();
     renderPage(currentPage);
-    toast('备份已恢复，原数据已生成恢复前备份');
+    toast('备份已恢复');
   } catch (err) {
     alert('数据已恢复，但页面刷新失败，请重新打开软件：' + (err.message || err));
   }
