@@ -1716,7 +1716,8 @@ function openBillModal(billId) {
 
   $('#modal').innerHTML =
     '<div class="modal-head"><h2>' + esc(custName(b.customerId)) + ' · ' + esc(b.period) + ' 账单</h2><button class="modal-x" data-close>&times;</button></div>'
-    + '<div class="kv"><span>账单金额</span><b>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<span class="muted">（原 ' + fmtInt(b.amount) + '，减免 ' + fmtInt(b.writeOff) + '）</span>' : '') + '</b></div>'
+    + '<div class="kv"><span>应收</span><b>' + fmtInt(b.amount) + '</b></div>'
+    + (Number(b.writeOff || 0) > 0 ? '<div class="kv"><span>减免</span><b class="muted">' + fmtInt(b.writeOff) + '</b></div>' : '')
     + '<div class="kv"><span>已收 / 待收</span><b>' + fmtInt(paidOf(b.id)) + ' / <span class="strong">' + fmtInt(st.remaining) + '</span></b></div>'
     + (st.overpaid > 0 ? '<div class="kv"><span>多收</span><b class="muted">' + fmtInt(st.overpaid) + '（收款合计超出应收）</b></div>' : '')
     + '<div class="kv"><span>收款状态</span><b><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></b></div>'
@@ -2366,7 +2367,8 @@ function openBillEditModal(billId) {
     '<div class="modal-head"><h2>修改账单</h2><button class="modal-x" data-close>&times;</button></div>'
     + '<div class="kv"><span>客户</span><b>' + esc(custName(b.customerId)) + '</b></div>'
     + '<label class="edit-line">账期<input type="month" id="edit-bill-period" value="' + esc(b.period || '') + '"></label>'
-    + '<label class="edit-line">应收<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (billBase(b) || '') + '"></label>'
+    + '<label class="edit-line">应收<input type="number" id="edit-bill-amount" step="1" min="1" inputmode="numeric" value="' + (round2(b.amount) || '') + '"></label>'
+    + '<label class="edit-line">减免<input type="number" id="edit-bill-writeoff" step="1" min="0" inputmode="numeric" value="' + (round2(b.writeOff || 0)) + '"></label>'
     + '<label class="edit-line">实收<input type="number" id="edit-bill-paid" step="1" min="0" inputmode="numeric" value="' + paidOf(b.id) + '"></label>'
     + '<label class="edit-line">收款状态<select id="edit-bill-status">'
     + '<option value="unpaid"' + (st.key === 'unpaid' ? ' selected' : '') + '>待收</option>'
@@ -2387,25 +2389,26 @@ function openBillEditModal(billId) {
   pickifySelect($('#edit-bill-status'), { placeholder: '待收' });
   pickifySelect($('#edit-bill-inv'), { placeholder: '自动' });
   $('#btn-edit-bill-save').addEventListener('click', saveBillEdit);
-  ['#edit-bill-amount', '#edit-bill-paid', '#edit-bill-remaining'].forEach(s => {
+  ['#edit-bill-amount', '#edit-bill-writeoff', '#edit-bill-paid', '#edit-bill-remaining'].forEach(s => {
     const el = $(s);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBillEdit(); } });
   });
-  // 待收 = 应收 − 实收，随输入实时联动
-  // 待收 = 应收 − 实收，随输入实时联动；收款状态随之同步
+  // 待收 = 应收 − 减免 − 实收，随输入实时联动；收款状态随之同步
   const syncRemaining = () => {
     const rec = round2($('#edit-bill-amount').value);
+    const off = round2($('#edit-bill-writeoff').value || 0);
     const paid = round2($('#edit-bill-paid').value);
-    const rem = Math.max(0, subtractMoney(rec, paid));
+    const rem = Math.max(0, subtractMoney(subtractMoney(rec, off), paid));
     $('#edit-bill-remaining').value = rem;
     $('#edit-bill-status').value = rem <= 0 ? 'settled' : (paid <= 0 ? 'unpaid' : 'partial');
   };
-  ['#edit-bill-amount', '#edit-bill-paid'].forEach(s => $(s).addEventListener('input', syncRemaining));
+  ['#edit-bill-amount', '#edit-bill-writeoff', '#edit-bill-paid'].forEach(s => $(s).addEventListener('input', syncRemaining));
   // 选「已结清」待收清零；选「待收 / 部分收款」按差额回填
   $('#edit-bill-status').addEventListener('change', e => {
     const rec = round2($('#edit-bill-amount').value);
+    const off = round2($('#edit-bill-writeoff').value || 0);
     const paid = round2($('#edit-bill-paid').value);
-    $('#edit-bill-remaining').value = e.target.value === 'settled' ? 0 : Math.max(0, subtractMoney(rec, paid));
+    $('#edit-bill-remaining').value = e.target.value === 'settled' ? 0 : Math.max(0, subtractMoney(subtractMoney(rec, off), paid));
   });
 }
 async function saveBillEdit() {
@@ -2414,14 +2417,17 @@ async function saveBillEdit() {
   const b = Object.assign({}, originalBill);
   const period = $('#edit-bill-period').value;
   const receivable = round2($('#edit-bill-amount').value);
+  const writeOffInput = Math.max(0, round2($('#edit-bill-writeoff').value || 0));
   const paidInput = Math.max(0, round2($('#edit-bill-paid').value));
   const remainingInput = Math.max(0, round2($('#edit-bill-remaining').value));
   if (!period) { toast('请选择账期'); return; }
   if (!receivable || receivable <= 0) { toast('请输入正确金额'); return; }
+  if (writeOffInput > receivable) { toast('减免不能大于应收'); return; }
   const cid = b.customerId;
-  // 应收 = 账单金额 − 减免；改动应收时保留已登记的减免
+  // 应收与减免分别保存，互不影响；待收 = 应收 − 减免 − 实收
   b.period = period;
-  b.amount = addMoney(receivable, b.writeOff || 0);
+  b.amount = receivable;
+  if (writeOffInput > 0) b.writeOff = writeOffInput; else delete b.writeOff;
   // 实收：差额通过补登/削减收款记录调整，保证收入流水与收款明细一致
   const adjustment = LedgerCore.planPaymentAdjustment({
     payments: S.payments,
@@ -2439,9 +2445,10 @@ async function saveBillEdit() {
   const addedPayments = adjustment.addedPayments;
   const incomePuts = new Map(adjustment.incomePuts.map(i => [i.id, i]));
   const incomeDeletes = new Set(adjustment.incomeDeletes);
-  // 待收金额独立保存；与「应收 − 实收」一致时不保留覆盖值，恢复自动计算
-  const naturalRemaining = Math.max(0, subtractMoney(receivable, paidInput));
-  if (compareMoney(remainingInput, naturalRemaining) !== 0) b.remainingOverride = Math.min(receivable, Math.max(0, remainingInput));
+  // 待收金额独立保存；与「应收 − 减免 − 实收」一致时不保留覆盖值，恢复自动计算
+  const netReceivable = Math.max(0, subtractMoney(receivable, writeOffInput));
+  const naturalRemaining = Math.max(0, subtractMoney(netReceivable, paidInput));
+  if (compareMoney(remainingInput, naturalRemaining) !== 0) b.remainingOverride = Math.min(netReceivable, remainingInput);
   else delete b.remainingOverride;
   // 开票状态：默认按 invoices 自动算，用户手动选不同的才存为覆盖值
   const invSel = $('#edit-bill-inv').value;

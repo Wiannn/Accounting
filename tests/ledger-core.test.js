@@ -49,6 +49,19 @@ test('部分收款与刚好结清使用实际收款合计', () => {
   assert.equal(settled.remaining, 0);
 });
 
+test('差额核销只按应收与实收计算，不叠加历史减免', () => {
+  const paid = [{ id: 'p1', billId: 'b1', amount: 3200 }];
+  const bill = { id: 'b1', amount: 5500, writeOff: 2300 };
+  assert.equal(getWriteOffAmount(bill, paid), 2300);
+  const metrics = getBillMetrics(bill, paid);
+  assert.equal(metrics.base, 3200);
+  assert.equal(metrics.remaining, 0);
+  assert.equal(metrics.key, 'settled');
+  // 应收保持不变，账期内再次核销仍是同一个减免额
+  assert.equal(bill.amount, 5500);
+  assert.equal(getWriteOffAmount(bill, paid), 2300);
+});
+
 test('超额收款保留实收并准确计算多收金额', () => {
   const bill = { id: 'b1', amount: 100, writeOff: 0.05 };
   const payments = [
