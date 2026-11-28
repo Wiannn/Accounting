@@ -1,12 +1,12 @@
 'use strict';
 
-const CACHE_NAME = 'accounting-pwa-v16';
+const CACHE_NAME = 'accounting-pwa-v17';
 const CORE_ASSETS = [
   './index.html',
   './assets/favicon.ico?v=20260521',
   './assets/css/app.css?v=75',
-  './assets/js/ledger-core.js?v=139',
-  './assets/js/app.js?v=141',
+  './assets/js/ledger-core.js?v=140',
+  './assets/js/app.js?v=142',
   './manifest.webmanifest?v=20261122-2',
   './assets/vendor/xlsx.min.js',
   './assets/icons/icon-192.png?v=20261122',

@@ -252,6 +252,12 @@ const billBase = b => Math.max(0, subtractMoney(b.amount, b.writeOff || 0));
 function billState(b) {
   return LedgerCore.getBillMetrics(b, S.payments);
 }
+// 导出台账的「减免/多收」列：减免记正数，多收记负数
+function billAdjustValue(b, st) {
+  const off = Number(b.writeOff || 0);
+  if (off > 0) return off;
+  return st.overpaid > 0 ? -st.overpaid : 0;
+}
 function invState(b) {
   const invoiced = sumMoney(S.invoices.filter(i => i.billId === b.id).map(i => Number(i.amount) > 0 ? i.amount : billBase(b)));
   const remaining = Math.max(0, subtractMoney(billBase(b), invoiced));
@@ -412,17 +418,18 @@ function renderCustStatsPage() {
     body.innerHTML = renderUnpaidByCustomer(period);
   }
 }
-// 客户统计页收入表：三列口径拆分（应收=当期账单金额；已收=当期账单当前实收；现结=当期记一笔散收入）
+// 客户统计页收入表：三列口径拆分（应收=当期账单原始应收；已收=当期账单当前实收；现结=当期记一笔散收入）
 // 对账关系：应收 = 已收 + 待收；实际到手 = 已收 + 现结
 function renderCustIncomeTable(period) {
   const agg = {};
-  const row = cid => (agg[cid] = agg[cid] || { receivable: 0, received: 0, cash: 0 });
+  const row = cid => (agg[cid] = agg[cid] || { receivable: 0, writeOff: 0, received: 0, cash: 0 });
   S.bills.forEach(b => {
     if (!(b.period || '').startsWith(period)) return;
-    const st = billState(b);
     const r = row(b.customerId);
-    r.receivable = addMoney(r.receivable, billBase(b));
-    r.received = addMoney(r.received, st.paid);
+    r.receivable = addMoney(r.receivable, b.amount);
+    r.writeOff = addMoney(r.writeOff, b.writeOff || 0);
+    // 已收取实际收款合计，不受手动待收影响
+    r.received = addMoney(r.received, paidOf(b.id));
   });
   S.incomes.forEach(i => {
     if (!isCashIncome(i)) return;
@@ -432,6 +439,7 @@ function renderCustIncomeTable(period) {
   const rows = Object.keys(agg).map(cid => ({
     cid,
     receivable: round2(agg[cid].receivable),
+    writeOff: round2(agg[cid].writeOff),
     received: round2(agg[cid].received),
     cash: round2(agg[cid].cash),
   })).sort((a, b) => b.receivable - a.receivable || b.cash - a.cash);
@@ -440,21 +448,22 @@ function renderCustIncomeTable(period) {
   }
   const tot = rows.reduce((t, r) => ({
     receivable: addMoney(t.receivable, r.receivable),
+    writeOff: addMoney(t.writeOff, r.writeOff),
     received: addMoney(t.received, r.received),
     cash: addMoney(t.cash, r.cash),
-  }), { receivable: 0, received: 0, cash: 0 });
+  }), { receivable: 0, writeOff: 0, received: 0, cash: 0 });
   const label = period.length === 4 ? '当年' : '当月';
   const head = '<table class="mini-table cust-income-table"><thead><tr>'
     + '<th>客户</th><th style="text-align:right">应收</th><th style="text-align:right">已收</th><th style="text-align:right">现结</th>'
     + '</tr></thead><tbody>';
   const bodyRows = rows.map(r =>
     '<tr><td>' + esc(custName(r.cid) || '未选客户') + '</td>'
-    + '<td style="text-align:right">' + fmtInt(r.receivable) + '</td>'
+    + '<td style="text-align:right">' + fmtInt(r.receivable) + (r.writeOff > 0 ? '<div class="muted">减免 ' + fmtInt(r.writeOff) + '</div>' : '') + '</td>'
     + '<td style="text-align:right" class="pos">' + fmtInt(r.received) + '</td>'
     + '<td style="text-align:right" class="pos">' + fmtInt(r.cash) + '</td></tr>'
   ).join('');
   const foot = '</tbody><tfoot><tr><th>合计</th>'
-    + '<th style="text-align:right">' + fmtInt(tot.receivable) + '</th>'
+    + '<th style="text-align:right">' + fmtInt(tot.receivable) + (tot.writeOff > 0 ? '<div class="muted">减免 ' + fmtInt(tot.writeOff) + '</div>' : '') + '</th>'
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.received) + '</th>'
     + '<th style="text-align:right" class="pos">' + fmtInt(tot.cash) + '</th></tr></tfoot>';
   return head + bodyRows + foot + '</table>'
@@ -1616,9 +1625,9 @@ function renderBills() {
     return '<div class="item-card" data-bill="' + b.id + '">'
       + '<div class="ic-main">'
       + '<div class="ic-title"><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></div>'
-      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(paidOf(b.id)) + '</div>'
+      + '<div class="ic-sub">' + esc(periodText) + ' · 已收 ' + fmtInt(paidOf(b.id)) + (Number(b.writeOff || 0) > 0 ? ' · 减免 ' + fmtInt(b.writeOff) : '') + '</div>'
       + '</div>'
-      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(billBase(b)) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
+      + '<div class="ic-right"><div class="ic-amt">' + fmtInt(b.amount) + '</div><div class="ic-sub2">待收 ' + fmtInt(st.remaining) + '</div></div>'
       + '</div>';
   };
   // 默认展示所有客户，无待收账单的客户显示「全部已结清」
@@ -1726,9 +1735,7 @@ function openBillModal(billId) {
     + '<div class="sub-title">收款记录</div>'
     + '<table class="mini-table"><thead><tr><th>日期</th><th>金额</th><th>备注</th><th></th></tr></thead><tbody>'
     + (pays.map(p => '<tr><td>' + (p.date || '—') + '</td><td>' + fmtInt(p.amount) + '</td><td>' + esc(p.note || '') + '</td>'
-        + '<td>' + (p.receiptId
-          ? '<button class="link-btn danger" data-delreceipt="' + p.receiptId + '" title="撤销这笔整笔收款">撤销</button>'
-          : '<button class="link-btn danger" data-delpay="' + p.id + '">删除</button>') + '</td></tr>').join('')
+        + '<td><button class="link-btn danger" data-delpay="' + p.id + '">删除</button></td></tr>').join('')
       || '<tr><td colspan="4" class="empty">还没有收款</td></tr>')
     + '</tbody></table>'
     + (st.key !== 'settled'
@@ -1886,38 +1893,6 @@ const handleModalClick = async e => {
     toast('收款已登记，收入已计入记一笔');
     return;
   }
-  // 撤销一笔整笔收款：删除所有核销记录、收入流水并回补预收余额
-  if (t.dataset.delreceipt) {
-    if (!confirm('撤销这笔整笔收款？将同时删除它在所有账期上的核销记录和对应收入。')) return;
-    const rid = t.dataset.delreceipt;
-    const pays = S.payments.filter(p => p.receiptId === rid);
-    const incs = S.incomes.filter(i => i.receiptId === rid);
-    const prepaidBack = sumMoney(incs.map(i => i.prepaidPart || 0));
-    const billsToUpdate = [];
-    for (const b of S.bills) {
-      if (!pays.some(p => p.billId === b.id) || b.remainingOverride === undefined) continue;
-      const nextBill = Object.assign({}, b);
-      delete nextBill.remainingOverride;
-      billsToUpdate.push(nextBill);
-    }
-    const cid = incs[0] && incs[0].customerId;
-    const c = cid ? S.customers.find(x => x.id === cid) : null;
-    const nextCustomer = c && prepaidBack > 0
-      ? Object.assign({}, c, { prepaid: Math.max(0, subtractMoney(c.prepaid || 0, prepaidBack)) })
-      : null;
-    await dbAtomicWrite(['incomes', 'bills', 'payments', 'customers'], tx => {
-      for (const i of incs) tx.objectStore('incomes').delete(i.id);
-      for (const b of billsToUpdate) tx.objectStore('bills').put(b);
-      for (const p of pays) tx.objectStore('payments').delete(p.id);
-      if (nextCustomer) tx.objectStore('customers').put(nextCustomer);
-    });
-    await loadState();
-    openBillModal(currentBillId);
-    renderBills();
-    if (document.getElementById('cust-detail') && !document.getElementById('cust-detail').classList.contains('hidden') && cid) openCustDetail(cid);
-    toast('该笔收款已撤销');
-    return;
-  }
   // 差额核销（抹零）：把剩余待收记为减免，账单置为已结清
   if (t.id === 'btn-writeoff') {
     const bill = S.bills.find(x => x.id === currentBillId);
@@ -1925,14 +1900,20 @@ const handleModalClick = async e => {
     const st = billState(bill);
     const rem = st.remaining;
     if (!(rem > 0)) return;
-    if (!confirm('把待收 ' + fmtInt(rem) + ' 记为减免（抹零），这张账单将置为已结清？')) return;
-    bill.writeOff = LedgerCore.getWriteOffAmount(bill, S.payments);
+    const beforeOff = Math.max(0, round2(bill.writeOff || 0));
+    const nextOff = LedgerCore.getWriteOffAmount(bill, S.payments);
+    const addedOff = Math.max(0, subtractMoney(nextOff, beforeOff));
+    const tip = addedOff > 0
+      ? '把待收 ' + fmtInt(rem) + ' 记为减免（抹零），这张账单将置为已结清？'
+      : '实收已覆盖应收，将清除手动待收并置为已结清？';
+    if (!confirm(tip)) return;
+    if (nextOff > 0) bill.writeOff = nextOff; else delete bill.writeOff;
     delete bill.remainingOverride;
     await dbPut('bills', bill);
     await loadState();
     openBillModal(currentBillId);
     renderBills();
-    toast('已核销 ' + fmtInt(rem));
+    toast(addedOff > 0 ? '已核销 ' + fmtInt(addedOff) : '待收已按实收清零');
     return;
   }
   if (t.dataset.delpay) {
@@ -2296,7 +2277,8 @@ function openCustDetail(cid) {
   const owed = sumMoney(yearBills.map(b => billState(b).remaining));
   const receivedTotal = sumMoney(yearBills.map(b => paidOf(b.id)));
   const incTotal = sumMoney(cashIncs.filter(i => (i.date || '').startsWith(yearPrefix)).map(i => i.amount));
-  const yearReceivable = sumMoney(yearBills.map(b => billBase(b)));
+  const yearReceivable = sumMoney(yearBills.map(b => b.amount));
+  const yearWriteOff = sumMoney(yearBills.map(b => b.writeOff || 0));
 
   $('#cust-detail-name').textContent = c.name;
   const yearLabel = $('#cust-detail-year-label');
@@ -2305,6 +2287,7 @@ function openCustDetail(cid) {
     '<div class="panel">'
     + '<div class="kv"><span>现结合计</span><b>' + fmtInt(incTotal) + '</b></div>'
     + '<div class="kv"><span>应收合计</span><b>' + fmtInt(yearReceivable) + '</b></div>'
+    + (yearWriteOff > 0 ? '<div class="kv"><span>减免合计</span><b class="muted">' + fmtInt(yearWriteOff) + '</b></div>' : '')
     + '<div class="kv"><span>已收合计</span><b>' + fmtInt(receivedTotal) + '</b></div>'
     + '<div class="kv"><span>待收欠款</span><b class="' + (owed > 0 ? 'neg' : '') + '">' + fmtInt(owed) + '</b></div>'
     + (Number(c.prepaid || 0) > 0 ? '<div class="kv"><span>预收余额</span><b>' + fmtInt(c.prepaid) + '</b></div>' : '')
@@ -2314,7 +2297,7 @@ function openCustDetail(cid) {
         const st = billState(b);
         const ist = invState(b);
         const realPaid = paidOf(b.id);
-        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(billBase(b)) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (st.overpaid > 0 ? '<div class="muted">多收 ' + fmtInt(st.overpaid) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
+        return '<tr data-custbill="' + b.id + '"><td>' + esc(b.period) + '</td><td>' + fmtInt(b.amount) + (Number(b.writeOff || 0) > 0 ? '<div class="muted">减免 ' + fmtInt(b.writeOff) + '</div>' : '') + '</td><td>' + fmtInt(realPaid) + (st.overpaid > 0 ? '<div class="muted">多收 ' + fmtInt(st.overpaid) + '</div>' : '') + '</td><td>' + fmtInt(st.remaining) + '</td>'
           + '<td><span class="badge badge-' + stBadge(st.key) + '">' + st.label + '</span></td>'
           + '<td>' + (lastPayDate(b.id) || '—') + '</td>'
           + '<td><span class="badge badge-' + invBadge(ist.key) + '">' + ist.label + '</span></td>'
@@ -2717,13 +2700,14 @@ $('#btn-export-xlsx').addEventListener('click', async () => {
   XLSX.utils.book_append_sheet(wb, ws1, '收支明细');
 
   // 工作表2：应收台账
-  const r2 = [['客户', '账期', '账单金额(元)', '已收(元)', '未收(元)', '收款状态', '开票状态']];
+  const r2 = [['客户', '账期', '应收(元)', '减免/多收(元)', '已收(元)', '未收(元)', '收款状态', '开票状态', '说明']];
   S.bills.filter(billInMonth).sort((a, b) => custName(a.customerId).localeCompare(custName(b.customerId), 'zh') || (a.period || '').localeCompare(b.period || '')).forEach(b => {
     const st = billState(b);
-    r2.push([custName(b.customerId), b.period, billBase(b), st.paid, st.remaining, st.label, invState(b).label]);
+    const adjust = billAdjustValue(b, st);
+    r2.push([custName(b.customerId), b.period, b.amount, adjust, paidOf(b.id), st.remaining, st.label, invState(b).label, adjust > 0 ? '减免' : (adjust < 0 ? '多收' : '')]);
   });
   const ws2 = XLSX.utils.aoa_to_sheet(r2);
-  ws2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+  ws2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }];
   XLSX.utils.book_append_sheet(wb, ws2, '应收台账');
 
   // 工作表3：收款记录
@@ -2788,15 +2772,16 @@ $('#btn-export-cust').addEventListener('click', async () => {
   const wb = XLSX.utils.book_new();
 
   // 月账单
-  const r1 = [['客户', '账期', '账单金额(元)', '已收(元)', '待收(元)', '收款状态', '开票状态', '备注']];
+  const r1 = [['客户', '账期', '应收(元)', '减免/多收(元)', '已收(元)', '待收(元)', '收款状态', '开票状态', '说明', '备注']];
   S.bills.filter(b => b.customerId === cid)
     .sort((a, b) => (a.period || '').localeCompare(b.period || ''))
     .forEach(b => {
       const st = billState(b);
-      r1.push([custName(cid), b.period || '', billBase(b) || 0, st.paid, st.remaining, st.label, invState(b).label, b.note || '']);
+      const adjust = billAdjustValue(b, st);
+      r1.push([custName(cid), b.period || '', b.amount || 0, adjust, paidOf(b.id), st.remaining, st.label, invState(b).label, adjust > 0 ? '减免' : (adjust < 0 ? '多收' : ''), b.note || '']);
     });
   const ws1 = XLSX.utils.aoa_to_sheet(r1);
-  ws1['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 28 }];
+  ws1['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, ws1, '月账单');
 
   // 记一笔日收入（现结收入，不含账单收款）

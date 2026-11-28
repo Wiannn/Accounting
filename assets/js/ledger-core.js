@@ -38,6 +38,8 @@
       ? Math.min(baseCents, Math.max(0, toCents(bill.remainingOverride)))
       : Math.max(0, baseCents - paidRecordsCents);
     const paidCents = hasOverride ? Math.max(0, baseCents - remainingCents) : paidRecordsCents;
+    // 待收大于 0 时不再同时显示多收，避免同一张账单既欠款又多收
+    const overpaidCents = remainingCents > 0 ? 0 : Math.max(0, paidRecordsCents - baseCents);
     let key = 'unpaid', label = '待收';
     if (remainingCents <= 0) { key = 'settled'; label = '已结清'; }
     else if (paidCents > 0) { key = 'partial'; label = '部分收款'; }
@@ -46,22 +48,25 @@
       paidRecordsCents,
       paidCents,
       remainingCents,
-      overpaidCents: Math.max(0, paidRecordsCents - baseCents),
+      overpaidCents,
       base: fromCents(baseCents),
       paidRecords: fromCents(paidRecordsCents),
       paid: fromCents(paidCents),
       remaining: fromCents(remainingCents),
-      overpaid: fromCents(Math.max(0, paidRecordsCents - baseCents)),
+      overpaid: fromCents(overpaidCents),
       key,
       label
     };
   }
 
-  // 差额核销始终以实际收款合计为准，不使用手动待收覆盖值。
+  // 差额核销：把剩余待收记为减免。以实际收款合计为准，不使用手动待收覆盖值；
+  // 实收超过应收（多收）时保留已有减免，不再追加，也不会把已有减免清零。
   function getWriteOffAmount(bill, payments) {
     const amountCents = toCents(bill.amount);
+    const writeOffCents = Math.max(0, toCents(bill.writeOff || 0));
     const paidCents = sumCents((payments || []).filter(p => p.billId === bill.id).map(p => p.amount));
-    return fromCents(amountCents - Math.min(paidCents, amountCents));
+    const targetCents = Math.max(writeOffCents, amountCents - paidCents);
+    return fromCents(Math.min(amountCents, targetCents));
   }
 
   // 修改实收时生成收款与收入的最终变更集，所有差额均用整数分计算。

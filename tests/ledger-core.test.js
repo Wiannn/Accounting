@@ -62,6 +62,24 @@ test('差额核销只按应收与实收计算，不叠加历史减免', () => {
   assert.equal(getWriteOffAmount(bill, paid), 2300);
 });
 
+test('实收超过应收时核销不追加也不清零已有减免', () => {
+  // 多收且无历史减免：核销结果为 0
+  assert.equal(getWriteOffAmount({ id: 'b1', amount: 100 }, [{ billId: 'b1', amount: 120 }]), 0);
+  // 多收但有历史减免：保留原减免
+  const bill = { id: 'b1', amount: 100, writeOff: 10 };
+  assert.equal(getWriteOffAmount(bill, [{ billId: 'b1', amount: 95 }]), 10);
+  // 仅核销剩余部分：已有减免 10，实收 80，应收 100 → 合计减免 20
+  assert.equal(getWriteOffAmount(bill, [{ billId: 'b1', amount: 80 }]), 20);
+  const settledBill = Object.assign({}, bill, { writeOff: getWriteOffAmount(bill, [{ billId: 'b1', amount: 80 }]) });
+  const metrics = getBillMetrics(settledBill, [{ billId: 'b1', amount: 80 }]);
+  assert.equal(metrics.remaining, 0);
+  assert.equal(metrics.overpaid, 0);
+  // 手动待收大于 0 时不再同时标记多收
+  const overridden = getBillMetrics({ id: 'b1', amount: 100, remainingOverride: 20 }, [{ billId: 'b1', amount: 120 }]);
+  assert.equal(overridden.remaining, 20);
+  assert.equal(overridden.overpaid, 0);
+});
+
 test('超额收款保留实收并准确计算多收金额', () => {
   const bill = { id: 'b1', amount: 100, writeOff: 0.05 };
   const payments = [
